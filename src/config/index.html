@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VibePet - Config</title>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>VibePet</h1>
+        <p class="subtitle">Desktop Pet Manager</p>
+      </header>
+
+      <section class="import-section">
+        <button id="import-btn" class="btn primary">Import Pet (.zip)</button>
+        <p id="import-status" class="status"></p>
+      </section>
+
+      <section class="pet-list-section">
+        <h2>My Pets</h2>
+        <div id="pet-list" class="pet-grid"></div>
+        <p id="empty-state" class="empty">No pets imported yet. Download a pet pack and click Import.</p>
+      </section>
+    </div>
+    <script type="module" src="./config.ts"></script>
+  </body>
+</html>

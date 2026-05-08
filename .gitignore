@@ -1,0 +1,47 @@
+# =========================
+# 前端依赖与构建产物 (Node.js/Vite)
+# =========================
+node_modules
+dist
+dist-ssr
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# 桌面端底层编译产物 (Tauri/Rust)
+# =========================
+# 这是最核心的一句，能拦截所有几百兆的 exe, msi 和中间编译文件！
+src-tauri/target/
+
+# =========================
+# AI 工具缓存
+# =========================
+.claude/
+
+# =========================
+# 环境变量
+# =========================
+.env
+.env.*
+*.local
+
+# =========================
+# 编辑器配置与系统缓存
+# =========================
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,0 +1,152 @@
+:root {
+  --hitbox-width: 63%;
+  --hitbox-height: 78%;
+  --hitbox-offset-y: 0%;
+  --hitbox-radius: 30%;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  
+  /* 核心：开启弹性布局并居中 */
+  display: flex;
+  justify-content: center; /* 水平居中 */
+  align-items: center;     /* 垂直居中 */
+  
+  /* 保持原有属性 */
+  background-color: transparent !important;
+  pointer-events: none; /* 确保窗口透明区域不拦截点击 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#pet-container {
+  position: relative;
+  width: 192px;
+  height: 208px;
+  pointer-events: auto !important; 
+  transform: scale(0.6);
+  transform-origin: center; 
+}
+
+#pet-sprite {
+  width: 192px;
+  height: 208px;
+  background-repeat: no-repeat;
+}
+
+#pet-hitbox {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + var(--hitbox-offset-y));
+  transform: translate(-50%, -50%);
+  width: var(--hitbox-width);
+  height: var(--hitbox-height);
+  border-radius: var(--hitbox-radius);
+  pointer-events: auto !important;
+  cursor: grab;
+  -webkit-user-drag: none;
+  background-color: transparent !important;
+  border: 1px dashed transparent !important;
+}
+
+#pet-hitbox:active {
+  cursor: grabbing;
+}
+
+.debug-hitbox #pet-hitbox {
+  background-color: rgba(255, 99, 71, 0.4) !important;
+  border: 1px dashed red;
+}
+
+/* ── Physics Feedback ── */
+
+#pet-container {
+  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+#pet-container.is-lifting {
+  transform: scale(0.6) scaleY(1.05) scaleX(0.95) !important;
+}
+
+#pet-container.is-dropping {
+  transform: scale(0.6) scaleY(0.9) scaleX(1.1) !important;
+}
+
+/* ── Speech Bubble ── */
+
+#pet-speech-bubble {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  width: max-content;
+  max-width: 180px;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #3a3a3a;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1.4;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 200;
+  white-space: normal;
+  word-wrap: break-word;
+  text-align: center;
+}
+
+#pet-speech-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px 6px 0;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.95) transparent transparent transparent;
+}
+
+#pet-speech-bubble.show-bubble {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Particles ── */
+
+.particle {
+  position: fixed;
+  width: 24px;
+  height: 24px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 10000;
+  animation: float-up 0.6s ease-out forwards;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.5);
+  }
+}
