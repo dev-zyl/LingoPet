@@ -9,7 +9,7 @@
     <svg width="0" height="0" style="position: absolute;">
       <filter id="remove-fringe" color-interpolation-filters="sRGB">
         <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="original-alpha"/>
-        <feMorphology in="original-alpha" operator="erode" radius="1" result="eroded-alpha"/>
+        <feMorphology in="original-alpha" operator="erode" radius="1.5" result="eroded-alpha"/>
         <feGaussianBlur in="eroded-alpha" stdDeviation="0.5" result="blurred-alpha"/>
         <feColorMatrix in="blurred-alpha" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 10 -5" result="final-alpha"/>
         <feComposite in="SourceGraphic" in2="final-alpha" operator="in"/>
