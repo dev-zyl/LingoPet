@@ -1,5 +1,5 @@
 import "./pet.css";
-import { getCurrentWindow, cursorPosition } from "@tauri-apps/api/window";
+import { getCurrentWindow, cursorPosition, currentMonitor, LogicalSize, PhysicalPosition } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { exit } from "@tauri-apps/plugin-process";
@@ -188,6 +188,9 @@ let isDraggingInProgress = false;
 let dragThreshold = 5;
 let mouseDownX = 0;
 let mouseDownY = 0;
+let manualDragFrame: number | null = null;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
 
 // ── Bio-Clock State ──
 let isExiting = false;
@@ -195,12 +198,21 @@ let lastActivityTime = Date.now();
 
 // ── Always-on-Top State (persisted) ──
 let isAlwaysOnTop = localStorage.getItem("pet-always-on-top") !== "false";
+const LS_PET_SIZE_SCALE = "pet_size_scale";
+const PET_BASE_WIDTH = 192;
+const PET_BASE_HEIGHT = 208;
+const PET_WINDOW_TOP_PADDING = 48;
 // ── Focus Mode State ──
 let isFocusMode = false;
 let focusEndTime = 0;
 let focusIntervalId: ReturnType<typeof setInterval> | null = null;
 let cachedAlwaysOnTop = true;
 let isBubbleLocked = false;
+let lastPetInteractionTime = 0;
+let isPetHovered = false;
+let isPetMenuOpen = false;
+let isPetPanelOpen = false;
+let lastDragEndTime = 0;
 
 // ── API Settings & Chat Mode ──
 
@@ -235,6 +247,95 @@ function formatDelay(minutes: number): string {
 
 let lastSmartSpeechTimestamp = 0;
 const SMART_COOLDOWN = 10 * 60 * 1000;
+
+function getPetSizeScale(): number {
+  const saved = Number(localStorage.getItem(LS_PET_SIZE_SCALE) || "0.6");
+  if (!Number.isFinite(saved)) return 0.6;
+  return Math.min(1.4, Math.max(0.35, saved));
+}
+
+function getPetPixelSize(scale = getPetSizeScale()): { width: number; height: number } {
+  return {
+    width: Math.round(Math.max(PET_BASE_WIDTH, PET_BASE_WIDTH * scale)),
+    height: Math.round(PET_WINDOW_TOP_PADDING + Math.max(PET_BASE_HEIGHT, PET_BASE_HEIGHT * scale)),
+  };
+}
+
+function formatPetSize(scale = getPetSizeScale()): string {
+  const size = getPetPixelSize(scale);
+  return `${Math.round(scale * 100)}% · ${size.width} x ${size.height}px`;
+}
+
+async function applyPetSizeScale(scale = getPetSizeScale()): Promise<void> {
+  const nextScale = Math.min(1.4, Math.max(0.35, scale));
+  localStorage.setItem(LS_PET_SIZE_SCALE, String(nextScale));
+  document.documentElement.style.setProperty("--pet-scale", String(nextScale));
+  document.documentElement.style.setProperty("--pet-window-top-padding", `${PET_WINDOW_TOP_PADDING}px`);
+
+  const appWindow = getCurrentWindow();
+  const size = getPetPixelSize(nextScale);
+  await appWindow.setSize(new LogicalSize(size.width, size.height));
+}
+
+function showSizePanel(): void {
+  const panel = document.getElementById("size-panel");
+  const slider = document.getElementById("size-slider") as HTMLInputElement | null;
+  const input = document.getElementById("size-input") as HTMLInputElement | null;
+  const text = document.getElementById("size-text");
+  if (!panel || !slider || !input || !text) return;
+
+  const scale = getPetSizeScale();
+  const percent = Math.round(scale * 100);
+  slider.value = String(percent);
+  input.value = String(percent);
+  text.textContent = formatPetSize(scale);
+  isPetPanelOpen = true;
+  lastPetInteractionTime = Date.now();
+  panel.style.display = "flex";
+  panel.style.bottom = "20px";
+}
+
+function setupSizePanel(): void {
+  const panel = document.getElementById("size-panel");
+  const slider = document.getElementById("size-slider") as HTMLInputElement | null;
+  const input = document.getElementById("size-input") as HTMLInputElement | null;
+  const text = document.getElementById("size-text");
+  if (!panel || !slider || !input || !text) return;
+
+  const updateSize = (percent: number): void => {
+    const nextPercent = Math.min(140, Math.max(35, Math.round(percent)));
+    const scale = nextPercent / 100;
+    slider.value = String(nextPercent);
+    input.value = String(nextPercent);
+    text.textContent = formatPetSize(scale);
+    void applyPetSizeScale(scale);
+    lastPetInteractionTime = Date.now();
+  };
+
+  slider.addEventListener("input", () => {
+    updateSize(Number(slider.value));
+  });
+
+  input.addEventListener("input", () => {
+    const value = Number(input.value);
+    if (Number.isFinite(value)) updateSize(value);
+  });
+
+  input.addEventListener("change", () => {
+    updateSize(Number(input.value) || Math.round(getPetSizeScale() * 100));
+  });
+
+  panel.addEventListener("mouseenter", () => {
+    isPetPanelOpen = true;
+    lastPetInteractionTime = Date.now();
+  });
+
+  panel.addEventListener("mouseleave", () => {
+    isPetPanelOpen = false;
+    panel.style.display = "none";
+    panel.style.bottom = "-96px";
+  });
+}
 
 function showApiSettingsPanel(): void {
   const panel = document.getElementById("api-settings-panel");
@@ -912,6 +1013,11 @@ function fetchHitokoto(): void {
 }
 
 function forceEndDrag(engine: PetEngine, container: HTMLElement): void {
+  const didDrag = hasStartedDragging;
+  if (manualDragFrame !== null) {
+    window.cancelAnimationFrame(manualDragFrame);
+    manualDragFrame = null;
+  }
   if (hasStartedDragging) {
     engine.applyState("idle");
     container.classList.remove("is-lifting");
@@ -924,15 +1030,476 @@ function forceEndDrag(engine: PetEngine, container: HTMLElement): void {
   isMouseDown = false;
   hasStartedDragging = false;
   isDraggingInProgress = false;
+  if (didDrag) {
+    lastDragEndTime = Date.now();
+  }
   lastActivityTime = Date.now();
+  lastPetInteractionTime = Date.now();
+}
+
+function startManualWindowDrag(engine: PetEngine, container: HTMLElement): void {
+  const appWindow = getCurrentWindow();
+
+  const dragLoop = () => {
+    if (!isMouseDown || !hasStartedDragging || isExiting) {
+      forceEndDrag(engine, container);
+      return;
+    }
+
+    cursorPosition()
+      .then((pos) => appWindow.setPosition(new PhysicalPosition(
+        Math.round(pos.x - dragOffsetX),
+        Math.round(pos.y - dragOffsetY),
+      )))
+      .catch((err) => {
+        console.warn("manual drag failed:", err);
+        forceEndDrag(engine, container);
+      })
+      .finally(() => {
+        if (isMouseDown && hasStartedDragging && !isExiting) {
+          manualDragFrame = window.requestAnimationFrame(dragLoop);
+        }
+      });
+  };
+
+  manualDragFrame = window.requestAnimationFrame(dragLoop);
+}
+
+// ── Idle Roaming Physics ──
+
+type RoamAction = "idle" | "walk" | "jump" | "fall" | "waiting" | "sprint" | "review" | "failed";
+
+interface RoamPlatform {
+  id: string;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+interface RoamBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+interface RoamState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  width: number;
+  height: number;
+  facing: "left" | "right";
+  action: RoamAction;
+  grounded: boolean;
+  platformId: string;
+  nextDecisionAt: number;
+  lastFrameAt: number;
+  lastPlatformScanAt: number;
+  platforms: RoamPlatform[];
+  bounds: RoamBounds;
+}
+
+const ROAM_ACTIONS: Record<RoamAction, string> = {
+  idle: "idle",
+  walk: "running",
+  jump: "jumping",
+  fall: "jumping",
+  waiting: "waiting",
+  sprint: "running",
+  review: "review",
+  failed: "failed",
+};
+const ROAM_DECISIONS = [
+  { action: "idle", weight: 25 },
+  { action: "walkLeft", weight: 18 },
+  { action: "walkRight", weight: 18 },
+  { action: "jump", weight: 12 },
+  { action: "waiting", weight: 8 },
+  { action: "runLeft", weight: 7 },
+  { action: "runRight", weight: 7 },
+  { action: "review", weight: 4 },
+  { action: "failed", weight: 1 },
+] as const;
+const ROAM_GRAVITY = 1800;
+const ROAM_IDLE_DELAY_MS = 1800;
+
+function randomBetween(min: number, max: number): number {
+  return min + Math.random() * (max - min);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function weightedRoamDecision(): (typeof ROAM_DECISIONS)[number]["action"] {
+  let weight = Math.random() * ROAM_DECISIONS.reduce((sum, item) => sum + item.weight, 0);
+  for (const item of ROAM_DECISIONS) {
+    weight -= item.weight;
+    if (weight <= 0) return item.action;
+  }
+  return "idle";
+}
+
+function canAutoRoam(): boolean {
+  return !isExiting
+    && !isMouseDown
+    && !hasStartedDragging
+    && !isDraggingInProgress
+    && !isPetMenuOpen
+    && !isPetPanelOpen
+    && !isFocusMode
+    && !isPetHovered
+    && Date.now() - lastPetInteractionTime >= ROAM_IDLE_DELAY_MS;
+}
+
+function isManualPetControlActive(): boolean {
+  return isMouseDown || hasStartedDragging || isDraggingInProgress;
+}
+
+function shouldFreezeRoamPhysics(state: RoamState): boolean {
+  const recentlyDragged = Date.now() - lastDragEndTime < 900;
+  return isExiting
+    || isFocusMode
+    || isManualPetControlActive()
+    || isPetMenuOpen
+    || isPetPanelOpen
+    || (isPetHovered && state.grounded && !recentlyDragged);
+}
+
+function setRoamAction(engine: PetEngine, state: RoamState, action: RoamAction): void {
+  if (state.action === action && engine.currentState === ROAM_ACTIONS[action]) return;
+  state.action = action;
+  engine.applyState(ROAM_ACTIONS[action]);
+}
+
+function applyRoamFacing(state: RoamState): void {
+  const spriteEl = document.getElementById("pet-sprite");
+  if (!spriteEl) return;
+  spriteEl.style.transform = state.facing === "left" ? "scaleX(-1)" : "scaleX(1)";
+}
+
+async function syncRoamStateFromWindow(engine: PetEngine, state: RoamState, makeFall: boolean): Promise<void> {
+  const appWindow = getCurrentWindow();
+  const [position, size] = await Promise.all([
+    appWindow.outerPosition(),
+    appWindow.outerSize(),
+  ]);
+  const nextX = position.x + size.width / 2;
+  const nextY = position.y + size.height;
+  const moved = Math.abs(nextX - state.x) > 2 || Math.abs(nextY - state.y) > 2 || size.width !== state.width || size.height !== state.height;
+
+  state.x = nextX;
+  state.y = nextY;
+  state.width = size.width;
+  state.height = size.height;
+  clampRoamToBounds(state);
+
+  if (makeFall && moved) {
+    state.grounded = false;
+    state.platformId = "";
+    state.vy = Math.max(state.vy, 140);
+    setRoamAction(engine, state, "fall");
+  }
+}
+
+function clampRoamToBounds(state: RoamState): void {
+  const minX = state.bounds.left + state.width / 2;
+  const maxX = state.bounds.right - state.width / 2;
+  const minY = state.bounds.top + state.height;
+  const maxY = state.bounds.bottom;
+  const nextX = clamp(state.x, Math.min(minX, maxX), Math.max(minX, maxX));
+  const nextY = clamp(state.y, Math.min(minY, maxY), Math.max(minY, maxY));
+
+  if (nextX !== state.x) {
+    state.vx = nextX <= minX ? Math.abs(state.vx) * 0.25 : -Math.abs(state.vx) * 0.25;
+    state.facing = nextX <= minX ? "right" : "left";
+    applyRoamFacing(state);
+  }
+  if (nextY !== state.y) {
+    state.vy = nextY <= minY ? Math.max(120, state.vy) : 0;
+  }
+
+  state.x = nextX;
+  state.y = nextY;
+}
+
+async function getRoamBounds(): Promise<RoamBounds> {
+  const monitor = await currentMonitor();
+  if (monitor) {
+    return {
+      left: monitor.workArea.position.x,
+      top: monitor.workArea.position.y,
+      right: monitor.workArea.position.x + monitor.workArea.size.width,
+      bottom: monitor.workArea.position.y + monitor.workArea.size.height,
+    };
+  }
+
+  const currentScreen = window.screen as Screen & {
+    availLeft?: number;
+    availTop?: number;
+  };
+  const left = currentScreen.availLeft ?? 0;
+  const top = currentScreen.availTop ?? 0;
+  return {
+    left,
+    top,
+    right: left + currentScreen.availWidth,
+    bottom: top + currentScreen.availHeight,
+  };
+}
+
+async function scanRoamPlatforms(bounds: RoamBounds): Promise<RoamPlatform[]> {
+  try {
+    const platforms = await invoke<RoamPlatform[]>("list_desktop_platforms");
+    return platforms
+      .filter((item) => item.right > bounds.left && item.left < bounds.right && item.bottom > bounds.top && item.top < bounds.bottom)
+      .map((item) => ({
+        ...item,
+        top: Math.max(bounds.top + 24, item.top),
+      }));
+  } catch (err) {
+    console.warn("Desktop platform scan failed:", err);
+    return [];
+  }
+}
+
+function chooseLeapTarget(state: RoamState): RoamPlatform | null {
+  const candidates = state.platforms.filter((platform) => {
+    const center = (platform.left + platform.right) / 2;
+    return platform.top < state.y - 80
+      && Math.abs(center - state.x) < 760
+      && platform.right - platform.left > 80;
+  });
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function chooseNextRoamAction(engine: PetEngine, state: RoamState, now: number): void {
+  if (now < state.nextDecisionAt) return;
+
+  let duration = randomBetween(1000, 2400);
+  switch (weightedRoamDecision()) {
+    case "walkLeft":
+      state.facing = "left";
+      state.vx = -randomBetween(65, 120);
+      setRoamAction(engine, state, "walk");
+      break;
+    case "walkRight":
+      state.facing = "right";
+      state.vx = randomBetween(65, 120);
+      setRoamAction(engine, state, "walk");
+      break;
+    case "runLeft":
+      state.facing = "left";
+      state.vx = -randomBetween(135, 190);
+      duration = randomBetween(700, 1400);
+      setRoamAction(engine, state, "sprint");
+      break;
+    case "runRight":
+      state.facing = "right";
+      state.vx = randomBetween(135, 190);
+      duration = randomBetween(700, 1400);
+      setRoamAction(engine, state, "sprint");
+      break;
+    case "jump":
+      if (state.grounded) {
+        const target = Math.random() < 0.65 ? chooseLeapTarget(state) : null;
+        if (target) {
+          const center = (target.left + target.right) / 2;
+          state.vx = clamp((center - state.x) / 1.25, -280, 280);
+          state.facing = state.vx < 0 ? "left" : "right";
+          state.vy = -randomBetween(1050, 1550);
+        } else {
+          state.vy = -randomBetween(760, 1220);
+        }
+        state.grounded = false;
+        state.platformId = "";
+        setRoamAction(engine, state, "jump");
+      }
+      duration = randomBetween(650, 1100);
+      break;
+    case "waiting":
+      state.vx = 0;
+      setRoamAction(engine, state, "waiting");
+      break;
+    case "review":
+      state.vx = 0;
+      setRoamAction(engine, state, "review");
+      break;
+    case "failed":
+      state.vx = 0;
+      setRoamAction(engine, state, "failed");
+      break;
+    default:
+      state.vx = 0;
+      setRoamAction(engine, state, "idle");
+  }
+
+  applyRoamFacing(state);
+  state.nextDecisionAt = now + duration;
+}
+
+function settleRoamOnPlatform(engine: PetEngine, state: RoamState, platform: RoamPlatform): void {
+  state.y = platform.top;
+  state.vy = 0;
+  state.grounded = true;
+  state.platformId = platform.id;
+  if (state.action === "fall" || state.action === "jump") {
+    setRoamAction(engine, state, "idle");
+  }
+}
+
+function updateRoamPlatformAttachment(state: RoamState): void {
+  if (!state.grounded || !state.platformId || state.platformId === "__ground__") return;
+  const platform = state.platforms.find((item) => item.id === state.platformId);
+  if (!platform) {
+    state.grounded = false;
+    state.platformId = "";
+    return;
+  }
+
+  const left = state.x - state.width / 2;
+  const right = state.x + state.width / 2;
+  if (right <= platform.left + 4 || left >= platform.right - 4) {
+    state.grounded = false;
+    state.platformId = "";
+  } else {
+    state.y = Math.min(state.y, platform.top);
+  }
+}
+
+async function applyRoamWindowPosition(state: RoamState): Promise<void> {
+  const appWindow = getCurrentWindow();
+  await appWindow.setPosition(new PhysicalPosition(
+    Math.round(state.x - state.width / 2),
+    Math.round(state.y - state.height),
+  ));
+}
+
+async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number): Promise<void> {
+  if (!state.lastFrameAt) state.lastFrameAt = now;
+  const dt = Math.min(0.08, Math.max(0.001, (now - state.lastFrameAt) / 1000));
+  state.lastFrameAt = now;
+
+  if (now - state.lastPlatformScanAt > 1200) {
+    state.bounds = await getRoamBounds();
+    state.platforms = await scanRoamPlatforms(state.bounds);
+    state.lastPlatformScanAt = now;
+    clampRoamToBounds(state);
+  }
+
+  if (shouldFreezeRoamPhysics(state)) {
+    await syncRoamStateFromWindow(engine, state, false);
+    state.vx = 0;
+    state.nextDecisionAt = now + 500;
+    if (state.grounded) setRoamAction(engine, state, "idle");
+    return;
+  }
+
+  if (!canAutoRoam()) {
+    await syncRoamStateFromWindow(engine, state, Date.now() - lastDragEndTime < 1200);
+    state.vx = 0;
+    state.nextDecisionAt = now + 500;
+    if (state.grounded) setRoamAction(engine, state, "idle");
+  } else {
+    chooseNextRoamAction(engine, state, now);
+  }
+
+  if (!state.grounded) {
+    state.vy = Math.min(1400, state.vy + ROAM_GRAVITY * dt);
+  } else if (!["walk", "sprint"].includes(state.action)) {
+    state.vx *= 0.85;
+    if (Math.abs(state.vx) < 1) state.vx = 0;
+  }
+
+  const previousY = state.y;
+  let nextX = state.x + state.vx * dt;
+  let nextY = state.y + state.vy * dt;
+
+  if (nextX <= state.bounds.left + state.width / 2) {
+    nextX = state.bounds.left + state.width / 2;
+    state.vx = Math.abs(state.vx) * 0.35;
+    state.facing = "right";
+    applyRoamFacing(state);
+  } else if (nextX >= state.bounds.right - state.width / 2) {
+    nextX = state.bounds.right - state.width / 2;
+    state.vx = -Math.abs(state.vx) * 0.35;
+    state.facing = "left";
+    applyRoamFacing(state);
+  }
+
+  state.x = nextX;
+  state.y = nextY;
+  clampRoamToBounds(state);
+
+  updateRoamPlatformAttachment(state);
+
+  if (!state.grounded && state.vy >= 0) {
+    const left = state.x - state.width / 2;
+    const right = state.x + state.width / 2;
+    for (const platform of state.platforms) {
+      if (previousY <= platform.top && state.y >= platform.top && right > platform.left + 8 && left < platform.right - 8) {
+        settleRoamOnPlatform(engine, state, platform);
+        break;
+      }
+    }
+  }
+
+  if (!state.grounded && state.y >= state.bounds.bottom) {
+    state.y = state.bounds.bottom;
+    state.vy = 0;
+    state.grounded = true;
+    state.platformId = "__ground__";
+    if (state.action === "fall" || state.action === "jump") setRoamAction(engine, state, "idle");
+  }
+
+  if (!state.grounded && state.vy > 0 && state.action !== "fall") {
+    setRoamAction(engine, state, "fall");
+  }
+
+  await applyRoamWindowPosition(state);
+}
+
+async function setupIdleRoaming(engine: PetEngine): Promise<void> {
+  const appWindow = getCurrentWindow();
+  const [position, size, bounds] = await Promise.all([
+    appWindow.outerPosition(),
+    appWindow.outerSize(),
+    getRoamBounds(),
+  ]);
+  const state: RoamState = {
+    x: position.x + size.width / 2,
+    y: Math.min(position.y + size.height, bounds.bottom),
+    vx: 0,
+    vy: 0,
+    width: size.width,
+    height: size.height,
+    facing: "right",
+    action: "idle",
+    grounded: false,
+    platformId: "",
+    nextDecisionAt: performance.now() + 900,
+    lastFrameAt: 0,
+    lastPlatformScanAt: 0,
+    platforms: [],
+    bounds,
+  };
+
+  const tick = (now: number) => {
+    void tickIdleRoaming(engine, state, now).finally(() => {
+      if (!isExiting) window.requestAnimationFrame(tick);
+    });
+  };
+  window.requestAnimationFrame(tick);
 }
 
 async function setupDrag(engine: PetEngine): Promise<void> {
   const hitbox = document.getElementById("pet-hitbox");
   const container = document.getElementById("pet-container");
   if (!hitbox || !container) return;
-
-  const appWindow = getCurrentWindow();
 
   // mousedown - 潜伏阶段
   hitbox.addEventListener("mousedown", (e) => {
@@ -943,6 +1510,7 @@ async function setupDrag(engine: PetEngine): Promise<void> {
     mouseDownX = e.clientX;
     mouseDownY = e.clientY;
     lastActivityTime = Date.now();
+    lastPetInteractionTime = Date.now();
 
     container.classList.remove("is-dropping");
     container.classList.add("is-lifting");
@@ -966,11 +1534,15 @@ async function setupDrag(engine: PetEngine): Promise<void> {
       hasStartedDragging = true;
       isDraggingInProgress = true;
       engine.applyState("running");
-      // startDragging() 是异步的，返回即代表用户已释放鼠标
-      appWindow.startDragging().then(() => {
-        forceEndDrag(engine, container);
+      Promise.all([
+        cursorPosition(),
+        getCurrentWindow().outerPosition(),
+      ]).then(([cursor, position]) => {
+        dragOffsetX = cursor.x - position.x;
+        dragOffsetY = cursor.y - position.y;
+        startManualWindowDrag(engine, container);
       }).catch((err) => {
-        console.warn("startDragging failed:", err);
+        console.warn("prepare manual drag failed:", err);
         forceEndDrag(engine, container);
       });
     }
@@ -981,7 +1553,8 @@ async function setupDrag(engine: PetEngine): Promise<void> {
     if (!isMouseDown) return;
 
     if (hasStartedDragging) {
-      // 拖拽中 mouseup 由 startDragging 的 then 分支处理
+      forceEndDrag(engine, container);
+      return;
     } else {
       container.classList.remove("is-lifting");
       if (isFocusMode) {
@@ -998,6 +1571,7 @@ async function setupDrag(engine: PetEngine): Promise<void> {
     isMouseDown = false;
     hasStartedDragging = false;
     lastActivityTime = Date.now();
+    lastPetInteractionTime = Date.now();
   });
 }
 
@@ -1121,12 +1695,24 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   // Apply persisted always-on-top state on startup
   await appWindow.setAlwaysOnTop(isAlwaysOnTop);
 
+  hitbox.addEventListener("mouseenter", () => {
+    isPetHovered = true;
+    lastPetInteractionTime = Date.now();
+  });
+
+  hitbox.addEventListener("mouseleave", () => {
+    isPetHovered = false;
+    lastPetInteractionTime = Date.now();
+  });
+
   hitbox.addEventListener("contextmenu", async (e) => {
     e.preventDefault();
     if (isExiting) return;
 
+    isPetMenuOpen = true;
     engine.applyState("idle");
     lastActivityTime = Date.now();
+    lastPetInteractionTime = Date.now();
 
     const menu = await Menu.new({
       items: [
@@ -1158,6 +1744,8 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
         { id: "volume", text: "调节音量", action: () => {
           const panel = document.getElementById("volume-panel");
           if (panel) {
+            isPetPanelOpen = true;
+            lastPetInteractionTime = Date.now();
             panel.style.display = "flex";
             panel.style.bottom = "20px";
           }
@@ -1227,6 +1815,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
                 localStorage.setItem("pet-always-on-top", String(isAlwaysOnTop));
                 await appWindow.setAlwaysOnTop(isAlwaysOnTop);
               }},
+              { id: "size", text: "尺寸调整", action: () => showSizePanel() },
               { id: "import", text: "导入宠物 (.zip)", action: () => openImportDialog(engine) },
             ],
           });
@@ -1239,7 +1828,14 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
       ],
     });
 
-    await menu.popup();
+    try {
+      await menu.popup();
+    } finally {
+      window.setTimeout(() => {
+        isPetMenuOpen = false;
+        lastPetInteractionTime = Date.now();
+      }, 800);
+    }
   });
 }
 
@@ -1450,7 +2046,13 @@ function setupVolumePanel(): void {
     playSound("pop");
   });
 
+  panel.addEventListener("mouseenter", () => {
+    isPetPanelOpen = true;
+    lastPetInteractionTime = Date.now();
+  });
+
   panel.addEventListener("mouseleave", () => {
+    isPetPanelOpen = false;
     panel.style.display = "none";
     panel.style.bottom = "-50px";
   });
@@ -1476,6 +2078,7 @@ async function main(): Promise<void> {
   const spritesheetUrl = await loadSpritesheetUrl();
   const engine = new PetEngine(spriteEl, CODEX_ATLAS, spritesheetUrl);
   (window as any).__petEngine = engine;
+  await applyPetSizeScale();
 
   // Boot ceremony: wave then idle, with speech bubble
   engine.applyState("waving");
@@ -1489,7 +2092,9 @@ async function main(): Promise<void> {
   setupEyeTracking();
   setupBioClock(engine);
   setupWakeUp(engine);
+  setupIdleRoaming(engine);
   setupVolumePanel();
+  setupSizePanel();
   setupApiSettingsPanel();
   setupCustomPersonaPanel();
   setupGitHubSettingsPanel();

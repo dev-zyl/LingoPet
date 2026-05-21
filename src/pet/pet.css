@@ -3,6 +3,8 @@
   --hitbox-height: 78%;
   --hitbox-offset-y: 0%;
   --hitbox-radius: 30%;
+  --pet-scale: 0.6;
+  --pet-window-top-padding: 48px;
 }
 
 * {
@@ -24,9 +26,9 @@ html, body {
 
 #pet-container {
   position: absolute;
-  bottom: 10px;
+  bottom: 0;
   left: 50%;
-  transform: translateX(-50%) scale(0.6);
+  transform: translateX(-50%) scale(var(--pet-scale));
   transform-origin: bottom center;
   width: 192px;
   height: 208px;
@@ -71,11 +73,15 @@ html, body {
 }
 
 #pet-container.is-lifting {
-  transform: translateX(-50%) scale(0.6) scaleY(1.05) scaleX(0.95) !important;
+  transform: translateX(-50%) scale(var(--pet-scale)) scaleY(1.05) scaleX(0.95) !important;
+}
+
+#pet-container {
+  margin-top: var(--pet-window-top-padding);
 }
 
 #pet-container.is-dropping {
-  transform: translateX(-50%) scale(0.6) scaleY(0.9) scaleX(1.1) !important;
+  transform: translateX(-50%) scale(var(--pet-scale)) scaleY(0.9) scaleX(1.1) !important;
 }
 /* ── Speech Bubble ── */
 
@@ -171,11 +177,49 @@ html, body {
   transition: bottom 0.25s ease;
 }
 
+#size-panel {
+  position: absolute;
+  right: 8px;
+  bottom: -96px;
+  left: 8px;
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 176px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(24, 24, 24, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #ffffff;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.42);
+  font-family: system-ui, -apple-system, sans-serif;
+  pointer-events: auto;
+  transition: bottom 0.25s ease;
+  z-index: 10002;
+}
+
+.size-panel-header,
+.size-panel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .volume-icon {
   font-size: 11px;
   font-weight: 600;
   opacity: 0.7;
   user-select: none;
+}
+
+.size-icon {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 #volume-slider {
@@ -186,6 +230,18 @@ html, body {
   border-radius: 3px;
   cursor: pointer;
   background: transparent;
+  outline: none;
+}
+
+#size-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 92px;
+  height: 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: linear-gradient(90deg, #7dd3fc, #a7f3d0);
   outline: none;
 }
 
@@ -211,6 +267,18 @@ html, body {
   transition: transform 0.1s ease;
 }
 
+#size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border: 2px solid #111827;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.28);
+}
+
 #volume-slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
@@ -221,11 +289,22 @@ html, body {
   transition: transform 0.1s ease;
 }
 
-#volume-slider::-webkit-slider-thumb:hover {
+#size-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #111827;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.28);
+}
+
+#volume-slider::-webkit-slider-thumb:hover,
+#size-slider::-webkit-slider-thumb:hover {
   transform: scale(1.2);
 }
 
-#volume-slider::-moz-range-thumb:hover {
+#volume-slider::-moz-range-thumb:hover,
+#size-slider::-moz-range-thumb:hover {
   transform: scale(1.2);
 }
 
@@ -236,6 +315,47 @@ html, body {
   font-weight: 500;
   color: rgba(255, 255, 255, 0.85);
   user-select: none;
+}
+
+#size-text {
+  min-width: 104px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.size-input-wrap {
+  display: flex;
+  align-items: center;
+  width: 58px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#size-input {
+  width: 34px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+#size-input::-webkit-inner-spin-button,
+#size-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.size-input-wrap span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
 }
 
 /* ── API Settings Panel (frosted glass) ── */

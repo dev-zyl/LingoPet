@@ -4345,6 +4345,7 @@ dependencies = [
  "tauri-plugin-log",
  "tauri-plugin-process",
  "trash",
+ "windows 0.61.3",
  "zip",
 ]
 
