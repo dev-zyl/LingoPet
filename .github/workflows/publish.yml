@@ -1,0 +1,47 @@
+name: "Publish Release"
+
+on:
+  push:
+    tags:
+      - "v*" # 当你推送以 v 开头的 tag 时触发（例如 v1.0.0）
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--bundles dmg,app"
+          - platform: "windows-latest"
+            args: "--bundles nsis,msi"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Frontend Dependencies
+        run: npm ci || npm install
+
+      - name: Build and Release
+        uses: tauri-apps/tauri-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__ # 自动读取并替换为 package.json 中的版本号
+          releaseName: "VibePet v__VERSION__"
+          releaseBody: "VibePet 桌面宠物自动构建发布版本。"
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
