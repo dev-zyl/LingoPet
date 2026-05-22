@@ -20,6 +20,28 @@
       <div id="pet-sprite"></div>
       <div id="pet-hitbox"></div>
     </div>
+    <div id="pet-context-menu" class="pet-context-menu" aria-hidden="true">
+      <button id="context-manager" class="context-menu-item" type="button">
+        <span class="context-icon">⌘</span>
+        <span>桌宠管理</span>
+      </button>
+      <button id="context-todo" class="context-menu-item" type="button">
+        <span class="context-icon">✓</span>
+        <span>自定义代办</span>
+      </button>
+      <button id="context-focus" class="context-menu-item" type="button">
+        <span class="context-icon">◷</span>
+        <span>专注模式</span>
+      </button>
+      <button id="context-recall" class="context-menu-item" type="button">
+        <span class="context-icon">↩</span>
+        <span>宠物召回</span>
+      </button>
+      <button id="context-quit" class="context-menu-item danger" type="button">
+        <span class="context-icon">×</span>
+        <span>退出应用</span>
+      </button>
+    </div>
     <script type="module" src="./pet.ts"></script>
     <div id="volume-panel" style="display: none;">
       <span class="volume-icon">Vol</span>
@@ -37,6 +59,40 @@
           <input type="number" id="size-input" min="35" max="140" value="60">
           <span>%</span>
         </label>
+      </div>
+    </div>
+    <div id="focus-panel" style="display: none;">
+      <div class="focus-panel-top">
+        <div>
+          <div class="focus-panel-title">专注小屋</div>
+          <div id="focus-state-label">准备开始</div>
+        </div>
+        <div class="focus-orbit" aria-hidden="true"></div>
+      </div>
+
+      <div class="focus-timer-card">
+        <div id="focus-status-text">25:00</div>
+        <div class="focus-progress-track" aria-hidden="true">
+          <div id="focus-progress-bar"></div>
+        </div>
+      </div>
+
+      <div class="focus-preset-row" aria-label="专注时长预设">
+        <button class="focus-preset active" type="button" data-focus-minutes="25">25</button>
+        <button class="focus-preset" type="button" data-focus-minutes="45">45</button>
+        <button class="focus-preset" type="button" data-focus-minutes="60">60</button>
+      </div>
+
+      <div class="focus-input-row">
+        <label class="focus-input-wrap">
+          <input type="number" id="focus-minutes-input" min="1" max="240" value="25">
+          <span>分钟</span>
+        </label>
+      </div>
+
+      <div class="focus-action-row">
+        <button id="focus-start" type="button">开始专注</button>
+        <button id="focus-stop" type="button">STOP</button>
       </div>
     </div>
     <div id="api-settings-panel" style="display: none;">

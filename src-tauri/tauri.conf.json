@@ -26,19 +26,19 @@
       },
       {
         "label": "config",
-        "title": "VibePet - Config",
+        "title": "桌宠管理面板",
         "url": "config/index.html",
-        "width": 800,
-        "height": 600,
+        "width": 1000,
+        "height": 720,
         "resizable": true,
         "visible": false
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https: http:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost https: http:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/**"]
+        "scope": ["$APPDATA/pets/**", "../pets/**"]
       }
     }
   },

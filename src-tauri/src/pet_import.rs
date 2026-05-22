@@ -1,9 +1,18 @@
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
 use std::fs;
-use std::io::Read;
-use std::path::PathBuf;
+use std::io::{Read, Write};
+use std::path::{Component, Path, PathBuf};
+use std::process::Command;
+use std::time::Duration;
 use tauri::AppHandle;
+use tauri::Manager;
+
+const MAX_ZIP_ENTRIES: usize = 256;
+const MAX_PET_JSON_BYTES: u64 = 256 * 1024;
+const MAX_FILE_BYTES: u64 = 50 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 200 * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES: u64 = 100 * 1024 * 1024;
+const DOWNLOAD_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PetManifest {
@@ -19,6 +28,15 @@ pub struct PetManifest {
     pub version: Option<String>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct ProjectPet {
+    #[serde(flatten)]
+    pub manifest: PetManifest,
+    pub dir: String,
+    #[serde(rename = "spritesheetFile")]
+    pub spritesheet_file: String,
+}
+
 fn pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app
         .path()
@@ -29,71 +47,465 @@ fn pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(pets)
 }
 
-#[tauri::command]
-pub fn import_pet_zip(app: AppHandle, zip_path: String) -> Result<PetManifest, String> {
-    let zip_file =
-        fs::File::open(&zip_path).map_err(|e| format!("Failed to open zip: {}", e))?;
-    let mut archive =
-        zip::ZipArchive::new(zip_file).map_err(|e| format!("Failed to read zip: {}", e))?;
-
-    // Read pet.json from zip to get the pet id
-    let mut pet_json_content = String::new();
-    {
-        let mut pet_json = archive
-            .by_name("pet.json")
-            .map_err(|_| "No pet.json found in zip".to_string())?;
-        pet_json
-            .read_to_string(&mut pet_json_content)
-            .map_err(|e| format!("Failed to read pet.json: {}", e))?;
+fn repo_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
+        let root = PathBuf::from(manifest_dir)
+            .parent()
+            .map(Path::to_path_buf)
+            .filter(|path| path.exists());
+        if let Some(root) = root {
+            return Ok(root);
+        }
     }
 
-    let manifest: PetManifest =
-        serde_json::from_str(&pet_json_content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    std::env::current_dir()
+        .ok()
+        .filter(|path| path.join("package.json").exists())
+        .or_else(|| app.path().app_data_dir().ok())
+        .ok_or_else(|| "Failed to resolve project directory".to_string())
+}
 
-    let dest = pets_dir(&app)?.join(&manifest.id);
+fn project_pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let pets = repo_root_dir(app)?.join("pets");
+    fs::create_dir_all(&pets).map_err(|e| format!("Failed to create project pets dir: {}", e))?;
+    Ok(pets)
+}
+
+fn downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let downloads = project_pets_dir(app)?.join("downloads");
+    fs::create_dir_all(&downloads)
+        .map_err(|e| format!("Failed to create downloads dir: {}", e))?;
+    Ok(downloads)
+}
+
+fn sanitize_id(id: &str) -> Result<String, String> {
+    let cleaned: String = id
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+        .collect();
+    if cleaned.is_empty() {
+        Err("Invalid pet id".to_string())
+    } else {
+        Ok(cleaned)
+    }
+}
+
+fn normalize_relative_path(path: &Path) -> Result<PathBuf, String> {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => {
+                let part = part
+                    .to_str()
+                    .ok_or_else(|| "Invalid path encoding".to_string())?;
+                if part.is_empty()
+                    || part.contains('\0')
+                    || part.contains(':')
+                    || part == "__MACOSX"
+                {
+                    return Err("Unsafe path".to_string());
+                }
+                normalized.push(part);
+            }
+            Component::CurDir => {}
+            _ => return Err("Unsafe path".to_string()),
+        }
+    }
+
+    if normalized.as_os_str().is_empty() {
+        Err("Unsafe empty path".to_string())
+    } else {
+        Ok(normalized)
+    }
+}
+
+fn normalize_manifest_path(path: &str) -> Result<PathBuf, String> {
+    if path.trim().is_empty() {
+        return Err("Empty manifest path".to_string());
+    }
+    normalize_relative_path(Path::new(path))
+}
+
+fn is_ignored_zip_entry(name: &str) -> bool {
+    let normalized = name.replace('\\', "/");
+    normalized == "__MACOSX" || normalized.starts_with("__MACOSX/")
+}
+
+fn find_pet_json_entry(
+    archive: &mut zip::ZipArchive<fs::File>,
+) -> Result<(usize, Option<PathBuf>), String> {
+    let mut wrapped = None;
+
+    for i in 0..archive.len() {
+        let file = archive
+            .by_index(i)
+            .map_err(|e| format!("Failed to read zip entry: {}", e))?;
+        if file.is_dir() || is_ignored_zip_entry(file.name()) {
+            continue;
+        }
+        let Some(path) = file.enclosed_name() else {
+            return Err("Unsafe zip path".to_string());
+        };
+        let path = normalize_relative_path(&path)?;
+
+        if path == Path::new("pet.json") {
+            return Ok((i, None));
+        }
+
+        if path.file_name().and_then(|name| name.to_str()) == Some("pet.json") {
+            if let Some(parent) = path.parent() {
+                if parent.components().count() == 1 {
+                    wrapped = Some((i, parent.to_path_buf()));
+                }
+            }
+        }
+    }
+
+    wrapped
+        .map(|(index, root)| (index, Some(root)))
+        .ok_or_else(|| "No pet.json found in zip".to_string())
+}
+
+fn extract_pet_zip(zip_path: &Path, dest: &Path) -> Result<PetManifest, String> {
+    let result = (|| {
+        let zip_file =
+            fs::File::open(zip_path).map_err(|e| format!("Failed to open zip: {}", e))?;
+        let mut archive =
+            zip::ZipArchive::new(zip_file).map_err(|e| format!("Failed to read zip: {}", e))?;
+
+        if archive.len() > MAX_ZIP_ENTRIES {
+            return Err("Pet zip has too many files".to_string());
+        }
+
+        let (pet_json_index, package_root) = find_pet_json_entry(&mut archive)?;
+        let mut pet_json_content = String::new();
+        {
+            let mut pet_json = archive
+                .by_index(pet_json_index)
+                .map_err(|_| "No pet.json found in zip".to_string())?;
+            if pet_json.size() > MAX_PET_JSON_BYTES {
+                return Err("pet.json is too large".to_string());
+            }
+            let mut limited = (&mut pet_json).take(MAX_PET_JSON_BYTES + 1);
+            limited
+                .read_to_string(&mut pet_json_content)
+                .map_err(|e| format!("Failed to read pet.json: {}", e))?;
+            if pet_json_content.len() as u64 > MAX_PET_JSON_BYTES {
+                return Err("pet.json is too large".to_string());
+            }
+        }
+
+        let manifest: PetManifest = serde_json::from_str(&pet_json_content)
+            .map_err(|e| format!("Invalid pet.json: {}", e))?;
+        sanitize_id(&manifest.id)?;
+        let spritesheet_path = normalize_manifest_path(&manifest.spritesheet_path)?;
+
+        if dest.exists() {
+            fs::remove_dir_all(dest)
+                .map_err(|e| format!("Failed to remove existing pet temp dir: {}", e))?;
+        }
+        fs::create_dir_all(dest).map_err(|e| format!("Failed to create pet dir: {}", e))?;
+
+        let mut total_uncompressed = 0_u64;
+        for i in 0..archive.len() {
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| format!("Failed to read zip entry: {}", e))?;
+            let name = file.name().to_string();
+
+            if file.is_dir() || is_ignored_zip_entry(&name) {
+                continue;
+            }
+            if file
+                .unix_mode()
+                .is_some_and(|mode| mode & 0o170000 == 0o120000)
+            {
+                return Err("Zip symlinks are not supported".to_string());
+            }
+            if file.size() > MAX_FILE_BYTES {
+                return Err(format!("Zip entry is too large: {}", name));
+            }
+
+            let Some(path) = file.enclosed_name() else {
+                return Err("Unsafe zip path".to_string());
+            };
+            let path = normalize_relative_path(&path)?;
+            let relative = match &package_root {
+                Some(root) => {
+                    if !path.starts_with(root) {
+                        continue;
+                    }
+                    let stripped = path
+                        .strip_prefix(root)
+                        .map_err(|_| "Unsafe zip path".to_string())?;
+                    if stripped.as_os_str().is_empty() {
+                        continue;
+                    }
+                    normalize_relative_path(stripped)?
+                }
+                None => path,
+            };
+
+            total_uncompressed = total_uncompressed
+                .checked_add(file.size())
+                .ok_or_else(|| "Pet zip is too large".to_string())?;
+            if total_uncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES {
+                return Err("Pet zip is too large".to_string());
+            }
+
+            let out_path = dest.join(&relative);
+            if let Some(parent) = out_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create dir: {}", e))?;
+            }
+
+            let mut out_file = fs::File::create(&out_path)
+                .map_err(|e| format!("Failed to create file: {}", e))?;
+            let written = std::io::copy(&mut (&mut file).take(MAX_FILE_BYTES + 1), &mut out_file)
+                .map_err(|e| format!("Failed to write file: {}", e))?;
+            if written > MAX_FILE_BYTES {
+                let _ = fs::remove_file(&out_path);
+                return Err(format!("Zip entry is too large: {}", name));
+            }
+        }
+
+        if !dest.join("pet.json").is_file() {
+            return Err("pet.json was not extracted".to_string());
+        }
+        if !dest.join(&spritesheet_path).is_file() {
+            return Err("Pet spritesheet was not found".to_string());
+        }
+
+        Ok(manifest)
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_dir_all(dest);
+    }
+
+    result
+}
+
+#[tauri::command]
+pub fn import_pet_zip(app: AppHandle, zip_path: String) -> Result<PetManifest, String> {
+    let temp = pets_dir(&app)?.join("__import_tmp");
+    let manifest = extract_pet_zip(Path::new(&zip_path), &temp)?;
+    let final_id = sanitize_id(&manifest.id)?;
+    let dest = pets_dir(&app)?.join(&final_id);
     if dest.exists() {
         fs::remove_dir_all(&dest)
             .map_err(|e| format!("Failed to remove existing pet: {}", e))?;
     }
-    fs::create_dir_all(&dest).map_err(|e| format!("Failed to create pet dir: {}", e))?;
-
-    // Extract all files
-    for i in 0..archive.len() {
-        let mut file = archive
-            .by_index(i)
-            .map_err(|e| format!("Failed to read zip entry: {}", e))?;
-        let name = file.name().to_string();
-
-        // Skip directories and __MACOSX
-        if name.ends_with('/') || name.starts_with("__MACOSX") {
-            continue;
-        }
-
-        // Strip top-level directory if present (e.g., "xiaoxin/pet.json" -> "pet.json")
-        let relative = if let Some(pos) = name.find('/') {
-            &name[pos + 1..]
-        } else {
-            &name
-        };
-
-        if relative.is_empty() {
-            continue;
-        }
-
-        let out_path = dest.join(relative);
-        if let Some(parent) = out_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create dir: {}", e))?;
-        }
-
-        let mut out_file =
-            fs::File::create(&out_path).map_err(|e| format!("Failed to create file: {}", e))?;
-        std::io::copy(&mut file, &mut out_file)
-            .map_err(|e| format!("Failed to write file: {}", e))?;
-    }
+    fs::rename(&temp, &dest).map_err(|e| format!("Failed to finalize pet import: {}", e))?;
 
     log::info!("Imported pet: {} ({})", manifest.display_name, manifest.id);
     Ok(manifest)
+}
+
+#[tauri::command]
+pub fn import_pet_zip_to_project(app: AppHandle, zip_path: String) -> Result<ProjectPet, String> {
+    let pets = project_pets_dir(&app)?;
+    let tmp_name = format!(
+        ".tmp-import-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_millis()
+    );
+    let tmp = pets.join(tmp_name);
+    let manifest = extract_pet_zip(Path::new(&zip_path), &tmp)?;
+    let final_id = sanitize_id(&manifest.id)?;
+    let dest = pets.join(&final_id);
+    if dest.exists() {
+        fs::remove_dir_all(&dest)
+            .map_err(|e| format!("Failed to replace existing pet: {}", e))?;
+    }
+    fs::rename(&tmp, &dest).map_err(|e| format!("Failed to finalize pet import: {}", e))?;
+    project_pet_from_dir(dest)
+}
+
+#[tauri::command]
+pub fn get_project_pets_dir(app: AppHandle) -> Result<String, String> {
+    project_pets_dir(&app)?
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid project pets path".to_string())
+}
+
+#[tauri::command]
+pub async fn download_pet_to_project(
+    app: AppHandle,
+    pet_id: String,
+    download_url: String,
+) -> Result<ProjectPet, String> {
+    let pet_id = sanitize_id(&pet_id)?;
+    let url = reqwest::Url::parse(&download_url)
+        .map_err(|e| format!("Invalid download URL: {}", e))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("Download URL must use http or https".to_string());
+    }
+
+    let zip_path = downloads_dir(&app)?.join(format!("{pet_id}.zip"));
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(DOWNLOAD_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let mut response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download pet: {}", e))?;
+    if !response.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", response.status()));
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_DOWNLOAD_BYTES)
+    {
+        return Err("Download is too large".to_string());
+    }
+
+    let download_result = (|| -> Result<fs::File, String> {
+        fs::File::create(&zip_path).map_err(|e| format!("Failed to save zip: {}", e))
+    })();
+    let mut zip_file = match download_result {
+        Ok(file) => file,
+        Err(error) => return Err(error),
+    };
+
+    let mut downloaded = 0_u64;
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("Failed to read download: {}", e))?
+    {
+        downloaded = downloaded
+            .checked_add(chunk.len() as u64)
+            .ok_or_else(|| "Download is too large".to_string())?;
+        if downloaded > MAX_DOWNLOAD_BYTES {
+            let _ = fs::remove_file(&zip_path);
+            return Err("Download is too large".to_string());
+        }
+        if let Err(error) = zip_file.write_all(&chunk) {
+            let _ = fs::remove_file(&zip_path);
+            return Err(format!("Failed to save zip: {}", error));
+        }
+    }
+
+    drop(zip_file);
+
+    let app_for_import = app.clone();
+    let pet_id_for_import = pet_id.clone();
+    let zip_path_for_import = zip_path.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let pets = project_pets_dir(&app_for_import)?;
+        let tmp = pets.join(format!(".tmp-{pet_id_for_import}"));
+        let manifest = extract_pet_zip(&zip_path_for_import, &tmp)?;
+        let final_id = sanitize_id(&manifest.id)?;
+        let dest = pets.join(&final_id);
+        if dest.exists() {
+            fs::remove_dir_all(&dest)
+                .map_err(|e| format!("Failed to replace existing pet: {}", e))?;
+        }
+        fs::rename(&tmp, &dest).map_err(|e| format!("Failed to finalize download: {}", e))?;
+        project_pet_from_dir(dest)
+    })
+    .await
+    .map_err(|e| format!("Download task failed: {}", e))?
+}
+
+fn project_pet_from_dir(dir: PathBuf) -> Result<ProjectPet, String> {
+    let pet_json = dir.join("pet.json");
+    let content =
+        fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
+    let manifest: PetManifest =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    let spritesheet_path = normalize_manifest_path(&manifest.spritesheet_path)?;
+    let spritesheet = dir.join(spritesheet_path);
+    Ok(ProjectPet {
+        manifest,
+        dir: dir.to_string_lossy().to_string(),
+        spritesheet_file: spritesheet.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn list_project_pets(app: AppHandle) -> Result<Vec<ProjectPet>, String> {
+    let dir = project_pets_dir(&app)?;
+    let mut pets = Vec::new();
+    for entry in fs::read_dir(&dir).map_err(|e| format!("Failed to read pets dir: {}", e))? {
+        let entry = entry.map_err(|e| format!("Failed to read pet entry: {}", e))?;
+        let path = entry.path();
+        if !path.is_dir() || path.file_name().and_then(|s| s.to_str()).unwrap_or("").starts_with('.') {
+            continue;
+        }
+        if path.join("pet.json").exists() {
+            match project_pet_from_dir(path) {
+                Ok(pet) => pets.push(pet),
+                Err(e) => log::warn!("Skipping invalid project pet: {}", e),
+            }
+        }
+    }
+    pets.sort_by(|a, b| a.manifest.display_name.cmp(&b.manifest.display_name));
+    Ok(pets)
+}
+
+#[tauri::command]
+pub fn delete_project_pet(app: AppHandle, pet_id: String) -> Result<(), String> {
+    let pet_id = sanitize_id(&pet_id)?;
+    let pets = project_pets_dir(&app)?;
+    let dir = pets.join(&pet_id);
+    if dir.exists() {
+        fs::remove_dir_all(&dir).map_err(|e| format!("Failed to delete pet: {}", e))?;
+    }
+    let zip = downloads_dir(&app)?.join(format!("{pet_id}.zip"));
+    if zip.exists() {
+        let _ = fs::remove_file(zip);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_pet_folder(app: AppHandle, pet_id: Option<String>) -> Result<(), String> {
+    let path = match pet_id {
+        Some(id) => project_pets_dir(&app)?.join(sanitize_id(&id)?),
+        None => project_pets_dir(&app)?,
+    };
+    fs::create_dir_all(&path).map_err(|e| format!("Failed to create folder: {}", e))?;
+
+    #[cfg(windows)]
+    {
+        Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_project_pet_dir(app: AppHandle, pet_id: String) -> Result<String, String> {
+    let dir = project_pets_dir(&app)?.join(sanitize_id(&pet_id)?);
+    if !dir.exists() {
+        return Err(format!("Project pet not found: {}", pet_id));
+    }
+    dir.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid project pet path".to_string())
 }
 
 #[tauri::command]

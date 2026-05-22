@@ -1,27 +1,173 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VibePet - Config</title>
+    <title>桌宠管理面板</title>
   </head>
   <body>
     <div id="app">
-      <header>
-        <h1>VibePet</h1>
-        <p class="subtitle">Desktop Pet Manager</p>
-      </header>
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="brand-icon" src="./app-icon.png" alt="" />
+          <div>
+            <h1>桌宠管理面板</h1>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active" data-view="mine" type="button">我的桌宠</button>
+          <button class="nav-item" data-view="recall" type="button">宠物召回</button>
+          <button class="nav-item" data-view="market" type="button">宠物市场</button>
+          <button class="nav-item" data-view="settings" type="button">设置</button>
+        </nav>
+        <section class="online-card" aria-label="在线桌宠状态">
+          <div class="online-card-count">
+            <strong id="online-pet-count">0</strong>
+            <span>只桌宠在线</span>
+          </div>
+          <div id="online-pet-avatars" class="online-pet-avatars" aria-hidden="true"></div>
+          <button id="online-pet-action" class="online-card-action" type="button">查看 / 召回</button>
+        </section>
+      </aside>
 
-      <section class="import-section">
-        <button id="import-btn" class="btn primary">Import Pet (.zip)</button>
-        <p id="import-status" class="status"></p>
-      </section>
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <h2 id="view-title">我的桌宠</h2>
+            <p id="view-subtitle">管理本地宠物并召唤多个桌面实例。</p>
+          </div>
+          <button id="refresh-btn" class="ghost-button" type="button">刷新</button>
+        </header>
 
-      <section class="pet-list-section">
-        <h2>My Pets</h2>
-        <div id="pet-list" class="pet-grid"></div>
-        <p id="empty-state" class="empty">No pets imported yet. Download a pet pack and click Import.</p>
-      </section>
+        <section id="mine-view" class="view active">
+          <div class="panel-head">
+            <div>
+              <p id="pets-path" class="path-text"></p>
+            </div>
+            <button id="open-pets-dir" class="ghost-button" type="button">打开 pets 文件夹</button>
+          </div>
+          <div class="toolbar">
+            <input id="mine-search-input" type="search" placeholder="搜索本地桌宠名称" />
+            <button id="import-local-pet" class="primary-button" type="button">本地导入</button>
+          </div>
+          <p id="mine-status" class="status"></p>
+          <div id="my-pets-list" class="pet-table"></div>
+          <div id="mine-pagination" class="pagination"></div>
+        </section>
+
+        <section id="recall-view" class="view">
+          <div class="panel-head">
+            <div>
+              <p class="path-text">管理当前桌面上已经存在的宠物实例。</p>
+            </div>
+            <div class="row-actions">
+              <button id="recall-selected-pets" class="danger-button" type="button">一键召回</button>
+              <button id="refresh-active-pets" class="ghost-button" type="button">刷新</button>
+            </div>
+          </div>
+          <p id="active-pets-status" class="status"></p>
+          <div id="active-pets-list" class="pet-table compact"></div>
+        </section>
+
+        <section id="market-view" class="view">
+          <div class="toolbar">
+            <input id="search-input" type="search" placeholder="搜索宠物名称" />
+            <div class="segmented">
+              <button class="sort active" data-sort="hot" type="button">热门</button>
+              <button class="sort" data-sort="latest" type="button">最新</button>
+              <button class="sort" data-sort="downloads" type="button">下载</button>
+            </div>
+          </div>
+          <p id="market-status" class="status"></p>
+          <div id="market-grid" class="pet-table"></div>
+          <div id="market-pagination" class="pagination"></div>
+        </section>
+
+        <section id="settings-view" class="view">
+          <div class="settings-panel">
+            <div class="setting-group">
+              <h3>桌宠行为</h3>
+              <label class="setting-row">
+                <span>
+                  <strong>开机自启动</strong>
+                  <small>登录系统后自动启动 VibePet。</small>
+                </span>
+                <input id="autostart-toggle" type="checkbox" />
+              </label>
+              <label class="setting-row">
+                <span>
+                  <strong>窗口置顶</strong>
+                  <small>让桌宠保持在其他窗口上方。</small>
+                </span>
+                <input id="always-top-toggle" type="checkbox" />
+              </label>
+              <label class="setting-row">
+                <span>
+                  <strong>允许召唤多个宠物</strong>
+                  <small>关闭后，每次召唤会先召回已召唤的宠物。</small>
+                </span>
+                <input id="allow-multiple-toggle" type="checkbox" />
+              </label>
+            </div>
+
+            <div class="setting-group">
+              <h3>尺寸调整</h3>
+              <div class="size-setting">
+                <input id="manager-size-slider" type="range" min="35" max="140" value="60" />
+                <label class="number-field">
+                  <input id="manager-size-input" type="number" min="35" max="140" value="60" />
+                  <span>%</span>
+                </label>
+                <span id="manager-size-text" class="size-readout">60% · 115 x 173px</span>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <h3>音量调整</h3>
+              <div class="size-setting volume-setting">
+                <input id="manager-volume-slider" type="range" min="0" max="100" value="60" />
+                <label class="number-field">
+                  <input id="manager-volume-input" type="number" min="0" max="100" value="60" />
+                  <span>%</span>
+                </label>
+                <span id="manager-volume-text" class="size-readout">60%</span>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <h3>对话模式</h3>
+              <div class="form-grid">
+                <label>
+                  <span>模式</span>
+                  <select id="chat-mode-select">
+                    <option value="basic">基础闲聊</option>
+                    <option value="awaken">全面觉醒</option>
+                  </select>
+                </label>
+                <label>
+                  <span>性格</span>
+                  <select id="persona-select">
+                    <option value="sunny">阳光开朗型</option>
+                    <option value="gentle">温柔体贴型</option>
+                    <option value="ice">高冷冰山型</option>
+                    <option value="tsundere">傲娇粘人型</option>
+                    <option value="toxic">犀利毒舌型</option>
+                    <option value="joker">腹黑沙雕型</option>
+                    <option value="custom">自定义</option>
+                  </select>
+                </label>
+              </div>
+              <textarea id="custom-persona-input" rows="4" placeholder="自定义桌宠性格设定"></textarea>
+            </div>
+
+            <div class="setting-group">
+              <h3>存储位置</h3>
+              <p id="settings-pets-path" class="path-text"></p>
+              <button id="settings-open-pets-dir" class="primary-button" type="button">打开目录</button>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
     <script type="module" src="./config.ts"></script>
   </body>

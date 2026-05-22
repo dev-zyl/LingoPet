@@ -52,6 +52,8 @@ const CODEX_ATLAS: PetAtlas = {
 
 // ── Audio SFX (HTML5 Audio, no external libs) ──
 
+const LS_PET_VOLUME = "pet-volume";
+
 const sfx = {
   pop: new Audio(new URL("../assets/audio/pop.mp3", import.meta.url).href),
   boing: new Audio(new URL("../assets/audio/alexzavesa-water-drop-tap-3-463592.mp3", import.meta.url).href),
@@ -60,9 +62,19 @@ const sfx = {
   crunch: new Audio(new URL("../assets/audio/crunch.mp3", import.meta.url).href),
 };
 
-Object.values(sfx).forEach((audio) => {
-  audio.volume = 0.6;
-});
+function getPetVolumePercent(): number {
+  const saved = Number(localStorage.getItem(LS_PET_VOLUME) || "60");
+  return Number.isFinite(saved) ? Math.min(100, Math.max(0, saved)) : 60;
+}
+
+function applyPetVolume(percent: number): void {
+  const level = Math.min(100, Math.max(0, percent)) / 100;
+  Object.values(sfx).forEach((audio) => {
+    audio.volume = level;
+  });
+}
+
+applyPetVolume(getPetVolumePercent());
 
 function playSound(type: keyof typeof sfx): void {
   const audio = sfx[type];
@@ -189,8 +201,11 @@ let dragThreshold = 5;
 let mouseDownX = 0;
 let mouseDownY = 0;
 let manualDragFrame: number | null = null;
+let manualDragSessionId = 0;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+let petWindowOffsetX = 0;
+let petWindowOffsetBottom = 0;
 
 // ── Bio-Clock State ──
 let isExiting = false;
@@ -202,17 +217,21 @@ const LS_PET_SIZE_SCALE = "pet_size_scale";
 const PET_BASE_WIDTH = 192;
 const PET_BASE_HEIGHT = 208;
 const PET_WINDOW_TOP_PADDING = 48;
+const PET_CONTEXT_MENU_SPACE = 174;
 // ── Focus Mode State ──
 let isFocusMode = false;
 let focusEndTime = 0;
+let focusDurationMs = 0;
 let focusIntervalId: ReturnType<typeof setInterval> | null = null;
-let cachedAlwaysOnTop = true;
-let isBubbleLocked = false;
 let lastPetInteractionTime = 0;
 let isPetHovered = false;
 let isPetMenuOpen = false;
 let isPetPanelOpen = false;
 let lastDragEndTime = 0;
+let isWindowIgnoringCursor = false;
+let lastKnownCursorX = -1;
+let lastKnownCursorY = -1;
+let lastSpriteFacing: "left" | "right" | null = null;
 
 // ── API Settings & Chat Mode ──
 
@@ -225,6 +244,69 @@ const LS_CUSTOM_PERSONA = "pet_custom_persona_text";
 const LS_GITHUB_USERNAME = "pet_github_username";
 const LS_GITHUB_LAST_PUSH = "pet_github_last_push_time";
 const LS_TODOS = "pet_todos";
+const LS_PRIMARY_PET_ID = "pet_primary_project_id";
+const LS_FOCUS_MINUTES = "pet_focus_minutes";
+const LS_SUMMONED_PET_IDS = "pet_summoned_pet_ids";
+let apiKeyMigrationWarned = false;
+
+function isTauriRuntime(): boolean {
+  return "__TAURI_INTERNALS__" in window;
+}
+
+async function saveApiKey(key: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    localStorage.setItem(LS_API_KEY, key);
+    return;
+  }
+  await invoke("set_api_key", { key });
+  localStorage.removeItem(LS_API_KEY);
+}
+
+async function getApiKey(): Promise<string | null> {
+  if (!isTauriRuntime()) return localStorage.getItem(LS_API_KEY);
+
+  const legacyKey = localStorage.getItem(LS_API_KEY);
+  if (legacyKey) {
+    try {
+      await invoke("set_api_key", { key: legacyKey });
+      localStorage.removeItem(LS_API_KEY);
+      return legacyKey;
+    } catch (err) {
+      console.warn("API key migration failed:", err);
+      if (!apiKeyMigrationWarned) {
+        apiKeyMigrationWarned = true;
+        showSpeech("API Key 安全迁移失败，请重新保存 API 设置", 5000);
+      }
+      return null;
+    }
+  }
+
+  return await invoke<string | null>("get_api_key");
+}
+
+async function hasApiConfig(): Promise<boolean> {
+  return !!localStorage.getItem(LS_API_ENDPOINT) && !!(await getApiKey());
+}
+
+function getSavedSummonedPetIds(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LS_SUMMONED_PET_IDS) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string" && id.length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setSavedSummonedPetIds(petIds: string[]): void {
+  localStorage.setItem(LS_SUMMONED_PET_IDS, JSON.stringify(petIds.filter(Boolean)));
+}
+
+function removeOneSavedSummonedPetId(petId: string): void {
+  const petIds = getSavedSummonedPetIds();
+  const index = petIds.indexOf(petId);
+  if (index >= 0) petIds.splice(index, 1);
+  setSavedSummonedPetIds(petIds);
+}
 
 interface TodoItem {
   id: string;
@@ -256,14 +338,32 @@ function getPetSizeScale(): number {
 
 function getPetPixelSize(scale = getPetSizeScale()): { width: number; height: number } {
   return {
-    width: Math.round(Math.max(PET_BASE_WIDTH, PET_BASE_WIDTH * scale)),
+    width: Math.round(Math.max(PET_BASE_WIDTH + PET_CONTEXT_MENU_SPACE, PET_BASE_WIDTH * scale + PET_CONTEXT_MENU_SPACE)),
     height: Math.round(PET_WINDOW_TOP_PADDING + Math.max(PET_BASE_HEIGHT, PET_BASE_HEIGHT * scale)),
   };
 }
 
+function getPetVisualRectInWindow(width: number, height: number, scale = getPetSizeScale()): { left: number; top: number; width: number; height: number } {
+  void scale;
+  const visualWidth = PET_BASE_WIDTH;
+  const visualHeight = PET_BASE_HEIGHT;
+  return {
+    left: width / 2 - visualWidth / 2,
+    top: height - visualHeight,
+    width: visualWidth,
+    height: visualHeight,
+  };
+}
+
+function setPetWindowOffset(offsetX: number, offsetBottom: number): void {
+  petWindowOffsetX = Math.round(offsetX);
+  petWindowOffsetBottom = Math.max(0, Math.round(offsetBottom));
+  document.documentElement.style.setProperty("--pet-window-offset-x", `${petWindowOffsetX}px`);
+  document.documentElement.style.setProperty("--pet-window-offset-bottom", `${petWindowOffsetBottom}px`);
+}
+
 function formatPetSize(scale = getPetSizeScale()): string {
-  const size = getPetPixelSize(scale);
-  return `${Math.round(scale * 100)}% · ${size.width} x ${size.height}px`;
+  return `${Math.round(scale * 100)}% · ${Math.round(PET_BASE_WIDTH * scale)} x ${Math.round(PET_BASE_HEIGHT * scale)}px`;
 }
 
 async function applyPetSizeScale(scale = getPetSizeScale()): Promise<void> {
@@ -275,24 +375,7 @@ async function applyPetSizeScale(scale = getPetSizeScale()): Promise<void> {
   const appWindow = getCurrentWindow();
   const size = getPetPixelSize(nextScale);
   await appWindow.setSize(new LogicalSize(size.width, size.height));
-}
-
-function showSizePanel(): void {
-  const panel = document.getElementById("size-panel");
-  const slider = document.getElementById("size-slider") as HTMLInputElement | null;
-  const input = document.getElementById("size-input") as HTMLInputElement | null;
-  const text = document.getElementById("size-text");
-  if (!panel || !slider || !input || !text) return;
-
-  const scale = getPetSizeScale();
-  const percent = Math.round(scale * 100);
-  slider.value = String(percent);
-  input.value = String(percent);
-  text.textContent = formatPetSize(scale);
-  isPetPanelOpen = true;
-  lastPetInteractionTime = Date.now();
-  panel.style.display = "flex";
-  panel.style.bottom = "20px";
+  await clampCurrentWindowToRoamBounds();
 }
 
 function setupSizePanel(): void {
@@ -337,16 +420,283 @@ function setupSizePanel(): void {
   });
 }
 
-function showApiSettingsPanel(): void {
-  const panel = document.getElementById("api-settings-panel");
-  if (!panel) return;
-  const epInput = document.getElementById("api-endpoint") as HTMLInputElement | null;
-  const keyInput = document.getElementById("api-key") as HTMLInputElement | null;
-  const modelInput = document.getElementById("api-model") as HTMLInputElement | null;
-  if (epInput) epInput.value = localStorage.getItem(LS_API_ENDPOINT) || "";
-  if (keyInput) keyInput.value = localStorage.getItem(LS_API_KEY) || "";
-  if (modelInput) modelInput.value = localStorage.getItem(LS_API_MODEL) || "gpt-3.5-turbo";
+function formatFocusRemaining(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function updateFocusStatusText(text: string): void {
+  const status = document.getElementById("focus-status-text");
+  if (status) status.textContent = text;
+}
+
+function updateFocusPanelState(remainingMs: number, running: boolean): void {
+  updateFocusStatusText(formatFocusRemaining(remainingMs));
+  const label = document.getElementById("focus-state-label");
+  if (label) label.textContent = running ? "工作中，桌宠会保持安静" : "准备开始";
+
+  const bar = document.getElementById("focus-progress-bar") as HTMLElement | null;
+  if (bar) {
+    const progress = running && focusDurationMs > 0
+      ? 1 - clamp(remainingMs / focusDurationMs, 0, 1)
+      : 0;
+    bar.style.width = `${Math.round(progress * 100)}%`;
+  }
+}
+
+function syncFocusPresetButtons(minutes: number): void {
+  document.querySelectorAll<HTMLButtonElement>(".focus-preset").forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.focusMinutes) === minutes);
+  });
+}
+
+function setFocusBubbleText(text: string): void {
+  const bubble = document.getElementById("pet-speech-bubble");
+  const bubbleText = bubble?.querySelector(".bubble-text") as HTMLElement | null;
+  if (!bubble || !bubbleText) return;
+  bubbleText.textContent = text;
+  bubble.classList.add("show-bubble");
+}
+
+function clearFocusTimer(): void {
+  if (focusIntervalId) {
+    clearInterval(focusIntervalId);
+    focusIntervalId = null;
+  }
+}
+
+function startFocusMode(minutes: number, engine: PetEngine): void {
+  const duration = Math.min(240, Math.max(1, Math.round(minutes)));
+  localStorage.setItem(LS_FOCUS_MINUTES, String(duration));
+  clearFocusTimer();
+
+  isFocusMode = true;
+  if (manualDragFrame !== null) {
+    window.cancelAnimationFrame(manualDragFrame);
+    manualDragFrame = null;
+  }
+  isMouseDown = false;
+  hasStartedDragging = false;
+  isDraggingInProgress = false;
+  focusDurationMs = duration * 60_000;
+  focusEndTime = Date.now() + focusDurationMs;
+  lastPetInteractionTime = Date.now();
+  lastActivityTime = Date.now();
+  engine.applyState("review");
+  showSpeech(`专注 ${duration} 分钟，开始工作`, 2600);
+  syncFocusPresetButtons(duration);
+
+  focusIntervalId = setInterval(() => {
+    if (!isFocusMode) return;
+    const remaining = focusEndTime - Date.now();
+    if (remaining <= 0) {
+      endFocusMode(engine, true);
+      return;
+    }
+    const remainingText = formatFocusRemaining(remaining);
+    updateFocusPanelState(remaining, true);
+    setFocusBubbleText(`专注中 ${remainingText}`);
+    if (engine.currentState !== "review") engine.applyState("review");
+  }, 1000);
+
+  updateFocusPanelState(focusDurationMs, true);
+}
+
+function endFocusMode(engine: PetEngine, completed: boolean): void {
+  clearFocusTimer();
+  const wasFocusMode = isFocusMode;
+  isFocusMode = false;
+  focusEndTime = 0;
+  focusDurationMs = 0;
+  const savedMinutes = Number(localStorage.getItem(LS_FOCUS_MINUTES) || "25");
+  updateFocusPanelState(savedMinutes * 60_000, false);
+  lastPetInteractionTime = Date.now();
+  lastActivityTime = Date.now();
+
+  if (!wasFocusMode) return;
+  if (completed) playSound("bell");
+  engine.applyState(completed ? "jumping" : "idle");
+  showSpeech(completed ? "专注结束，辛苦啦！" : "已退出专注模式", 3200);
+  if (completed) {
+    window.setTimeout(() => {
+      if (!isExiting && !isFocusMode) engine.applyState("idle");
+    }, 1800);
+  }
+}
+
+function showFocusPanel(): void {
+  const panel = document.getElementById("focus-panel") as HTMLElement | null;
+  const input = document.getElementById("focus-minutes-input") as HTMLInputElement | null;
+  if (!panel || !input) return;
+
+  input.value = localStorage.getItem(LS_FOCUS_MINUTES) || input.value || "25";
+  const minutes = Math.min(240, Math.max(1, Math.round(Number(input.value) || 25)));
+  input.value = String(minutes);
+  syncFocusPresetButtons(minutes);
+  updateFocusPanelState(isFocusMode ? focusEndTime - Date.now() : minutes * 60_000, isFocusMode);
+  positionFocusPanel(panel);
+  isPetPanelOpen = true;
+  lastPetInteractionTime = Date.now();
+}
+
+function positionFocusPanel(panel: HTMLElement): void {
+  const pet = document.getElementById("pet-container");
+  const margin = 8;
+  const gap = 8;
+  panel.style.visibility = "hidden";
   panel.style.display = "block";
+  panel.style.maxHeight = "";
+
+  const panelRect = panel.getBoundingClientRect();
+  const petRect = pet?.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  let left = margin;
+  let top = margin;
+
+  if (petRect) {
+    const rightLeft = petRect.right + gap;
+    const leftLeft = petRect.left - panelRect.width - gap;
+    const sideTop = clamp(
+      petRect.top + petRect.height / 2 - panelRect.height / 2,
+      margin,
+      viewportHeight - panelRect.height - margin,
+    );
+
+    if (rightLeft + panelRect.width <= viewportWidth - margin) {
+      left = rightLeft;
+      top = sideTop;
+    } else if (leftLeft >= margin) {
+      left = leftLeft;
+      top = sideTop;
+    } else {
+      const aboveTop = petRect.top - panelRect.height - gap;
+      if (aboveTop >= margin) {
+        top = aboveTop;
+        left = clamp(petRect.left + petRect.width / 2 - panelRect.width / 2, margin, viewportWidth - panelRect.width - margin);
+      } else {
+        left = clamp(viewportWidth - panelRect.width - margin, margin, viewportWidth - panelRect.width - margin);
+        top = margin;
+      }
+    }
+  }
+
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.top = `${Math.round(top)}px`;
+  panel.style.visibility = "";
+}
+
+function setupFocusPanel(engine: PetEngine): void {
+  const panel = document.getElementById("focus-panel") as HTMLElement | null;
+  const input = document.getElementById("focus-minutes-input") as HTMLInputElement | null;
+  const startBtn = document.getElementById("focus-start") as HTMLButtonElement | null;
+  const stopBtn = document.getElementById("focus-stop") as HTMLButtonElement | null;
+  if (!panel || !input || !startBtn || !stopBtn) return;
+
+  input.value = localStorage.getItem(LS_FOCUS_MINUTES) || "25";
+  syncFocusPresetButtons(Number(input.value) || 25);
+  updateFocusPanelState((Number(input.value) || 25) * 60_000, false);
+
+  document.querySelectorAll<HTMLButtonElement>(".focus-preset").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (isFocusMode) return;
+      const minutes = Number(button.dataset.focusMinutes) || 25;
+      input.value = String(minutes);
+      localStorage.setItem(LS_FOCUS_MINUTES, String(minutes));
+      syncFocusPresetButtons(minutes);
+      updateFocusPanelState(minutes * 60_000, false);
+      lastPetInteractionTime = Date.now();
+    });
+  });
+
+  input.addEventListener("input", () => {
+    if (isFocusMode) return;
+    const minutes = Math.min(240, Math.max(1, Math.round(Number(input.value) || 25)));
+    localStorage.setItem(LS_FOCUS_MINUTES, String(minutes));
+    syncFocusPresetButtons(minutes);
+    updateFocusPanelState(minutes * 60_000, false);
+    lastPetInteractionTime = Date.now();
+  });
+
+  startBtn.addEventListener("click", () => {
+    const minutes = Number(input.value) || 25;
+    startFocusMode(minutes, engine);
+    panel.style.display = "none";
+    isPetPanelOpen = false;
+  });
+
+  stopBtn.addEventListener("click", () => {
+    endFocusMode(engine, false);
+    panel.style.display = "none";
+    isPetPanelOpen = false;
+  });
+
+  panel.addEventListener("mouseenter", () => {
+    isPetPanelOpen = true;
+    lastPetInteractionTime = Date.now();
+  });
+
+  window.addEventListener("pointerdown", (event) => {
+    if (panel.style.display === "none") return;
+    const target = event.target as Node | null;
+    const hitbox = document.getElementById("pet-hitbox");
+    if (target && (panel.contains(target) || hitbox?.contains(target))) return;
+    panel.style.display = "none";
+    isPetPanelOpen = false;
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || panel.style.display === "none") return;
+    panel.style.display = "none";
+    isPetPanelOpen = false;
+  });
+}
+
+function setupManagerSettingsSync(): void {
+  let lastScale = getPetSizeScale();
+  let lastAlwaysOnTop = isAlwaysOnTop;
+  let lastPrimaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
+  window.setInterval(() => {
+    const nextScale = getPetSizeScale();
+    if (Math.abs(nextScale - lastScale) > 0.001) {
+      lastScale = nextScale;
+      void applyPetSizeScale(nextScale);
+    }
+
+    const nextAlwaysOnTop = localStorage.getItem("pet-always-on-top") !== "false";
+    if (nextAlwaysOnTop !== lastAlwaysOnTop) {
+      lastAlwaysOnTop = nextAlwaysOnTop;
+      isAlwaysOnTop = nextAlwaysOnTop;
+      void getCurrentWindow().setAlwaysOnTop(nextAlwaysOnTop);
+    }
+
+    const nextPrimaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
+    if (getCurrentWindow().label === "pet" && nextPrimaryPetId !== lastPrimaryPetId) {
+      lastPrimaryPetId = nextPrimaryPetId;
+      void loadSpritesheetUrl().then((url) => {
+        const engine = (window as any).__petEngine as PetEngine | undefined;
+        engine?.setSpritesheet(url);
+      });
+    }
+  }, 600);
+}
+
+async function restoreSavedSummonedPets(): Promise<void> {
+  if (getCurrentWindow().label !== "pet") return;
+  const savedPetIds = getSavedSummonedPetIds();
+  if (savedPetIds.length === 0) return;
+
+  try {
+    const existing = await invoke<Array<{ label: string; petId: string }>>("list_summoned_pet_windows");
+    if (existing.length > 0) return;
+    for (const petId of savedPetIds) {
+      await invoke("summon_pet_window", { petId });
+    }
+  } catch (err) {
+    console.warn("restore saved summoned pets failed:", err);
+  }
 }
 
 function setupApiSettingsPanel(): void {
@@ -391,9 +741,9 @@ function setupApiSettingsPanel(): void {
 
       if (resp.ok) {
         saveBtn.classList.add("success");
+        await saveApiKey(key);
         saveBtn.textContent = "连接成功";
         localStorage.setItem(LS_API_ENDPOINT, endpoint);
-        localStorage.setItem(LS_API_KEY, key);
         localStorage.setItem(LS_API_MODEL, userModel);
         setTimeout(() => {
           panel.style.display = "none";
@@ -426,14 +776,6 @@ function setupApiSettingsPanel(): void {
   });
 }
 
-function showCustomPersonaPanel(): void {
-  const panel = document.getElementById("custom-persona-panel");
-  if (!panel) return;
-  const textarea = document.getElementById("custom-persona-text") as HTMLTextAreaElement | null;
-  if (textarea) textarea.value = localStorage.getItem(LS_CUSTOM_PERSONA) || "";
-  panel.style.display = "block";
-}
-
 function setupCustomPersonaPanel(): void {
   const panel = document.getElementById("custom-persona-panel");
   const saveBtn = document.getElementById("persona-settings-save");
@@ -449,14 +791,6 @@ function setupCustomPersonaPanel(): void {
   cancelBtn.addEventListener("click", () => {
     panel.style.display = "none";
   });
-}
-
-function showGitHubSettingsPanel(): void {
-  const panel = document.getElementById("github-settings-panel");
-  if (!panel) return;
-  const input = document.getElementById("github-username-input") as HTMLInputElement | null;
-  if (input) input.value = localStorage.getItem(LS_GITHUB_USERNAME) || "";
-  panel.style.display = "block";
 }
 
 function setupGitHubSettingsPanel(): void {
@@ -520,21 +854,70 @@ function setupGitHubSettingsPanel(): void {
 
 let todoPanelJustOpened = false;
 
+function positionTodoPanel(panel: HTMLElement): void {
+  const pet = document.getElementById("pet-container");
+  const margin = 12;
+  const gap = 12;
+  panel.style.visibility = "hidden";
+  panel.style.display = "block";
+  panel.style.maxHeight = `calc(100vh - ${margin * 2}px)`;
+
+  const panelRect = panel.getBoundingClientRect();
+  const petRect = pet?.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  let left = Math.max(margin, (viewportWidth - panelRect.width) / 2);
+  let top = margin;
+
+  if (petRect) {
+    const aboveTop = petRect.top - panelRect.height - gap;
+    const rightLeft = petRect.right + gap;
+    const leftLeft = petRect.left - panelRect.width - gap;
+
+    if (aboveTop >= margin) {
+      top = aboveTop;
+      left = clamp(petRect.left + petRect.width / 2 - panelRect.width / 2, margin, viewportWidth - panelRect.width - margin);
+    } else if (rightLeft + panelRect.width <= viewportWidth - margin) {
+      left = rightLeft;
+      top = clamp(petRect.top, margin, viewportHeight - panelRect.height - margin);
+    } else if (leftLeft >= margin) {
+      left = leftLeft;
+      top = clamp(petRect.top, margin, viewportHeight - panelRect.height - margin);
+    } else {
+      const safeHeight = Math.max(120, petRect.top - gap - margin);
+      if (safeHeight < panelRect.height) {
+        panel.style.maxHeight = `${safeHeight}px`;
+      }
+      top = margin;
+      left = clamp(petRect.left + petRect.width / 2 - panelRect.width / 2, margin, viewportWidth - panelRect.width - margin);
+    }
+  }
+
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.top = `${Math.round(top)}px`;
+  panel.style.visibility = "";
+}
+
 function showTodoPanel(): void {
   const panel = document.getElementById("todo-panel");
   const input = document.getElementById("todo-input") as HTMLInputElement | null;
   if (!panel) return;
+  const engine = (window as any).__petEngine as PetEngine | undefined;
 
   // 根据 API 配置状态切换 placeholder
   if (input) {
-    const hasApi = !!localStorage.getItem(LS_API_ENDPOINT) && !!localStorage.getItem(LS_API_KEY);
-    input.placeholder = hasApi
-      ? "10分钟后叫我喝水 / 学习深度学习"
-      : "输入记事内容 (配置 API 解锁倒计时)";
+    input.placeholder = "输入记事内容 (配置 API 解锁倒计时)";
+    void hasApiConfig().then((hasApi) => {
+      input.placeholder = hasApi
+        ? "10分钟后叫我喝水 / 学习深度学习"
+        : "输入记事内容 (配置 API 解锁倒计时)";
+    });
   }
 
   todoPanelJustOpened = true;
-  panel.style.display = "block";
+  positionTodoPanel(panel);
+  lastPetInteractionTime = Date.now();
+  engine?.applyState("idle");
   // 下一帧解除锁定，防止刚打开就被全局 mousedown 关闭
   requestAnimationFrame(() => { todoPanelJustOpened = false; });
 }
@@ -546,7 +929,7 @@ async function parseTodoIntent(userInput: string): Promise<TodoItem | null> {
 
   // 纯文字任务交给大模型判断
   const endpoint0 = localStorage.getItem(LS_API_ENDPOINT);
-  const apiKey = localStorage.getItem(LS_API_KEY);
+  const apiKey = await getApiKey();
   const model = localStorage.getItem(LS_API_MODEL) || "gpt-3.5-turbo";
   if (!endpoint0 || !apiKey) {
     showSpeech("请先配置 API 节点", 3000);
@@ -831,7 +1214,7 @@ function setupTodoPanel(): void {
     input.value = "";
     panel.style.display = "none";
 
-    const hasApi = !!localStorage.getItem(LS_API_ENDPOINT) && !!localStorage.getItem(LS_API_KEY);
+    const hasApi = await hasApiConfig();
 
     let item: TodoItem | null;
 
@@ -929,7 +1312,7 @@ async function triggerSmartSpeech(): Promise<void> {
   }
 
   let endpoint = localStorage.getItem(LS_API_ENDPOINT);
-  const apiKey = localStorage.getItem(LS_API_KEY);
+  const apiKey = await getApiKey();
 
   if (!endpoint || !apiKey) {
     localStorage.setItem(LS_CHAT_MODE, "basic");
@@ -1018,9 +1401,11 @@ function forceEndDrag(engine: PetEngine, container: HTMLElement): void {
     window.cancelAnimationFrame(manualDragFrame);
     manualDragFrame = null;
   }
+  manualDragSessionId += 1;
   if (hasStartedDragging) {
     engine.applyState("idle");
     container.classList.remove("is-lifting");
+    container.classList.remove("is-dragging");
     container.classList.add("is-dropping");
     if (!isFocusMode) playSound("boing");
     setTimeout(() => {
@@ -1039,6 +1424,42 @@ function forceEndDrag(engine: PetEngine, container: HTMLElement): void {
 
 function startManualWindowDrag(engine: PetEngine, container: HTMLElement): void {
   const appWindow = getCurrentWindow();
+  const boundsPromise = Promise.all([appWindow.outerSize(), getRoamBounds()]);
+  const dragSessionId = ++manualDragSessionId;
+  let isMoveInFlight = false;
+  let lastDragWindowX = Number.NaN;
+  let lastDragWindowY = Number.NaN;
+  let queuedWindowPosition: { x: number; y: number } | null = null;
+
+  container.classList.add("is-dragging");
+
+  const applyLatestWindowPosition = (): void => {
+    if (isMoveInFlight || !queuedWindowPosition) return;
+    if (dragSessionId !== manualDragSessionId || !isMouseDown || !hasStartedDragging || isExiting) {
+      queuedWindowPosition = null;
+      return;
+    }
+
+    const next = queuedWindowPosition;
+    queuedWindowPosition = null;
+    if (next.x === lastDragWindowX && next.y === lastDragWindowY) {
+      applyLatestWindowPosition();
+      return;
+    }
+
+    lastDragWindowX = next.x;
+    lastDragWindowY = next.y;
+    isMoveInFlight = true;
+    void appWindow.setPosition(new PhysicalPosition(next.x, next.y))
+      .catch((err) => {
+        console.warn("manual drag failed:", err);
+        forceEndDrag(engine, container);
+      })
+      .finally(() => {
+        isMoveInFlight = false;
+        applyLatestWindowPosition();
+      });
+  };
 
   const dragLoop = () => {
     if (!isMouseDown || !hasStartedDragging || isExiting) {
@@ -1046,11 +1467,24 @@ function startManualWindowDrag(engine: PetEngine, container: HTMLElement): void 
       return;
     }
 
-    cursorPosition()
-      .then((pos) => appWindow.setPosition(new PhysicalPosition(
-        Math.round(pos.x - dragOffsetX),
-        Math.round(pos.y - dragOffsetY),
-      )))
+    void cursorPosition()
+      .then(async (pos) => {
+        const [size, bounds] = await boundsPromise;
+        if (dragSessionId !== manualDragSessionId || !isMouseDown || !hasStartedDragging || isExiting) return;
+        const nextPosition = clampPetVisualWindowPositionToBounds(
+          pos.x - dragOffsetX,
+          pos.y - dragOffsetY,
+          size.width,
+          size.height,
+          bounds,
+        );
+        const nextX = nextPosition.x;
+        const nextY = nextPosition.y;
+        updateLastKnownCursor(pos.x, pos.y);
+        if (dragSessionId !== manualDragSessionId || !isMouseDown || !hasStartedDragging || isExiting) return;
+        queuedWindowPosition = { x: nextX, y: nextY };
+        applyLatestWindowPosition();
+      })
       .catch((err) => {
         console.warn("manual drag failed:", err);
         forceEndDrag(engine, container);
@@ -1063,6 +1497,122 @@ function startManualWindowDrag(engine: PetEngine, container: HTMLElement): void 
   };
 
   manualDragFrame = window.requestAnimationFrame(dragLoop);
+}
+
+function updateLastKnownCursor(x: number, y: number): void {
+  if (x !== lastKnownCursorX || y !== lastKnownCursorY) {
+    lastKnownCursorX = x;
+    lastKnownCursorY = y;
+    lastActivityTime = Date.now();
+  }
+}
+
+function applySpriteFacing(facing: "left" | "right"): void {
+  if (lastSpriteFacing === facing) return;
+  const spriteEl = document.getElementById("pet-sprite");
+  if (!spriteEl) return;
+  lastSpriteFacing = facing;
+  spriteEl.style.transform = facing === "left" ? "scaleX(-1)" : "scaleX(1)";
+}
+
+function isElementVisible(el: HTMLElement): boolean {
+  const style = window.getComputedStyle(el);
+  const rect = el.getBoundingClientRect();
+  return style.display !== "none"
+    && style.visibility !== "hidden"
+    && style.opacity !== "0"
+    && rect.width > 0
+    && rect.height > 0;
+}
+
+function isPointInRect(x: number, y: number, rect: DOMRect): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+function isBlockingPetPanelOpen(): boolean {
+  const panelIds = [
+    "pet-context-menu",
+    "volume-panel",
+    "size-panel",
+    "focus-panel",
+    "api-settings-panel",
+    "custom-persona-panel",
+    "github-settings-panel",
+    "todo-panel",
+  ];
+  return panelIds.some((id) => {
+    const panel = document.getElementById(id) as HTMLElement | null;
+    return !!panel && isElementVisible(panel);
+  });
+}
+
+function isPointOverInteractivePetArea(x: number, y: number): boolean {
+  const hitbox = document.getElementById("pet-hitbox") as HTMLElement | null;
+  if (hitbox && isPointInRect(x, y, hitbox.getBoundingClientRect())) return true;
+
+  return [
+    "pet-context-menu",
+    "volume-panel",
+    "size-panel",
+    "focus-panel",
+    "api-settings-panel",
+    "custom-persona-panel",
+    "github-settings-panel",
+    "todo-panel",
+  ].some((id) => {
+    const panel = document.getElementById(id) as HTMLElement | null;
+    return !!panel && isElementVisible(panel) && isPointInRect(x, y, panel.getBoundingClientRect());
+  });
+}
+
+async function setCursorPassthrough(ignore: boolean): Promise<void> {
+  if (isWindowIgnoringCursor === ignore) return;
+  isWindowIgnoringCursor = ignore;
+  try {
+    await getCurrentWindow().setIgnoreCursorEvents(ignore);
+  } catch (err) {
+    console.warn("setIgnoreCursorEvents failed:", err);
+  }
+}
+
+function setupCursorPassthrough(): void {
+  const appWindow = getCurrentWindow();
+  let inFlight = false;
+  let cachedScaleFactor = 1;
+  let lastScaleRefreshAt = 0;
+
+  window.setInterval(() => {
+    if (isExiting || inFlight) return;
+
+    inFlight = true;
+    const now = Date.now();
+    const scalePromise = now - lastScaleRefreshAt > 3000
+      ? appWindow.scaleFactor().then((scaleFactor) => {
+          cachedScaleFactor = scaleFactor;
+          lastScaleRefreshAt = now;
+          return scaleFactor;
+        })
+      : Promise.resolve(cachedScaleFactor);
+
+    void Promise.all([
+      cursorPosition(),
+      appWindow.outerPosition(),
+      scalePromise,
+    ]).then(([cursor, position, scaleFactor]) => {
+      updateLastKnownCursor(cursor.x, cursor.y);
+      const localX = (cursor.x - position.x) / scaleFactor;
+      const localY = (cursor.y - position.y) / scaleFactor;
+      const needsPetInput = isManualPetControlActive()
+        || isPetMenuOpen
+        || isPetPanelOpen
+        || isPointOverInteractivePetArea(localX, localY);
+      void setCursorPassthrough(!needsPetInput);
+    }).catch(() => {
+      void setCursorPassthrough(false);
+    }).finally(() => {
+      inFlight = false;
+    });
+  }, 96);
 }
 
 // ── Idle Roaming Physics ──
@@ -1098,6 +1648,9 @@ interface RoamState {
   nextDecisionAt: number;
   lastFrameAt: number;
   lastPlatformScanAt: number;
+  lastWindowSyncAt: number;
+  lastAppliedWindowX: number;
+  lastAppliedWindowY: number;
   platforms: RoamPlatform[];
   bounds: RoamBounds;
 }
@@ -1134,6 +1687,30 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function clampWindowPositionToBounds(x: number, y: number, width: number, height: number, bounds: RoamBounds): { x: number; y: number } {
+  const minX = bounds.left;
+  const maxX = bounds.right - width;
+  const minY = bounds.top;
+  const maxY = bounds.bottom - height;
+  return {
+    x: Math.round(clamp(x, Math.min(minX, maxX), Math.max(minX, maxX))),
+    y: Math.round(clamp(y, Math.min(minY, maxY), Math.max(minY, maxY))),
+  };
+}
+
+function clampPetVisualWindowPositionToBounds(x: number, y: number, width: number, height: number, bounds: RoamBounds): { x: number; y: number } {
+  const visualRect = getPetVisualRectInWindow(width, height);
+  const desiredVisualLeft = x + visualRect.left;
+  const desiredVisualTop = y + visualRect.top;
+  const clampedVisualLeft = clamp(desiredVisualLeft, bounds.left, bounds.right - visualRect.width);
+  const clampedVisualTop = clamp(desiredVisualTop, bounds.top, bounds.bottom - visualRect.height);
+  setPetWindowOffset(0, 0);
+  return {
+    x: Math.round(clampedVisualLeft - visualRect.left),
+    y: Math.round(clampedVisualTop - visualRect.top),
+  };
+}
+
 function weightedRoamDecision(): (typeof ROAM_DECISIONS)[number]["action"] {
   let weight = Math.random() * ROAM_DECISIONS.reduce((sum, item) => sum + item.weight, 0);
   for (const item of ROAM_DECISIONS) {
@@ -1150,6 +1727,7 @@ function canAutoRoam(): boolean {
     && !isDraggingInProgress
     && !isPetMenuOpen
     && !isPetPanelOpen
+    && !isBlockingPetPanelOpen()
     && !isFocusMode
     && !isPetHovered
     && Date.now() - lastPetInteractionTime >= ROAM_IDLE_DELAY_MS;
@@ -1166,7 +1744,12 @@ function shouldFreezeRoamPhysics(state: RoamState): boolean {
     || isManualPetControlActive()
     || isPetMenuOpen
     || isPetPanelOpen
+    || isBlockingPetPanelOpen()
     || (isPetHovered && state.grounded && !recentlyDragged);
+}
+
+function shouldPauseRoamDecisions(): boolean {
+  return !canAutoRoam();
 }
 
 function setRoamAction(engine: PetEngine, state: RoamState, action: RoamAction): void {
@@ -1176,9 +1759,7 @@ function setRoamAction(engine: PetEngine, state: RoamState, action: RoamAction):
 }
 
 function applyRoamFacing(state: RoamState): void {
-  const spriteEl = document.getElementById("pet-sprite");
-  if (!spriteEl) return;
-  spriteEl.style.transform = state.facing === "left" ? "scaleX(-1)" : "scaleX(1)";
+  applySpriteFacing(state.facing);
 }
 
 async function syncRoamStateFromWindow(engine: PetEngine, state: RoamState, makeFall: boolean): Promise<void> {
@@ -1187,15 +1768,17 @@ async function syncRoamStateFromWindow(engine: PetEngine, state: RoamState, make
     appWindow.outerPosition(),
     appWindow.outerSize(),
   ]);
-  const nextX = position.x + size.width / 2;
-  const nextY = position.y + size.height;
+  const nextX = position.x + size.width / 2 + petWindowOffsetX;
+  const nextY = position.y + size.height - petWindowOffsetBottom;
   const moved = Math.abs(nextX - state.x) > 2 || Math.abs(nextY - state.y) > 2 || size.width !== state.width || size.height !== state.height;
 
   state.x = nextX;
   state.y = nextY;
   state.width = size.width;
   state.height = size.height;
+  state.lastWindowSyncAt = performance.now();
   clampRoamToBounds(state);
+  await applyRoamWindowPosition(state);
 
   if (makeFall && moved) {
     state.grounded = false;
@@ -1249,6 +1832,18 @@ async function getRoamBounds(): Promise<RoamBounds> {
     right: left + currentScreen.availWidth,
     bottom: top + currentScreen.availHeight,
   };
+}
+
+async function clampCurrentWindowToRoamBounds(): Promise<void> {
+  const appWindow = getCurrentWindow();
+  const [position, size, bounds] = await Promise.all([
+    appWindow.outerPosition(),
+    appWindow.outerSize(),
+    getRoamBounds(),
+  ]);
+  const nextPosition = clampWindowPositionToBounds(position.x, position.y, size.width, size.height, bounds);
+  if (nextPosition.x === position.x && nextPosition.y === position.y) return;
+  await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
 }
 
 async function scanRoamPlatforms(bounds: RoamBounds): Promise<RoamPlatform[]> {
@@ -1371,12 +1966,52 @@ function updateRoamPlatformAttachment(state: RoamState): void {
   }
 }
 
+function findStandingPlatform(state: RoamState): RoamPlatform | null {
+  const left = state.x - state.width / 2;
+  const right = state.x + state.width / 2;
+  const footTolerance = 10;
+  return state.platforms.find((platform) => {
+    const hasHorizontalOverlap = right > platform.left + 8 && left < platform.right - 8;
+    return hasHorizontalOverlap && Math.abs(state.y - platform.top) <= footTolerance;
+  }) ?? null;
+}
+
+function refreshGroundingAfterDrag(engine: PetEngine, state: RoamState): void {
+  const standingPlatform = findStandingPlatform(state);
+  if (standingPlatform) {
+    settleRoamOnPlatform(engine, state, standingPlatform);
+    return;
+  }
+
+  if (Math.abs(state.y - state.bounds.bottom) <= 3) {
+    state.y = state.bounds.bottom;
+    state.vy = 0;
+    state.grounded = true;
+    state.platformId = "__ground__";
+    return;
+  }
+
+  state.grounded = false;
+  state.platformId = "";
+  state.vy = Math.max(state.vy, 180);
+  setRoamAction(engine, state, "fall");
+}
+
 async function applyRoamWindowPosition(state: RoamState): Promise<void> {
-  const appWindow = getCurrentWindow();
-  await appWindow.setPosition(new PhysicalPosition(
-    Math.round(state.x - state.width / 2),
-    Math.round(state.y - state.height),
-  ));
+  const position = clampWindowPositionToBounds(
+    state.x - state.width / 2 - petWindowOffsetX,
+    state.y - state.height + petWindowOffsetBottom,
+    state.width,
+    state.height,
+    state.bounds,
+  );
+  const nextX = position.x;
+  const nextY = position.y;
+  if (nextX === state.lastAppliedWindowX && nextY === state.lastAppliedWindowY) return;
+
+  state.lastAppliedWindowX = nextX;
+  state.lastAppliedWindowY = nextY;
+  await getCurrentWindow().setPosition(new PhysicalPosition(nextX, nextY));
 }
 
 async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number): Promise<void> {
@@ -1384,28 +2019,49 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
   const dt = Math.min(0.08, Math.max(0.001, (now - state.lastFrameAt) / 1000));
   state.lastFrameAt = now;
 
-  if (now - state.lastPlatformScanAt > 1200) {
-    state.bounds = await getRoamBounds();
-    state.platforms = await scanRoamPlatforms(state.bounds);
-    state.lastPlatformScanAt = now;
-    clampRoamToBounds(state);
-  }
-
+  const recentlyDragged = Date.now() - lastDragEndTime < 1200;
+  const shouldSyncWindow = now - state.lastWindowSyncAt > 220;
   if (shouldFreezeRoamPhysics(state)) {
-    await syncRoamStateFromWindow(engine, state, false);
+    if (shouldSyncWindow) await syncRoamStateFromWindow(engine, state, false);
     state.vx = 0;
     state.nextDecisionAt = now + 500;
     if (state.grounded) setRoamAction(engine, state, "idle");
     return;
   }
 
-  if (!canAutoRoam()) {
-    await syncRoamStateFromWindow(engine, state, Date.now() - lastDragEndTime < 1200);
+  const pauseRoamDecisions = shouldPauseRoamDecisions();
+  if (pauseRoamDecisions && shouldSyncWindow) {
+    await syncRoamStateFromWindow(engine, state, recentlyDragged);
+  }
+
+  if (recentlyDragged && now - state.lastPlatformScanAt > 120) {
+    state.bounds = await getRoamBounds();
+    state.platforms = await scanRoamPlatforms(state.bounds);
+    state.lastPlatformScanAt = now;
+    refreshGroundingAfterDrag(engine, state);
+  } else if (recentlyDragged) {
+    refreshGroundingAfterDrag(engine, state);
+  }
+
+  if (pauseRoamDecisions && state.grounded) {
     state.vx = 0;
     state.nextDecisionAt = now + 500;
     if (state.grounded) setRoamAction(engine, state, "idle");
-  } else {
+    return;
+  }
+
+  if (now - state.lastPlatformScanAt > 3500) {
+    state.bounds = await getRoamBounds();
+    state.platforms = await scanRoamPlatforms(state.bounds);
+    state.lastPlatformScanAt = now;
+    clampRoamToBounds(state);
+  }
+
+  if (!pauseRoamDecisions) {
     chooseNextRoamAction(engine, state, now);
+  } else {
+    state.vx = 0;
+    state.nextDecisionAt = now + 500;
   }
 
   if (!state.grounded) {
@@ -1484,6 +2140,9 @@ async function setupIdleRoaming(engine: PetEngine): Promise<void> {
     nextDecisionAt: performance.now() + 900,
     lastFrameAt: 0,
     lastPlatformScanAt: 0,
+    lastWindowSyncAt: 0,
+    lastAppliedWindowX: position.x,
+    lastAppliedWindowY: position.y,
     platforms: [],
     bounds,
   };
@@ -1504,6 +2163,10 @@ async function setupDrag(engine: PetEngine): Promise<void> {
   // mousedown - 潜伏阶段
   hitbox.addEventListener("mousedown", (e) => {
     if (e.button !== 0 || isExiting || isDraggingInProgress) return;
+    if (isFocusMode) {
+      showSpeech("专注中，先把工作做完", 1800);
+      return;
+    }
 
     isMouseDown = true;
     hasStartedDragging = false;
@@ -1558,9 +2221,7 @@ async function setupDrag(engine: PetEngine): Promise<void> {
     } else {
       container.classList.remove("is-lifting");
       if (isFocusMode) {
-        isBubbleLocked = true;
         showSpeech("嘘，专心工作...", 2000);
-        setTimeout(() => { isBubbleLocked = false; }, 2000);
       } else {
         spawnParticles(e.clientX, e.clientY);
         playSound("pop");
@@ -1578,6 +2239,29 @@ async function setupDrag(engine: PetEngine): Promise<void> {
 // ── Pet Loading ──
 
 async function loadSpritesheetUrl(): Promise<string> {
+  const params = new URLSearchParams(window.location.search);
+  const windowLabel = getCurrentWindow().label;
+  const summonedPetId = /^pet-(.+)-\d+$/.exec(windowLabel)?.[1] ?? null;
+  const primaryPetId = windowLabel === "pet"
+    ? localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet"
+    : null;
+  const projectPetId = params.get("petId") || summonedPetId || primaryPetId;
+  if (projectPetId === "ikun-pet") {
+    return new URL("../builtin-pets/ikun-pet/spritesheet.webp", import.meta.url).href;
+  }
+  if (projectPetId) {
+    try {
+      const petDir = await invoke<string>("get_project_pet_dir", { petId: projectPetId });
+      const content = await fetch(convertFileSrc(`${petDir}/pet.json`)).then((resp) => resp.json()) as PetManifest;
+      const spritesheetPath = `${petDir}/${content.spritesheetPath}`;
+      const url = convertFileSrc(spritesheetPath);
+      console.log(`Loading project pet: ${content.displayName} from ${url}`);
+      return url;
+    } catch (e) {
+      console.warn("Project pet failed to load, using fallback:", e);
+    }
+  }
+
   try {
     const pets = await invoke<PetManifest[]>("list_pets");
     if (pets.length > 0) {
@@ -1599,101 +2283,109 @@ async function loadSpritesheetUrl(): Promise<string> {
   return new URL("./spritesheet.webp", import.meta.url).href;
 }
 
+async function recallCurrentPet(): Promise<void> {
+  const appWindow = getCurrentWindow();
+  const label = appWindow.label;
+  const summonedPetId = /^pet-(.+)-\d+$/.exec(label)?.[1] ?? null;
+  try {
+    if (label === "pet") {
+      await invoke("hide_primary_pet_window");
+      return;
+    }
+    if (summonedPetId) {
+      removeOneSavedSummonedPetId(summonedPetId);
+      await invoke("close_summoned_pet_window", { label });
+    }
+  } catch (err) {
+    console.warn("recall current pet failed:", err);
+  }
+}
+
+async function getVisiblePetCount(): Promise<number> {
+  const [summoned, primaryVisible] = await Promise.all([
+    invoke<Array<{ label: string; petId: string }>>("list_summoned_pet_windows"),
+    invoke<boolean>("is_primary_pet_window_visible"),
+  ]);
+  return summoned.length + (primaryVisible ? 1 : 0);
+}
+
 // ── Context Menu (Custom DOM) ──
 
-async function openImportDialog(engine: PetEngine): Promise<void> {
-  try {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const file = await open({
-      multiple: false,
-      filters: [{ name: "宠物包", extensions: ["zip"] }],
-    });
-    if (!file) return;
-
-    const manifest = await invoke<PetManifest>("import_pet_zip", { zipPath: file });
-    console.log(`Imported: ${manifest.displayName}`);
-
-    const petDir = await invoke<string>("get_pet_dir", { petId: manifest.id });
-    const url = convertFileSrc(`${petDir}/${manifest.spritesheetPath}`);
-    engine.setSpritesheet(url);
-    localStorage.setItem("current_pet_id", manifest.id);
-  } catch (e) {
-    console.error("Import failed:", e);
-  }
-}
-
-async function startFocusMode(minutes: number, engine: PetEngine): Promise<void> {
-  if (focusIntervalId) {
-    clearInterval(focusIntervalId);
-    focusIntervalId = null;
-  }
-  const appWindow = getCurrentWindow();
-  cachedAlwaysOnTop = isAlwaysOnTop;
-  await appWindow.setAlwaysOnTop(false);
-
-  isFocusMode = true;
-  engine.applyState("waiting");
-  focusEndTime = Date.now() + minutes * 60000;
-
-  // 显示开始提示并锁定气泡，防止倒计时覆盖
-  isBubbleLocked = true;
-  showSpeech(`专注 ${minutes} 分钟，开始！`, 3000);
-  setTimeout(() => { isBubbleLocked = false; }, 3000);
-
-  // 延迟 3 秒后再启动倒计时轮询，避免覆盖开始提示
-  setTimeout(() => {
-    // 先用极大时长显示气泡，使其进入稳定显示状态
-    showSpeech("专注中...", 9999999);
-
-    focusIntervalId = setInterval(async () => {
-      const remaining = Math.max(0, focusEndTime - Date.now());
-      if (remaining <= 0) {
-        await endFocusMode(true, engine);
-        return;
-      }
-      const min = Math.floor(remaining / 60000);
-      const sec = Math.floor((remaining % 60000) / 1000);
-      if (!isBubbleLocked) {
-        // 直接刷新文字内容，不重新触发 CSS 气泡动画，避免闪烁
-        const bubbleText = document.querySelector("#pet-speech-bubble .bubble-text") as HTMLElement | null;
-        if (bubbleText) {
-          bubbleText.textContent = `专注中 ${min}:${sec.toString().padStart(2, "0")}`;
-        }
-      }
-    }, 1000);
-  }, 3000);
-}
-
-async function endFocusMode(_isAuto: boolean, engine: PetEngine): Promise<void> {
-  if (focusIntervalId) {
-    clearInterval(focusIntervalId);
-    focusIntervalId = null;
-  }
-  if (_isAuto) playSound("bell");
-  isFocusMode = false;
-  isBubbleLocked = false;
-
-  const appWindow = getCurrentWindow();
-  await appWindow.setAlwaysOnTop(true);
-  engine.applyState("jumping");
-  showSpeech("专注结束，辛苦啦！", 4000);
-
-  setTimeout(async () => {
-    if (!isExiting) {
-      engine.applyState("idle");
-      await appWindow.setAlwaysOnTop(cachedAlwaysOnTop);
-    }
-  }, 4000);
-}
-
 async function setupContextMenu(engine: PetEngine): Promise<void> {
-  const { Menu, Submenu, CheckMenuItem } = await import("@tauri-apps/api/menu");
   const appWindow = getCurrentWindow();
   const hitbox = document.getElementById("pet-hitbox");
-  if (!hitbox) return;
+  const menu = document.getElementById("pet-context-menu") as HTMLElement | null;
+  const managerButton = document.getElementById("context-manager") as HTMLButtonElement | null;
+  const todoButton = document.getElementById("context-todo") as HTMLButtonElement | null;
+  const focusButton = document.getElementById("context-focus") as HTMLButtonElement | null;
+  const recallButton = document.getElementById("context-recall") as HTMLButtonElement | null;
+  const quitButton = document.getElementById("context-quit") as HTMLButtonElement | null;
+  if (!hitbox || !menu || !managerButton || !todoButton || !focusButton || !recallButton || !quitButton) return;
 
   // Apply persisted always-on-top state on startup
   await appWindow.setAlwaysOnTop(isAlwaysOnTop);
+
+  const hideMenu = (): void => {
+    menu.classList.remove("show");
+    menu.setAttribute("aria-hidden", "true");
+    window.setTimeout(() => {
+      if (!menu.classList.contains("show")) {
+        isPetMenuOpen = false;
+        lastPetInteractionTime = Date.now();
+      }
+    }, 160);
+  };
+
+  const positionMenu = (): void => {
+    menu.style.visibility = "hidden";
+    menu.classList.add("show");
+    const menuRect = menu.getBoundingClientRect();
+    const petRect = document.getElementById("pet-container")?.getBoundingClientRect();
+    const gap = 10;
+    const margin = 8;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const baseTop = petRect
+      ? petRect.top + Math.max(8, petRect.height * 0.08)
+      : margin;
+
+    let left = petRect ? petRect.right + gap : margin;
+    if (left + menuRect.width + margin > viewportWidth && petRect) {
+      left = petRect.left - menuRect.width - gap;
+    }
+    if (left < margin) {
+      left = Math.min(viewportWidth - menuRect.width - margin, margin);
+    }
+
+    const top = Math.min(
+      Math.max(margin, baseTop),
+      Math.max(margin, viewportHeight - menuRect.height - margin),
+    );
+
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.visibility = "";
+  };
+
+  const updateRecallVisibility = async (): Promise<void> => {
+    try {
+      const visiblePetCount = await getVisiblePetCount();
+      recallButton.style.display = visiblePetCount > 1 ? "" : "none";
+    } catch (err) {
+      console.warn("pet count check failed:", err);
+      recallButton.style.display = "none";
+    }
+  };
+
+  const showMenu = async (): Promise<void> => {
+    isPetMenuOpen = true;
+    engine.applyState("idle");
+    lastActivityTime = Date.now();
+    lastPetInteractionTime = Date.now();
+    await updateRecallVisibility();
+    positionMenu();
+    menu.setAttribute("aria-hidden", "false");
+  };
 
   hitbox.addEventListener("mouseenter", () => {
     isPetHovered = true;
@@ -1709,133 +2401,52 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     e.preventDefault();
     if (isExiting) return;
 
+    void showMenu();
+  });
+
+  managerButton.addEventListener("click", () => {
+    hideMenu();
+    void invoke("open_manager_window");
+  });
+
+  todoButton.addEventListener("click", () => {
+    hideMenu();
+    showTodoPanel();
+  });
+
+  focusButton.addEventListener("click", () => {
+    hideMenu();
+    showFocusPanel();
+  });
+
+  recallButton.addEventListener("click", () => {
+    hideMenu();
+    void recallCurrentPet();
+  });
+
+  quitButton.addEventListener("click", () => {
+    hideMenu();
+    isExiting = true;
+    engine.applyState("failed");
+    setTimeout(() => exit(0), 3000);
+  });
+
+  menu.addEventListener("mouseenter", () => {
     isPetMenuOpen = true;
-    engine.applyState("idle");
-    lastActivityTime = Date.now();
     lastPetInteractionTime = Date.now();
+  });
 
-    const menu = await Menu.new({
-      items: [
-        await Submenu.new({
-          text: "动作演示",
-          items: [
-            { id: "idle", text: "待机", action: () => engine.applyState("idle") },
-            { id: "waving", text: "打招呼", action: () => engine.applyState("waving") },
-            { id: "jumping", text: "跳跃", action: () => engine.applyState("jumping") },
-            { id: "running", text: "奔跑", action: () => engine.applyState("running") },
-            { id: "failed", text: "失败", action: () => engine.applyState("failed") },
-            { id: "waiting", text: "等待", action: () => engine.applyState("waiting") },
-            { id: "review", text: "思考", action: () => engine.applyState("review") },
-          ],
-        }),
-        { id: "todo", text: "自定义代办...", action: () => showTodoPanel() },
-        await Submenu.new({
-          text: "定时专注",
-          items: [
-            { id: "focus-5", text: "5 分钟", action: () => startFocusMode(5, engine) },
-            { id: "focus-15", text: "15 分钟", action: () => startFocusMode(15, engine) },
-            { id: "focus-30", text: "30 分钟", action: () => startFocusMode(30, engine) },
-            { id: "focus-45", text: "45 分钟", action: () => startFocusMode(45, engine) },
-            { id: "focus-60", text: "60 分钟", action: () => startFocusMode(60, engine) },
-            { item: "Separator" as const },
-            { id: "focus-cancel", text: "退出专注", action: () => endFocusMode(false, engine) },
-          ],
-        }),
-        { id: "volume", text: "调节音量", action: () => {
-          const panel = document.getElementById("volume-panel");
-          if (panel) {
-            isPetPanelOpen = true;
-            lastPetInteractionTime = Date.now();
-            panel.style.display = "flex";
-            panel.style.bottom = "20px";
-          }
-        }},
-        await (async () => {
-          const currentMode = localStorage.getItem(LS_CHAT_MODE) || "basic";
-          const currentPersona = localStorage.getItem(LS_PERSONA_MODE) || "tsundere";
-          const personaAction = (key: string) => () => {
-            localStorage.setItem(LS_CHAT_MODE, "awaken");
-            localStorage.setItem(LS_PERSONA_MODE, key);
-          };
-          return Submenu.new({
-            text: "对话模式",
-            items: [
-              await CheckMenuItem.new({
-                id: "mode-basic",
-                text: "基础闲聊 (Hitokoto)",
-                checked: currentMode === "basic",
-                action: () => {
-                  localStorage.setItem(LS_CHAT_MODE, "basic");
-                },
-              }),
-              await Submenu.new({
-                text: "全面觉醒 (大模型)",
-                items: [
-                  await CheckMenuItem.new({ id: "persona-sunny", text: "阳光开朗型", checked: currentMode === "awaken" && currentPersona === "sunny", action: personaAction("sunny") }),
-                  await CheckMenuItem.new({ id: "persona-gentle", text: "温柔体贴型", checked: currentMode === "awaken" && currentPersona === "gentle", action: personaAction("gentle") }),
-                  await CheckMenuItem.new({ id: "persona-ice", text: "高冷冰山型", checked: currentMode === "awaken" && currentPersona === "ice", action: personaAction("ice") }),
-                  await CheckMenuItem.new({ id: "persona-tsundere", text: "傲娇粘人型", checked: currentMode === "awaken" && currentPersona === "tsundere", action: personaAction("tsundere") }),
-                  await CheckMenuItem.new({ id: "persona-toxic", text: "犀利毒舌型", checked: currentMode === "awaken" && currentPersona === "toxic", action: personaAction("toxic") }),
-                  await CheckMenuItem.new({ id: "persona-joker", text: "腹黑沙雕型", checked: currentMode === "awaken" && currentPersona === "joker", action: personaAction("joker") }),
-                  { item: "Separator" as const },
-                  { id: "persona-custom", text: "自定义性格...", action: () => {
-                    localStorage.setItem(LS_CHAT_MODE, "awaken");
-                    localStorage.setItem(LS_PERSONA_MODE, "custom");
-                    showCustomPersonaPanel();
-                  }},
-                ],
-              }),
-              { item: "Separator" as const },
-              { id: "api-connect", text: "接入 API...", action: () => showApiSettingsPanel() },
-              { id: "github-connect", text: "关联 GitHub...", action: () => showGitHubSettingsPanel() },
-            ],
-          });
-        })(),
-        { item: "Separator" },
-        await (async () => {
-          const { enable, disable, isEnabled } = await import("@tauri-apps/plugin-autostart");
-          const autoOn = await isEnabled();
-          const autoLabel = autoOn ? "◉ 开机自启动" : "◎ 开机自启动";
-          const topLabel = isAlwaysOnTop ? "◉ 窗口置顶" : "◎ 窗口置顶";
-          return Submenu.new({
-            text: "设置",
-            items: [
-              { id: "autostart", text: autoLabel, action: async () => {
-                const on = await isEnabled();
-                if (on) {
-                  await disable();
-                  showSpeech("已关闭开机自启动", 2000);
-                } else {
-                  await enable();
-                  showSpeech("已开启开机自启动", 2000);
-                }
-              }},
-              { id: "toggle-top", text: topLabel, action: async () => {
-                isAlwaysOnTop = !isAlwaysOnTop;
-                localStorage.setItem("pet-always-on-top", String(isAlwaysOnTop));
-                await appWindow.setAlwaysOnTop(isAlwaysOnTop);
-              }},
-              { id: "size", text: "尺寸调整", action: () => showSizePanel() },
-              { id: "import", text: "导入宠物 (.zip)", action: () => openImportDialog(engine) },
-            ],
-          });
-        })(),
-        { id: "quit", text: "退出", action: () => {
-          isExiting = true;
-          engine.applyState("failed");
-          setTimeout(() => exit(0), 3000);
-        }},
-      ],
-    });
+  menu.addEventListener("mouseleave", hideMenu);
 
-    try {
-      await menu.popup();
-    } finally {
-      window.setTimeout(() => {
-        isPetMenuOpen = false;
-        lastPetInteractionTime = Date.now();
-      }, 800);
-    }
+  window.addEventListener("pointerdown", (event) => {
+    if (!menu.classList.contains("show")) return;
+    const target = event.target as Node | null;
+    if (target && (menu.contains(target) || hitbox.contains(target))) return;
+    hideMenu();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") hideMenu();
   });
 }
 
@@ -1872,32 +2483,18 @@ function setupEyeTracking(): void {
   if (!spriteEl) return;
 
   window.addEventListener("mousemove", (e) => {
-    if (isExiting) return;
+    if (isExiting || hasStartedDragging) return;
     const centerX = window.innerWidth / 2;
-    spriteEl.style.transform = e.clientX < centerX ? "scaleX(-1)" : "scaleX(1)";
+    applySpriteFacing(e.clientX < centerX ? "left" : "right");
   });
 }
 
 // ── Bio-Clock Idle Mechanism ──
 
 function setupBioClock(engine: PetEngine): void {
-  let lastCursorX = -1;
-  let lastCursorY = -1;
   let lastNightHour = -1;
 
-  // Poll global cursor position via Tauri API
-  setInterval(async () => {
-    try {
-      const pos = await cursorPosition();
-      if (pos.x !== lastCursorX || pos.y !== lastCursorY) {
-        lastCursorX = pos.x;
-        lastCursorY = pos.y;
-        lastActivityTime = Date.now();
-      }
-    } catch {
-      // cursor_position may not be available, ignore
-    }
-
+  setInterval(() => {
     if (isExiting || isMouseDown || hasStartedDragging || isFocusMode) return;
 
     // 23:00 late night trigger
@@ -2025,25 +2622,31 @@ function setupVolumePanel(): void {
   const text = document.getElementById("volume-text");
   if (!panel || !slider || !text) return;
 
+  const updatePanel = (value: number): void => {
+    const next = Math.min(100, Math.max(0, Math.round(value)));
+    slider.value = String(next);
+    text.textContent = String(next);
+    applyPetVolume(next);
+    const pct = `${next}%`;
+    slider.style.background =
+      `linear-gradient(to right, #00BFFF ${pct}, rgba(255,255,255,0.2) ${pct})`;
+  };
+
   // 初始化轨道进度背景
-  const initPct = slider.value + "%";
-  slider.style.background =
-    `linear-gradient(to right, #00BFFF ${initPct}, rgba(255,255,255,0.2) ${initPct})`;
+  updatePanel(getPetVolumePercent());
 
   slider.addEventListener("input", () => {
     const value = parseInt(slider.value, 10);
-    text.textContent = String(value);
-    const level = value / 100;
-    Object.values(sfx).forEach((audio) => { audio.volume = level; });
-
-    // 动态轨道进度：天蓝色填充左侧，灰色填充右侧
-    const pct = value + "%";
-    slider.style.background =
-      `linear-gradient(to right, #00BFFF ${pct}, rgba(255,255,255,0.2) ${pct})`;
+    localStorage.setItem(LS_PET_VOLUME, String(value));
+    updatePanel(value);
   });
 
   slider.addEventListener("change", () => {
     playSound("pop");
+  });
+
+  window.addEventListener("storage", (event) => {
+    if (event.key === LS_PET_VOLUME) updatePanel(getPetVolumePercent());
   });
 
   panel.addEventListener("mouseenter", () => {
@@ -2089,17 +2692,21 @@ async function main(): Promise<void> {
 
   setupDrag(engine);
   setupContextMenu(engine);
+  setupCursorPassthrough();
   setupEyeTracking();
   setupBioClock(engine);
   setupWakeUp(engine);
   setupIdleRoaming(engine);
+  setupManagerSettingsSync();
   setupVolumePanel();
   setupSizePanel();
+  setupFocusPanel(engine);
   setupApiSettingsPanel();
   setupCustomPersonaPanel();
   setupGitHubSettingsPanel();
   setupFileDrop();
   setupTodoPanel();
+  void restoreSavedSummonedPets();
 
   // GitHub 贡献度监控：启动 3 秒后初检，之后每 5 分钟轮询
   setTimeout(() => checkGitHubStatus(), 3000);

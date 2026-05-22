@@ -3,6 +3,8 @@ dist
 dist-ssr
 
 codexpet/
+pets/*
+!pets/.gitkeep
 
 # Logs
 logs

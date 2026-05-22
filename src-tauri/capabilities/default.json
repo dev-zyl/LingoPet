@@ -4,6 +4,7 @@
   "description": "enables the default permissions",
   "windows": [
     "pet",
+    "pet-*",
     "config"
   ],
   "permissions": [
