@@ -158,6 +158,40 @@
                 </label>
               </div>
               <textarea id="custom-persona-input" rows="4" placeholder="自定义桌宠性格设定"></textarea>
+              <div id="api-config-fields" class="api-config-fields">
+                <label class="full-field">
+                  <span>大模型地址</span>
+                  <input id="api-endpoint-input" type="url" placeholder="https://api.example.com/v1/chat/completions" spellcheck="false" autocomplete="off" />
+                </label>
+                <label class="full-field">
+                  <span>API Key</span>
+                  <div class="inline-control api-key-control">
+                    <input id="api-key-input" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off" />
+                    <button id="toggle-api-key-visibility" class="inline-button icon-inline-button" type="button" aria-label="显示密钥" aria-pressed="false">
+                      <svg class="eye-icon eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      <svg class="eye-icon eye-hide" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 3l18 18"></path>
+                        <path d="M10.7 5.2A9.9 9.9 0 0 1 12 5c6 0 9.5 7 9.5 7a17.5 17.5 0 0 1-3.2 4.1"></path>
+                        <path d="M6.6 6.9A17.8 17.8 0 0 0 2.5 12s3.5 7 9.5 7a9.3 9.3 0 0 0 4.1-.9"></path>
+                        <path d="M9.9 9.9A3 3 0 0 0 14.1 14.1"></path>
+                      </svg>
+                    </button>
+                    <button id="test-api-btn" class="inline-button" type="button">测试</button>
+                  </div>
+                </label>
+                <label class="full-field">
+                  <span>模型名称</span>
+                  <div class="model-control">
+                    <input id="api-model-input" type="text" placeholder="gpt-3.5-turbo" spellcheck="false" autocomplete="off" />
+                    <select id="api-model-select" aria-label="选择模型" hidden></select>
+                    <button id="fetch-models-btn" class="inline-button" type="button">自动获取</button>
+                  </div>
+                </label>
+                <p id="api-config-status" class="api-config-status"></p>
+              </div>
             </div>
 
             <div class="setting-group">

@@ -272,7 +272,7 @@ html, body {
   grid-template-columns: 26px 1fr;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 10px 0 8px;
   border: 0;
   border-radius: 10px;
@@ -291,6 +291,16 @@ html, body {
 
 .context-menu-item:active {
   transform: translateY(1px);
+}
+
+.context-menu-item.is-active {
+  background: rgba(72, 187, 120, 0.16);
+  color: #baf7d0;
+}
+
+.context-menu-item.is-active .context-icon {
+  background: rgba(72, 187, 120, 0.2);
+  color: #9ff2bc;
 }
 
 .context-icon {
@@ -333,6 +343,44 @@ html, body {
   pointer-events: none;
   z-index: 10000;
   animation: float-up 0.6s ease-out forwards;
+}
+
+.music-note {
+  position: fixed;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  z-index: 10001;
+  color: #77d7ff;
+  font: 800 22px/1 "Segoe UI Symbol", "Apple Color Emoji", system-ui, sans-serif;
+  text-shadow:
+    0 0 8px rgba(90, 200, 255, 0.7),
+    0 2px 6px rgba(0, 0, 0, 0.24);
+  animation: music-note-float 1.15s cubic-bezier(0.18, 0.76, 0.32, 1) forwards;
+}
+
+#pet-container.music-rhythm-active {
+  animation: music-rhythm-bop 780ms ease-in-out infinite;
+}
+
+@keyframes music-rhythm-bop {
+  0%, 100% { transform: translateX(-50%) scale(var(--pet-scale)); }
+  35% { transform: translateX(-50%) translateY(-5px) scale(calc(var(--pet-scale) * 1.04)); }
+  62% { transform: translateX(-50%) translateY(1px) scale(calc(var(--pet-scale) * 0.98)); }
+}
+
+@keyframes music-note-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 8px) scale(0.72) rotate(-8deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--note-drift-x, 24px), -78px) scale(1.28) rotate(16deg);
+  }
 }
 
 @keyframes float-up {

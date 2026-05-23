@@ -193,6 +193,118 @@ function spawnParticles(x: number, y: number): void {
   }
 }
 
+// ── Music Rhythm Visualizer ──
+
+const LS_MUSIC_RHYTHM_ENABLED = "pet_music_rhythm_enabled";
+const MUSIC_NOTE_CHARS = ["♪", "♫", "♬", "♩"];
+let isMusicRhythmAutoEnabled = localStorage.getItem(LS_MUSIC_RHYTHM_ENABLED) !== "false";
+let isMusicRhythmMode = false;
+let musicRhythmTimerId: number | null = null;
+let musicRhythmPollTimerId: number | null = null;
+let lastSystemAudioPlaying = false;
+
+function spawnMusicNote(): void {
+  const container = document.getElementById("pet-container");
+  const rect = container?.getBoundingClientRect();
+  if (!rect) return;
+
+  const note = document.createElement("div");
+  note.className = "music-note";
+  note.textContent = MUSIC_NOTE_CHARS[Math.floor(Math.random() * MUSIC_NOTE_CHARS.length)];
+  note.style.left = `${rect.left + rect.width * (0.42 + Math.random() * 0.28)}px`;
+  note.style.top = `${rect.top + rect.height * (0.16 + Math.random() * 0.22)}px`;
+  note.style.setProperty("--note-drift-x", `${(Math.random() - 0.25) * 58}px`);
+  note.addEventListener("animationend", () => note.remove());
+  document.body.appendChild(note);
+}
+
+function scheduleNextMusicBeat(): void {
+  if (!isMusicRhythmMode) return;
+  const nextBeatMs = 360 + Math.floor(Math.random() * 340);
+  musicRhythmTimerId = window.setTimeout(() => {
+    spawnMusicNote();
+    if (Math.random() > 0.62) {
+      window.setTimeout(spawnMusicNote, 120);
+    }
+    scheduleNextMusicBeat();
+  }, nextBeatMs);
+}
+
+function setMusicRhythmMode(enabled: boolean, announce = true): void {
+  isMusicRhythmMode = enabled;
+
+  const container = document.getElementById("pet-container");
+  container?.classList.toggle("music-rhythm-active", enabled);
+
+  if (musicRhythmTimerId !== null) {
+    window.clearTimeout(musicRhythmTimerId);
+    musicRhythmTimerId = null;
+  }
+  if (enabled) {
+    spawnMusicNote();
+    scheduleNextMusicBeat();
+  }
+
+  if (announce) {
+    showSpeech(enabled ? "音乐律动开启" : "音乐律动关闭", 1600);
+  }
+}
+
+function updateMusicRhythmButton(): void {
+  const musicButton = document.getElementById("context-music") as HTMLButtonElement | null;
+  if (!musicButton) return;
+
+  musicButton.classList.toggle("is-active", isMusicRhythmAutoEnabled);
+  musicButton.setAttribute("aria-pressed", String(isMusicRhythmAutoEnabled));
+  const label = musicButton.querySelector("span:last-child");
+  if (label) {
+    label.textContent = isMusicRhythmAutoEnabled ? "音乐律动" : "律动关闭";
+  }
+}
+
+async function pollSystemAudioState(): Promise<void> {
+  if (!isMusicRhythmAutoEnabled) return;
+  if (!isTauriRuntime()) return;
+
+  try {
+    const isPlaying = await invoke<boolean>("is_system_audio_playing");
+    lastSystemAudioPlaying = isPlaying;
+    if (isPlaying !== isMusicRhythmMode) {
+      setMusicRhythmMode(isPlaying, false);
+    }
+  } catch (err) {
+    console.warn("system audio check failed:", err);
+  }
+}
+
+function setMusicRhythmAutoEnabled(enabled: boolean, announce = true): void {
+  isMusicRhythmAutoEnabled = enabled;
+  localStorage.setItem(LS_MUSIC_RHYTHM_ENABLED, enabled ? "true" : "false");
+  updateMusicRhythmButton();
+
+  if (!enabled) {
+    setMusicRhythmMode(false, false);
+    lastSystemAudioPlaying = false;
+  } else {
+    void pollSystemAudioState();
+  }
+
+  if (announce) {
+    showSpeech(enabled ? "系统音频感知开启" : "系统音频感知关闭", 1800);
+  }
+}
+
+function setupMusicRhythmMode(): void {
+  updateMusicRhythmButton();
+  if (musicRhythmPollTimerId !== null) {
+    window.clearInterval(musicRhythmPollTimerId);
+  }
+  void pollSystemAudioState();
+  musicRhythmPollTimerId = window.setInterval(() => {
+    void pollSystemAudioState();
+  }, lastSystemAudioPlaying ? 900 : 1800);
+}
+
 // ── Drag & Physics (State Machine) ──
 
 let isMouseDown = false;
@@ -1574,7 +1686,6 @@ function forceEndDrag(engine: PetEngine, container: HTMLElement): void {
     container.classList.remove("is-lifting");
     container.classList.remove("is-dragging");
     container.classList.add("is-dropping");
-    if (!isFocusMode) playSound("boing");
     setTimeout(() => {
       container.classList.remove("is-dropping");
     }, 200);
@@ -2490,9 +2601,10 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   const todoButton = document.getElementById("context-todo") as HTMLButtonElement | null;
   const focusButton = document.getElementById("context-focus") as HTMLButtonElement | null;
   const meritButton = document.getElementById("context-merit") as HTMLButtonElement | null;
+  const musicButton = document.getElementById("context-music") as HTMLButtonElement | null;
   const recallButton = document.getElementById("context-recall") as HTMLButtonElement | null;
   const quitButton = document.getElementById("context-quit") as HTMLButtonElement | null;
-  if (!hitbox || !menu || !managerButton || !todoButton || !focusButton || !meritButton || !recallButton || !quitButton) return;
+  if (!hitbox || !menu || !managerButton || !todoButton || !focusButton || !meritButton || !musicButton || !recallButton || !quitButton) return;
 
   // Apply persisted always-on-top state on startup
   await appWindow.setAlwaysOnTop(isAlwaysOnTop);
@@ -2594,6 +2706,11 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   meritButton.addEventListener("click", () => {
     hideMenu();
     showMeritPanel();
+  });
+
+  musicButton.addEventListener("click", () => {
+    hideMenu();
+    setMusicRhythmAutoEnabled(!isMusicRhythmAutoEnabled);
   });
 
   recallButton.addEventListener("click", () => {
@@ -2873,6 +2990,7 @@ async function main(): Promise<void> {
 
   setupDrag(engine);
   setupContextMenu(engine);
+  setupMusicRhythmMode();
   setupCursorPassthrough();
   setupEyeTracking();
   setupBioClock(engine);

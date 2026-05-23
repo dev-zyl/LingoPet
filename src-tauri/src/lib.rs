@@ -6,8 +6,26 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_autostart::MacosLauncher;
 
+#[cfg(windows)]
+use windows::{
+    core::HRESULT,
+    Win32::{
+        Media::Audio::{
+            eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
+            Endpoints::IAudioMeterInformation,
+        },
+        System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+        },
+    },
+};
+
 const API_KEY_SERVICE: &str = "VibePet";
 const API_KEY_ACCOUNT: &str = "pet_api_key";
+#[cfg(windows)]
+const RPC_E_CHANGED_MODE: HRESULT = HRESULT(0x80010106u32 as i32);
+#[cfg(windows)]
+const SYSTEM_AUDIO_PEAK_THRESHOLD: f32 = 0.0015;
 
 fn api_key_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(API_KEY_SERVICE, API_KEY_ACCOUNT)
@@ -46,6 +64,47 @@ fn delete_api_key() -> Result<(), String> {
 #[tauri::command]
 fn move_to_trash(paths: Vec<String>) -> Result<(), String> {
     trash::delete_all(&paths).map_err(|e| e.to_string())
+}
+
+#[cfg(windows)]
+fn is_windows_system_audio_playing() -> Result<bool, String> {
+    let mut should_uninitialize_com = false;
+    unsafe {
+        let com_result = CoInitializeEx(None, COINIT_MULTITHREADED);
+        if com_result.is_ok() {
+            should_uninitialize_com = true;
+        } else if com_result != RPC_E_CHANGED_MODE {
+            return Err(format!("Failed to initialize COM: {com_result:?}"));
+        }
+
+        let result = (|| -> windows::core::Result<bool> {
+            let enumerator: IMMDeviceEnumerator =
+                CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+            let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?;
+            let meter: IAudioMeterInformation = device.Activate(CLSCTX_ALL, None)?;
+            Ok(meter.GetPeakValue()? > SYSTEM_AUDIO_PEAK_THRESHOLD)
+        })()
+        .map_err(|e| format!("Failed to read system audio level: {e}"));
+
+        if should_uninitialize_com {
+            CoUninitialize();
+        }
+
+        result
+    }
+}
+
+#[tauri::command]
+fn is_system_audio_playing() -> Result<bool, String> {
+    #[cfg(windows)]
+    {
+        is_windows_system_audio_playing()
+    }
+
+    #[cfg(not(windows))]
+    {
+        Ok(false)
+    }
 }
 
 #[tauri::command]
@@ -95,6 +154,7 @@ fn summon_pet_window(app: tauri::AppHandle, pet_id: String) -> Result<String, St
             )
             .title("VibePet")
             .inner_size(192.0, 256.0)
+            .transparent(true)
             .decorations(false)
             .shadow(false)
             .always_on_top(true)
@@ -332,6 +392,7 @@ pub fn run() {
             has_api_key,
             delete_api_key,
             move_to_trash,
+            is_system_audio_playing,
             list_desktop_platforms,
             open_manager_window,
             summon_pet_window,

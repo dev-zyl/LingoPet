@@ -6,6 +6,9 @@ import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 const API_BASE = "https://codexpet.xyz";
 const PAGE_SIZE = 30;
 const LS_PET_SIZE_SCALE = "pet_size_scale";
+const LS_API_ENDPOINT = "pet_api_endpoint";
+const LS_API_KEY = "pet_api_key";
+const LS_API_MODEL = "pet_api_model";
 const LS_CHAT_MODE = "pet_chat_mode";
 const LS_PERSONA_MODE = "pet_persona_mode";
 const LS_CUSTOM_PERSONA = "pet_custom_persona_text";
@@ -99,6 +102,15 @@ const els = {
   chatMode: document.getElementById("chat-mode-select") as HTMLSelectElement,
   persona: document.getElementById("persona-select") as HTMLSelectElement,
   customPersona: document.getElementById("custom-persona-input") as HTMLTextAreaElement,
+  apiConfigFields: document.getElementById("api-config-fields") as HTMLDivElement,
+  apiEndpoint: document.getElementById("api-endpoint-input") as HTMLInputElement,
+  apiKey: document.getElementById("api-key-input") as HTMLInputElement,
+  apiModel: document.getElementById("api-model-input") as HTMLInputElement,
+  apiModelSelect: document.getElementById("api-model-select") as HTMLSelectElement,
+  fetchModels: document.getElementById("fetch-models-btn") as HTMLButtonElement,
+  toggleApiKeyVisibility: document.getElementById("toggle-api-key-visibility") as HTMLButtonElement,
+  testApi: document.getElementById("test-api-btn") as HTMLButtonElement,
+  apiConfigStatus: document.getElementById("api-config-status") as HTMLParagraphElement,
   onlinePetCount: document.getElementById("online-pet-count") as HTMLElement,
   onlinePetAvatars: document.getElementById("online-pet-avatars") as HTMLDivElement,
   onlinePetAction: document.getElementById("online-pet-action") as HTMLButtonElement,
@@ -124,9 +136,152 @@ function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
 }
 
+async function saveApiKey(key: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    if (key) localStorage.setItem(LS_API_KEY, key);
+    else localStorage.removeItem(LS_API_KEY);
+    return;
+  }
+  if (key) {
+    await invoke("set_api_key", { key });
+    localStorage.removeItem(LS_API_KEY);
+  } else {
+    await invoke("delete_api_key");
+  }
+}
+
+async function getApiKey(): Promise<string> {
+  if (!isTauriRuntime()) {
+    return localStorage.getItem(LS_API_KEY) || "";
+  }
+  return await invoke<string | null>("get_api_key") || "";
+}
+
 function setStatus(el: HTMLElement, message = "", isError = false): void {
   el.textContent = message;
   el.classList.toggle("error", isError);
+}
+
+function setApiConfigStatus(message = "", isError = false): void {
+  els.apiConfigStatus.textContent = message;
+  els.apiConfigStatus.classList.toggle("error", isError);
+}
+
+function normalizeApiEndpoint(value: string): string {
+  const endpoint = value.trim().replace(/\/+$/, "");
+  if (!endpoint) return "";
+  return endpoint.endsWith("/chat/completions") ? endpoint : `${endpoint}/v1/chat/completions`;
+}
+
+function updateApiConfigVisibility(): void {
+  const isAwaken = els.chatMode.value === "awaken";
+  els.apiConfigFields.hidden = !isAwaken;
+}
+
+function modelsEndpointFromChatEndpoint(value: string): string {
+  const endpoint = normalizeApiEndpoint(value);
+  if (!endpoint) return "";
+  return endpoint.replace(/\/chat\/completions$/, "/models");
+}
+
+function modelIdsFromResponse(data: unknown): string[] {
+  const items = (data as { data?: unknown }).data;
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => (item as { id?: unknown }).id)
+    .filter((id): id is string => typeof id === "string" && id.trim().length > 0);
+}
+
+async function fetchModelList(): Promise<void> {
+  const endpoint = modelsEndpointFromChatEndpoint(els.apiEndpoint.value);
+  const key = els.apiKey.value.trim() || await getApiKey();
+  if (!endpoint || !key) {
+    setApiConfigStatus("请先填写大模型地址和 API Key。", true);
+    return;
+  }
+
+  const original = els.fetchModels.textContent || "自动获取";
+  els.fetchModels.disabled = true;
+  els.fetchModels.textContent = "获取中...";
+  try {
+    const resp = await fetch(endpoint, {
+      headers: {
+        "Authorization": `Bearer ${key}`,
+      },
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const models = modelIdsFromResponse(await resp.json());
+    els.apiModelSelect.replaceChildren();
+    for (const id of models) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = id;
+      els.apiModelSelect.append(option);
+    }
+
+    if (models.length === 0) {
+      els.apiModelSelect.hidden = true;
+      setApiConfigStatus("未获取到模型列表", true);
+      return;
+    }
+
+    if (!models.includes(els.apiModel.value.trim())) {
+      els.apiModel.value = models[0];
+      localStorage.setItem(LS_API_MODEL, models[0]);
+    }
+    els.apiModelSelect.hidden = false;
+    els.apiModelSelect.value = els.apiModel.value.trim();
+    setApiConfigStatus(`已获取 ${models.length} 个模型，可在模型名称中选择。`);
+  } catch (err) {
+    els.apiModelSelect.replaceChildren();
+    els.apiModelSelect.hidden = true;
+    setApiConfigStatus(`未获取到模型列表：${err instanceof Error ? err.message : String(err)}`, true);
+  } finally {
+    els.fetchModels.disabled = false;
+    els.fetchModels.textContent = original;
+  }
+}
+
+async function testApiConfig(): Promise<void> {
+  const endpoint = normalizeApiEndpoint(els.apiEndpoint.value);
+  const key = els.apiKey.value.trim() || await getApiKey();
+  const model = els.apiModel.value.trim() || "gpt-3.5-turbo";
+  if (!endpoint || !key || !model) {
+    setApiConfigStatus("请先填写大模型地址、API Key 和模型名称。", true);
+    return;
+  }
+
+  const original = els.testApi.textContent || "测试";
+  els.testApi.disabled = true;
+  els.testApi.textContent = "测试中...";
+  try {
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1,
+      }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    els.apiEndpoint.value = endpoint;
+    els.apiModel.value = model;
+    localStorage.setItem(LS_API_ENDPOINT, endpoint);
+    localStorage.setItem(LS_API_MODEL, model);
+    await saveApiKey(key);
+    setApiConfigStatus("连接成功，配置已保存。");
+  } catch (err) {
+    setApiConfigStatus(`测试失败：${err instanceof Error ? err.message : String(err)}`, true);
+  } finally {
+    els.testApi.disabled = false;
+    els.testApi.textContent = original;
+  }
 }
 
 function petTitle(pet: MarketPet | ProjectPet): string {
@@ -287,13 +442,19 @@ function renderMarket(totalPets: number = state.marketPets.length): void {
   const fragment = document.createDocumentFragment();
   for (const pet of state.marketPets) {
     const button = document.createElement("button");
-    button.className = "download-button";
     button.type = "button";
     const downloaded = isDownloaded(pet.slug);
     const downloading = state.downloading.has(pet.slug);
-    button.textContent = downloaded ? "已下载" : downloading ? "下载中..." : "下载";
-    button.disabled = downloaded || downloading;
-    button.addEventListener("click", () => void downloadPet(pet));
+    button.className = downloaded ? "summon-button" : "download-button";
+    button.textContent = downloaded ? "召唤" : downloading ? "下载中..." : "下载";
+    button.disabled = downloading;
+    button.addEventListener("click", () => {
+      if (downloaded) {
+        void summonPet(pet.slug, button, els.marketStatus);
+        return;
+      }
+      void downloadPet(pet);
+    });
 
     fragment.append(renderListRow({
       title: petTitle(pet),
@@ -645,7 +806,7 @@ async function downloadPet(pet: MarketPet): Promise<void> {
   }
 }
 
-async function summonPet(petId: string, button: HTMLButtonElement): Promise<void> {
+async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTMLElement = els.mineStatus): Promise<void> {
   const original = button.textContent || "召唤";
   button.disabled = true;
   button.textContent = "召唤中...";
@@ -659,7 +820,7 @@ async function summonPet(petId: string, button: HTMLButtonElement): Promise<void
       rememberPrimaryPet(petId);
       await invoke("show_primary_pet_window");
       button.textContent = "已切换";
-      setStatus(els.mineStatus, `已切换为「${petNameById(petId)}」。`);
+      setStatus(statusEl, `已切换为「${petNameById(petId)}」。`);
       window.setTimeout(() => void loadActivePets(), 300);
       window.setTimeout(() => {
         button.textContent = original;
@@ -671,7 +832,7 @@ async function summonPet(petId: string, button: HTMLButtonElement): Promise<void
     await invoke<string>("summon_pet_window", { petId });
     addSavedSummonedPetId(petId);
     button.textContent = "已召唤";
-    setStatus(els.mineStatus, "已召唤一个新的桌宠实例。");
+    setStatus(statusEl, "已召唤一个新的桌宠实例。");
     window.setTimeout(() => void loadActivePets(), 300);
     window.setTimeout(() => {
       button.textContent = original;
@@ -680,7 +841,7 @@ async function summonPet(petId: string, button: HTMLButtonElement): Promise<void
   } catch (err) {
     console.error(err);
     button.textContent = "失败";
-    setStatus(els.mineStatus, `召唤失败：${err instanceof Error ? err.message : String(err)}`, true);
+    setStatus(statusEl, `召唤失败：${err instanceof Error ? err.message : String(err)}`, true);
     window.setTimeout(() => {
       button.textContent = original;
       button.disabled = false;
@@ -736,6 +897,10 @@ async function loadSettings(): Promise<void> {
   els.chatMode.value = localStorage.getItem(LS_CHAT_MODE) || "basic";
   els.persona.value = localStorage.getItem(LS_PERSONA_MODE) || "tsundere";
   els.customPersona.value = localStorage.getItem(LS_CUSTOM_PERSONA) || "";
+  els.apiEndpoint.value = localStorage.getItem(LS_API_ENDPOINT) || "";
+  els.apiModel.value = localStorage.getItem(LS_API_MODEL) || "gpt-3.5-turbo";
+  els.apiKey.value = await getApiKey().catch(() => "");
+  updateApiConfigVisibility();
   void loadPetsPath();
 }
 
@@ -796,9 +961,48 @@ els.volumeInput.addEventListener("input", () => updateVolumeControls(Number(els.
 window.addEventListener("storage", (event) => {
   if (event.key === LS_PET_VOLUME) updateVolumeControls(getPetVolumePercent());
 });
-els.chatMode.addEventListener("change", () => localStorage.setItem(LS_CHAT_MODE, els.chatMode.value));
+els.chatMode.addEventListener("change", () => {
+  localStorage.setItem(LS_CHAT_MODE, els.chatMode.value);
+  updateApiConfigVisibility();
+});
 els.persona.addEventListener("change", () => localStorage.setItem(LS_PERSONA_MODE, els.persona.value));
 els.customPersona.addEventListener("input", () => localStorage.setItem(LS_CUSTOM_PERSONA, els.customPersona.value.trim()));
+els.apiEndpoint.addEventListener("change", () => {
+  const endpoint = normalizeApiEndpoint(els.apiEndpoint.value);
+  els.apiEndpoint.value = endpoint;
+  if (endpoint) localStorage.setItem(LS_API_ENDPOINT, endpoint);
+  else localStorage.removeItem(LS_API_ENDPOINT);
+  setApiConfigStatus(endpoint ? "大模型地址已保存。" : "大模型地址已清空。");
+});
+els.apiModel.addEventListener("change", () => {
+  const model = els.apiModel.value.trim() || "gpt-3.5-turbo";
+  els.apiModel.value = model;
+  if (!els.apiModelSelect.hidden) els.apiModelSelect.value = model;
+  localStorage.setItem(LS_API_MODEL, model);
+  setApiConfigStatus("模型名称已保存。");
+});
+els.apiModelSelect.addEventListener("change", () => {
+  const model = els.apiModelSelect.value.trim();
+  if (!model) return;
+  els.apiModel.value = model;
+  localStorage.setItem(LS_API_MODEL, model);
+  setApiConfigStatus("模型名称已保存。");
+});
+els.apiKey.addEventListener("change", () => {
+  const key = els.apiKey.value.trim();
+  void saveApiKey(key)
+    .then(() => setApiConfigStatus(key ? "API Key 已保存到系统凭据。" : "API Key 已清空。"))
+    .catch((err) => setApiConfigStatus(`API Key 保存失败：${err}`, true));
+});
+els.fetchModels.addEventListener("click", () => void fetchModelList());
+els.testApi.addEventListener("click", () => void testApiConfig());
+els.toggleApiKeyVisibility.addEventListener("click", () => {
+  const shouldShow = els.apiKey.type === "password";
+  els.apiKey.type = shouldShow ? "text" : "password";
+  els.toggleApiKeyVisibility.classList.toggle("is-visible", shouldShow);
+  els.toggleApiKeyVisibility.setAttribute("aria-pressed", String(shouldShow));
+  els.toggleApiKeyVisibility.setAttribute("aria-label", shouldShow ? "隐藏密钥" : "显示密钥");
+});
 
 void loadPetsPath();
 void loadProjectPets();

@@ -39,6 +39,10 @@
 
 5-60 分钟自由设定的番茄钟计时器。专注期间宠物保持安静、显示倒计时，结束后铃声提醒。
 
+### 功德木鱼
+
+右键菜单开启功德模式后，宠物会进入自动敲木鱼状态，按固定节奏累积“功德 +1”。支持自定义功德文案、保存今日次数，并使用独立木鱼敲击音效，避免和普通气泡提示音混在一起。
+
 ### 节日祝福
 
 内置日历，节日当天首次开机自动送上祝福。
@@ -59,7 +63,7 @@
 
 ### 系统深度集成
 
-- 系统音频感知 -- 音乐播放时宠物随节拍飘出音符粒子
+- Windows 系统音频感知 -- 检测到系统正在播放声音时，宠物自动轻微弹动并飘出音符粒子
 - 文件拖入回收站 -- 拖到宠物身上即可删除
 - GitHub 提交监控 -- 绑定账号后，有新 commit 时宠物冒出鼓励语
 - 开机自启动（Tauri autostart 插件）
@@ -73,7 +77,7 @@
 
 **安装**
 
-前往 [Releases](https://github.com/Muxinlucky/DesktopPet/releases) 页面下载最新安装包（`.msi` 或 `setup.exe`），安装后启动即可。
+前往 [Releases](https://github.com/ZhangYiLong416/DesktopPet/releases) 页面下载最新安装包（`.msi`、`setup.exe` 或 macOS 构建产物），安装后启动即可。
 
 **配置 API（可选）**
 
@@ -94,6 +98,7 @@
 | 左键点击 | 宠物打招呼，冒出粒子特效 |
 | 按住拖拽 | 宠物跟着鼠标跑，松手落地弹跳 |
 | 右键菜单 | 打开功能菜单 |
+| 右键 > 功德模式 | 打开木鱼面板，开始/停止自动敲木鱼 |
 | 拖文件到宠物身上 | 文件送入回收站 |
 | 长时间不操作 | 宠物发呆、思考、最后睡着 |
 | 移动鼠标唤醒 | 宠物惊喜跳起 |
@@ -102,18 +107,29 @@
 
 ```bash
 npm install            # 安装依赖
+npm run build          # TypeScript 检查 + Vite 前端构建
 npm run tauri dev      # 开发模式（热重载）
 npm run tauri build    # 生产构建（生成安装包）
 ```
 
 构建产物位于 `src-tauri/target/release/bundle/`（NSIS 和 MSI 两种格式）。
 
+Rust 层检查：
+
+```bash
+cd src-tauri
+cargo check
+```
+
+推送 `v*` tag 会触发 GitHub Actions 发布流程，workflow 位于 `.github/workflows/publish.yml`，当前会构建 Windows `nsis/msi` 和 macOS `dmg/app` 产物。
+
 ## 技术规范
 
 - **运行时**: Tauri v2 (Rust 后端 + WebView2 前端)
 - **前端**: Vite + TypeScript, 零框架纯 DOM 渲染
-- **动画**: CSS `steps()` 精灵图引擎，无 Canvas/WebGL
-- **安装包**: NSIS (.exe) / MSI，可自定义安装目录
+- **动画**: TypeScript 计时驱动精灵图引擎 + CSS 反馈动画，无 Canvas/WebGL
+- **音效**: HTML5 `Audio`，Vite 管理本地音频资源
+- **安装包**: Windows NSIS (.exe) / MSI，macOS DMG / App
 
 ## 宠物包格式
 

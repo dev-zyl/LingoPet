@@ -39,6 +39,10 @@ First click triggers a full LLM response, then falls back to lightweight quotes.
 
 A freely adjustable Pomodoro timer (5-60 minutes). During focus, the pet stays quiet and displays a countdown. A bell rings when time is up.
 
+### Merit Woodfish
+
+Open Merit Mode from the right-click menu and the pet starts striking a woodfish automatically, adding “merit +1” on a fixed rhythm. The panel supports custom merit text, daily count persistence, and a dedicated woodfish hit sound so it does not overlap with regular speech-bubble audio.
+
 ### Holiday Blessings
 
 Built-in calendar that automatically sends greetings on the first boot of a holiday.
@@ -59,7 +63,7 @@ The installer is only 5MB. Background residence has zero impact on system perfor
 
 ### Deep System Integration
 
-- System audio awareness -- music notes float to the beat when audio is playing
+- Windows system audio sensing -- when system audio output is detected, the pet bops and floats music-note particles automatically
 - File drop to recycle bin -- drag files onto the pet to delete
 - GitHub commit monitoring -- bind your account and the pet cheers on new commits
 - Auto-start on boot (Tauri autostart plugin)
@@ -73,7 +77,7 @@ Right-click the pet to open a feature menu with everything at a glance.
 
 **Install**
 
-Download the latest installer (`.msi` or `setup.exe`) from the [Releases](https://github.com/Muxinlucky/DesktopPet/releases) page. Launch after installation.
+Download the latest installer (`.msi`, `setup.exe`, or macOS build artifact) from the [Releases](https://github.com/ZhangYiLong416/DesktopPet/releases) page. Launch after installation.
 
 **Configure API (Optional)**
 
@@ -94,6 +98,7 @@ Click "Save" to test connectivity. Green means success. Free API setup tutorial:
 | Left click | Pet greets you, spawns particle effects |
 | Click and drag | Pet follows cursor, bounces on release |
 | Right click | Opens context menu |
+| Right click > Merit Mode | Opens the woodfish panel and starts/stops automatic hits |
 | Drop files on pet | Files sent to recycle bin |
 | Long idle | Pet zones out, thinks, then falls asleep |
 | Move mouse to wake | Pet jumps up in surprise |
@@ -102,18 +107,29 @@ Click "Save" to test connectivity. Green means success. Free API setup tutorial:
 
 ```bash
 npm install            # Install dependencies
+npm run build          # TypeScript check + Vite frontend build
 npm run tauri dev      # Development mode (hot reload)
 npm run tauri build    # Production build (generates installer)
 ```
 
 Build output is located at `src-tauri/target/release/bundle/` (both NSIS and MSI formats).
 
+Rust-only check:
+
+```bash
+cd src-tauri
+cargo check
+```
+
+Pushing a `v*` tag triggers the GitHub Actions release workflow at `.github/workflows/publish.yml`. It currently builds Windows `nsis/msi` and macOS `dmg/app` artifacts.
+
 ## Technical Specs
 
 - **Runtime**: Tauri v2 (Rust backend + WebView2 frontend)
 - **Frontend**: Vite + TypeScript, zero-framework pure DOM rendering
-- **Animation**: CSS `steps()` sprite engine, no Canvas/WebGL
-- **Installer**: NSIS (.exe) / MSI, customizable install directory
+- **Animation**: TypeScript timer-driven sprite engine + CSS feedback animations, no Canvas/WebGL
+- **Audio**: HTML5 `Audio`, local sound assets managed by Vite
+- **Installer**: Windows NSIS (.exe) / MSI, macOS DMG / App
 
 ## Pet Package Format
 
