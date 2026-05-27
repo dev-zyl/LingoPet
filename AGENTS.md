@@ -90,3 +90,7 @@ For code changes, prefer the smallest verification that covers the touched layer
 ## Current Git State Guidance
 
 This repository may have user edits in progress. Do not revert files unless explicitly asked. Before touching a file, inspect its current content and keep edits narrowly scoped to the requested behavior.
+
+## Feature Completion Log
+
+After completing a user-facing feature or behavior fix, append a concise entry to the root `FEATURE_LOG.md` file. Record the date, affected area, completed behavior, and verification performed. Do not rewrite prior entries when adding new work.

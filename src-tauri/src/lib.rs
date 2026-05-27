@@ -3,7 +3,11 @@ mod pet_import;
 use serde::Serialize;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager, WebviewUrl, WebviewWindowBuilder,
+};
 use tauri_plugin_autostart::MacosLauncher;
 
 #[cfg(windows)]
@@ -147,10 +151,11 @@ fn summon_pet_window(app: tauri::AppHandle, pet_id: String) -> Result<String, St
     thread::spawn(move || {
         let app_for_window = thread_app.clone();
         if let Err(error) = thread_app.run_on_main_thread(move || {
+            let pet_url = format!("pet/index.html?petId={safe_id}");
             if let Err(error) = WebviewWindowBuilder::new(
                 &app_for_window,
                 &window_label,
-                WebviewUrl::App("pet/index.html".into()),
+                WebviewUrl::App(pet_url.into()),
             )
             .title("VibePet")
             .inner_size(192.0, 256.0)
@@ -241,6 +246,68 @@ fn hide_primary_pet_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("pet") {
         window.hide().map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+fn toggle_primary_pet_window(app: tauri::AppHandle) {
+    match is_primary_pet_window_visible(app.clone()) {
+        Ok(true) => {
+            if let Err(error) = hide_primary_pet_window(app) {
+                log::error!("Failed to hide primary pet window from tray: {error}");
+            }
+        }
+        Ok(false) => {
+            if let Err(error) = show_primary_pet_window(app) {
+                log::error!("Failed to show primary pet window from tray: {error}");
+            }
+        }
+        Err(error) => log::error!("Failed to read primary pet visibility from tray: {error}"),
+    }
+}
+
+fn setup_system_tray(app: &tauri::App) -> tauri::Result<()> {
+    let open_manager = MenuItem::with_id(app, "open_manager", "打开管理面板", true, None::<&str>)?;
+    let toggle_pet = MenuItem::with_id(app, "toggle_pet", "显示/隐藏桌宠", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit_app", "退出 VibePet", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&open_manager, &toggle_pet, &separator, &quit])?;
+    let icon = app.default_window_icon().cloned();
+
+    let mut tray_builder = TrayIconBuilder::with_id("vibepet")
+        .tooltip("VibePet")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open_manager" => {
+                if let Err(error) = open_manager_window(app.clone()) {
+                    log::error!("Failed to open manager from tray: {error}");
+                }
+            }
+            "toggle_pet" => toggle_primary_pet_window(app.clone()),
+            "quit_app" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                }
+            ) {
+                if let Err(error) = open_manager_window(tray.app_handle().clone()) {
+                    log::error!("Failed to open manager from tray click: {error}");
+                }
+            }
+        });
+
+    if let Some(icon) = icon {
+        tray_builder = tray_builder.icon(icon);
+    }
+
+    let tray = tray_builder.build(app)?;
+    app.manage(tray);
     Ok(())
 }
 
@@ -351,21 +418,12 @@ fn list_desktop_platforms() -> Result<Vec<DesktopPlatform>, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--silent"]),
         ))
-        .on_window_event(|window, event| {
-            if window.label() == "config" {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    if let Err(error) = window.hide() {
-                        log::error!("Failed to hide config window: {error}");
-                    }
-                }
-            }
-        })
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -374,6 +432,7 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            setup_system_tray(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -385,6 +444,11 @@ pub fn run() {
             pet_import::download_pet_to_project,
             pet_import::list_project_pets,
             pet_import::delete_project_pet,
+            pet_import::read_project_pet_manifest,
+            pet_import::read_project_pet_spritesheet,
+            pet_import::save_project_pet_spritesheet,
+            pet_import::save_project_pet_generation_references,
+            pet_import::save_project_pet_generated_images,
             pet_import::open_pet_folder,
             pet_import::get_project_pet_dir,
             set_api_key,

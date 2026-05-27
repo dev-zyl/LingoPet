@@ -18,6 +18,7 @@
           <button class="nav-item active" data-view="mine" type="button">我的桌宠</button>
           <button class="nav-item" data-view="recall" type="button">宠物召回</button>
           <button class="nav-item" data-view="market" type="button">宠物市场</button>
+          <button class="nav-item" data-view="workshop" type="button">创意工坊</button>
           <button class="nav-item" data-view="settings" type="button">设置</button>
         </nav>
         <section class="online-card" aria-label="在线桌宠状态">
@@ -40,19 +41,97 @@
         </header>
 
         <section id="mine-view" class="view active">
-          <div class="panel-head">
-            <div>
-              <p id="pets-path" class="path-text"></p>
-            </div>
-            <button id="open-pets-dir" class="ghost-button" type="button">打开 pets 文件夹</button>
-          </div>
+
           <div class="toolbar">
             <input id="mine-search-input" type="search" placeholder="搜索本地桌宠名称" />
             <button id="import-local-pet" class="primary-button" type="button">本地导入</button>
           </div>
+          <div class="tags-section">
+            <div id="mine-tags-list" class="tags-tabs">
+              <button class="tag-tab active" data-tag="all" type="button">全部</button>
+              <button class="tag-tab" data-tag="favorite" type="button">已收藏 🌟</button>
+            </div>
+            <div class="tags-actions">
+              <button id="add-tag-btn" class="secondary-button" type="button">+ 新建分组</button>
+              <button id="delete-tag-btn" class="danger-button hidden" type="button">删除当前组</button>
+              <button id="summon-group-btn" class="primary-button hidden glower" type="button">⚡ 一键召唤本组</button>
+            </div>
+          </div>
           <p id="mine-status" class="status"></p>
           <div id="my-pets-list" class="pet-table"></div>
           <div id="mine-pagination" class="pagination"></div>
+        </section>
+
+        <section id="editor-view" class="view">
+          <div class="panel-head">
+            <div>
+              <p id="editor-pet-name" class="path-text"></p>
+            </div>
+            <div class="row-actions">
+              <button id="editor-back-btn" class="ghost-button" type="button">返回列表</button>
+              <button id="editor-save-btn" class="primary-button" type="button">保存 WebP</button>
+            </div>
+          </div>
+          <p id="editor-status" class="status"></p>
+          <div class="sprite-editor-shell">
+            <section class="sprite-editor-main" aria-label="桌宠帧编辑">
+              <h3 id="editor-frame-title">帧编辑</h3>
+              <div class="frame-stage-wrap">
+                <canvas id="editor-frame-canvas" width="192" height="208" tabindex="0" aria-label="当前帧预览，未启用橡皮擦时可拖动调整位置"></canvas>
+                <div class="editor-eraser-toolbar" aria-label="橡皮擦工具">
+                  <button id="editor-eraser-btn" class="secondary-button" type="button" aria-pressed="false">橡皮擦</button>
+                  <label class="eraser-size-label" for="editor-eraser-size">大小 <span id="editor-eraser-size-value">14</span></label>
+                  <input id="editor-eraser-size" type="range" min="2" max="48" value="14" />
+                  <button id="editor-eraser-undo-btn" class="secondary-button" type="button" disabled>撤销擦除</button>
+                </div>
+                <div id="editor-eraser-cursor" aria-hidden="true"></div>
+              </div>
+              <div id="editor-grid" class="sprite-grid"></div>
+            </section>
+            <aside class="sprite-editor-side">
+              <div class="editor-card">
+                <h3>帧操作</h3>
+                <input id="editor-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+                <button id="editor-replace-btn" class="secondary-button" type="button">替换帧</button>
+                <button id="editor-clear-btn" class="secondary-button" type="button">清空帧</button>
+                <button id="editor-copy-btn" class="secondary-button" type="button">复制帧</button>
+                <button id="editor-paste-btn" class="secondary-button" type="button" disabled>粘贴帧</button>
+                <div class="frame-position-tools" aria-label="当前帧位置微调">
+                  <strong>位置微调</strong>
+                  <div class="frame-nudge-grid">
+                    <button class="secondary-button frame-nudge-up" data-frame-nudge="up" type="button" aria-label="向上移动一像素">↑</button>
+                    <button class="secondary-button frame-nudge-left" data-frame-nudge="left" type="button" aria-label="向左移动一像素">←</button>
+                    <button class="secondary-button frame-nudge-down" data-frame-nudge="down" type="button" aria-label="向下移动一像素">↓</button>
+                    <button class="secondary-button frame-nudge-right" data-frame-nudge="right" type="button" aria-label="向右移动一像素">→</button>
+                  </div>
+                  <button id="editor-move-undo-btn" class="secondary-button" type="button" disabled>撤销位移</button>
+                  <small>也可在大图中拖动当前帧，或使用键盘方向键。横版图会保留原图取景，保存时才生成最终分帧。</small>
+                </div>
+              </div>
+              <div class="editor-card">
+                <h3>动作</h3>
+                <div class="mode-action-buttons">
+                  <button class="secondary-button mode-action-preset" data-action-key="merit" type="button">功德模式</button>
+                  <button class="secondary-button mode-action-preset" data-action-key="focus" type="button">专注模式</button>
+                  <button class="secondary-button mode-action-preset" data-action-key="music" type="button">音乐律动</button>
+                </div>
+                <button id="editor-align-action-btn" class="align-action-button" type="button">一键优化动作对齐</button>
+                <small class="editor-hint">功德和专注模式使用 4 帧，音乐律动使用 8 帧。普通动作可替换帧或 Ctrl+V 粘贴到当前帧；选择模式动作后，Ctrl+V 会按该模式帧数导入横版动作图。</small>
+              </div>
+              <div class="editor-card">
+                <h3>动作提示词</h3>
+                <input id="action-strip-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+                <label class="prompt-label" for="image-prompt-output">提示词</label>
+                <textarea id="image-prompt-output" rows="6" readonly spellcheck="false"></textarea>
+                <div class="prompt-actions">
+                  <button id="prompt-copy-btn" class="secondary-button" type="button">一键复制提示词</button>
+                  <button id="action-strip-import-btn" class="import-action-button" type="button">导入横版动作图</button>
+                  <button id="action-strip-share-btn" class="primary-button" type="button" style="grid-column: span 2; margin-top: 6px; background-color: #8b5cf6 !important; border-color: #8b5cf6 !important; color: white !important;">分享当前动作到社区</button>
+                </div>
+                <small class="editor-hint">先手动选择一张现有动作帧作为参考图，右键可复制图片或另存到本地，再复制当前模式提示词去外部工具生成横版动作图。点击导入或直接 Ctrl+V 粘贴图片，都会按当前模式所需帧数切分并填入动作，同时保存 PNG 到当前宠物目录。</small>
+              </div>
+            </aside>
+          </div>
         </section>
 
         <section id="recall-view" class="view">
@@ -78,9 +157,35 @@
               <button class="sort" data-sort="downloads" type="button">下载</button>
             </div>
           </div>
-          <p id="market-status" class="status"></p>
+          <div class="market-meta">
+            <p id="market-status" class="status"></p>
+            <a id="market-home-link" class="market-home-link" href="https://codexpet.1024588.xyz/?style=cartoon" target="_blank" rel="noreferrer">前往官网</a>
+          </div>
           <div id="market-grid" class="pet-table"></div>
           <div id="market-pagination" class="pagination"></div>
+        </section>
+
+        <section id="workshop-view" class="view">
+          <div class="toolbar">
+            <input id="workshop-search-input" type="search" placeholder="搜索动作名称或作者" />
+            <select id="workshop-action-filter">
+              <option value="all">全部模式</option>
+              <option value="focus">专注模式</option>
+              <option value="music">音乐律动</option>
+              <option value="merit">功德模式</option>
+            </select>
+          </div>
+          <div class="tags-section">
+            <div id="workshop-tags-list" class="tags-tabs">
+              <button class="tag-tab active" data-tag="all" type="button">全部动作</button>
+              <button class="tag-tab" data-tag="downloaded" type="button">已下载桌宠的扩展包</button>
+            </div>
+          </div>
+          <div class="market-meta">
+            <p id="workshop-status" class="status"></p>
+            <span class="path-text" style="color: rgba(44, 30, 21, 0.7); font-size: 13px;">社区精选扩展动作补丁，点击“一键套用”直接无缝集成到你的桌宠上。</span>
+          </div>
+          <div id="workshop-grid" class="pet-table"></div>
         </section>
 
         <section id="settings-view" class="view">
@@ -101,24 +206,66 @@
                 </span>
                 <input id="always-top-toggle" type="checkbox" />
               </label>
-              <label class="setting-row">
+              <div class="setting-row">
                 <span>
-                  <strong>允许召唤多个宠物</strong>
-                  <small>关闭后，每次召唤会先召回已召唤的宠物。</small>
+                  <strong>桌宠模式</strong>
+                  <small>选择桌面上同时活动的宠物数量。</small>
                 </span>
-                <input id="allow-multiple-toggle" type="checkbox" />
-              </label>
+                <div class="pet-mode-options" role="radiogroup" aria-label="桌宠模式">
+                  <label class="pet-mode-option">
+                    <input type="radio" name="pet-instance-mode" value="single" />
+                    <span>单宠模式</span>
+                  </label>
+                  <div class="pet-mode-choice">
+                    <label class="pet-mode-option">
+                      <input type="radio" name="pet-instance-mode" value="party" />
+                      <span>派对模式</span>
+                    </label>
+                    <button class="pet-mode-help" type="button" aria-label="多宠狂欢：允许同时召唤多个桌宠。">
+                      ?
+                      <span class="pet-mode-tooltip" role="tooltip">多宠狂欢：允许同时召唤多个桌宠。</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <span>
+                  <strong>桌宠活跃度</strong>
+                  <small>控制桌宠在桌面上的行动活跃级别。</small>
+                </span>
+                <div class="pet-mode-options" role="radiogroup" aria-label="桌宠活跃度">
+                  <label class="pet-mode-option">
+                    <input type="radio" name="pet-activity-level" value="quiet" />
+                    <span>乖乖宠</span>
+                  </label>
+                  <label class="pet-mode-option">
+                    <input type="radio" name="pet-activity-level" value="middle" />
+                    <span>中规中矩</span>
+                  </label>
+                  <label class="pet-mode-option">
+                    <input type="radio" name="pet-activity-level" value="active" />
+                    <span>满屏乱串</span>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div class="setting-group">
               <h3>尺寸调整</h3>
+              <div class="size-presets" aria-label="桌宠尺寸预设">
+                <button type="button" data-size-percent="35">迷你</button>
+                <button type="button" data-size-percent="60">小巧</button>
+                <button type="button" data-size-percent="85">标准</button>
+                <button type="button" data-size-percent="110">醒目</button>
+                <button type="button" data-size-percent="140">超大</button>
+              </div>
               <div class="size-setting">
-                <input id="manager-size-slider" type="range" min="35" max="140" value="60" />
+                <input id="manager-size-slider" type="range" min="35" max="140" value="60" aria-label="调整桌宠尺寸" />
                 <label class="number-field">
-                  <input id="manager-size-input" type="number" min="35" max="140" value="60" />
-                  <span>%</span>
+                  <input id="manager-size-input" type="number" min="67" max="269" value="115" aria-label="桌宠宽度" />
+                  <span>px</span>
                 </label>
-                <span id="manager-size-text" class="size-readout">60% · 115 x 173px</span>
+                <span id="manager-size-text" class="size-readout">小巧 · 115 x 125 px</span>
               </div>
             </div>
 
@@ -135,6 +282,20 @@
             </div>
 
             <div class="setting-group">
+              <h3>音乐律动</h3>
+              <label class="setting-row">
+                <span>
+                  <strong>律动模式选择</strong>
+                  <small>控制多只桌宠在音乐律动时是否保持舞步一致。</small>
+                </span>
+                <select id="music-rhythm-sync-select">
+                  <option value="independent">不齐舞团</option>
+                  <option value="aligned">整齐化一</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="setting-group">
               <h3>对话模式</h3>
               <div class="form-grid">
                 <label>
@@ -144,7 +305,7 @@
                     <option value="awaken">全面觉醒</option>
                   </select>
                 </label>
-                <label>
+                <label id="persona-setting-field">
                   <span>性格</span>
                   <select id="persona-select">
                     <option value="sunny">阳光开朗型</option>

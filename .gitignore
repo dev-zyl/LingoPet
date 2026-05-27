@@ -16,6 +16,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 src-tauri/target/
+vibepet-backend/target/
+src/config/*.bak
 
 .claude/
 

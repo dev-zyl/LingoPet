@@ -28,7 +28,11 @@ interface PetManifest {
   spritesheetPath: string;
   kind?: string;
   version?: string;
+  animations?: Record<string, FrameAnimation>;
 }
+
+type MusicRhythmSyncMode = "independent" | "aligned";
+type FrameEvents = Record<number, () => void>;
 
 // ── Codex Pet Standard Atlas (8x9, 192x208 per cell) ──
 
@@ -48,6 +52,12 @@ const CODEX_ATLAS: PetAtlas = {
     running:         { row: 7, frames: 6, frameDurations: [120, 120, 120, 120, 120, 220] },
     review:          { row: 8, frames: 6, frameDurations: [150, 150, 150, 150, 150, 280] },
   },
+};
+
+const MODE_ANIMATION_PRESETS: Record<string, FrameAnimation> = {
+  merit: { row: 9, frames: 4, frameDurations: [150, 150, 150, 300] },
+  focus: { row: 10, frames: 4, frameDurations: [300, 300, 360, 300] },
+  music: { row: 11, frames: 8, frameDurations: [140, 140, 140, 140, 140, 140, 180, 240] },
 };
 
 // ── Audio SFX (HTML5 Audio, no external libs) ──
@@ -100,8 +110,17 @@ class PetEngine {
     this.spriteEl.style.height = `${atlas.cellHeight}px`;
     this.spriteEl.style.backgroundImage = `url("${spritesheetUrl}")`;
     this.spriteEl.style.backgroundRepeat = "no-repeat";
+    this.inferAtlasFromSpritesheet(spritesheetUrl);
 
     this.applyState("idle");
+  }
+
+  hasState(state: string): boolean {
+    return Boolean(this.atlas.animations[state]);
+  }
+
+  frameCount(state: string): number {
+    return this.atlas.animations[state]?.frames ?? 0;
   }
 
   applyState(state: string): void {
@@ -114,8 +133,8 @@ class PetEngine {
 
     this.stop();
     this.currentState = state;
-    this.currentFrame = 0;
-    this.showFrame(0);
+    this.currentFrame = this.alignedFrameIndex(anim);
+    this.showFrame(this.currentFrame);
     this.startLoop();
   }
 
@@ -129,13 +148,68 @@ class PetEngine {
   private startLoop(): void {
     const anim = this.atlas.animations[this.currentState];
     const advance = () => {
+      if (this.shouldUseAlignedMusicFrames()) {
+        this.currentFrame = this.alignedFrameIndex(anim);
+        this.showFrame(this.currentFrame);
+        this.timerHandle = window.setTimeout(advance, this.msUntilNextAlignedFrame(anim));
+        return;
+      }
+
       this.currentFrame = (this.currentFrame + 1) % anim.frames;
       this.showFrame(this.currentFrame);
-      const delay = anim.frameDurations[this.currentFrame];
+      const delay = this.frameDelay(anim, this.currentFrame);
       this.timerHandle = window.setTimeout(advance, delay);
     };
-    const firstDelay = anim.frameDurations[0];
-    this.timerHandle = window.setTimeout(advance, firstDelay);
+    this.timerHandle = window.setTimeout(
+      advance,
+      this.shouldUseAlignedMusicFrames() ? this.msUntilNextAlignedFrame(anim) : this.frameDelay(anim, this.currentFrame),
+    );
+  }
+
+  refreshCurrentAnimationTiming(): void {
+    if (this.currentState !== "music") return;
+    this.stop();
+    const anim = this.atlas.animations[this.currentState];
+    this.currentFrame = this.alignedFrameIndex(anim);
+    this.showFrame(this.currentFrame);
+    this.startLoop();
+  }
+
+  private shouldUseAlignedMusicFrames(): boolean {
+    return this.currentState === "music" && getMusicRhythmSyncMode() === "aligned";
+  }
+
+  private animationCycleDuration(anim: FrameAnimation): number {
+    return Array.from({ length: anim.frames }, (_, index) => this.frameDelay(anim, index))
+      .reduce((sum, delay) => sum + delay, 0);
+  }
+
+  private alignedFrameIndex(anim: FrameAnimation, now = Date.now()): number {
+    if (!this.shouldUseAlignedMusicFrames()) return 0;
+    const cycle = this.animationCycleDuration(anim);
+    if (cycle <= 0) return 0;
+    let elapsed = now % cycle;
+    for (let index = 0; index < anim.frames; index += 1) {
+      elapsed -= this.frameDelay(anim, index);
+      if (elapsed < 0) return index;
+    }
+    return 0;
+  }
+
+  private msUntilNextAlignedFrame(anim: FrameAnimation, now = Date.now()): number {
+    const cycle = this.animationCycleDuration(anim);
+    if (cycle <= 0) return this.frameDelay(anim, this.currentFrame);
+    let elapsed = now % cycle;
+    for (let index = 0; index < anim.frames; index += 1) {
+      const delay = this.frameDelay(anim, index);
+      if (elapsed < delay) return Math.max(16, delay - elapsed);
+      elapsed -= delay;
+    }
+    return 16;
+  }
+
+  private frameDelay(anim: FrameAnimation, index: number): number {
+    return anim.frameDurations[index] ?? anim.frameDurations[anim.frameDurations.length - 1] ?? 150;
   }
 
   private stop(): void {
@@ -147,11 +221,127 @@ class PetEngine {
 
   setSpritesheet(url: string): void {
     this.spriteEl.style.backgroundImage = `url("${url}")`;
-    this.applyState("idle");
+    this.inferAtlasFromSpritesheet(url);
+    if (isMeritMode && this.hasState("merit")) {
+      this.applyState("merit");
+    } else if (isFocusMode && this.hasState("focus")) {
+      this.applyState("focus");
+    } else if (isMusicRhythmMode && this.hasState("music")) {
+      this.applyState("music");
+    } else {
+      this.applyState("idle");
+    }
+  }
+
+  setAtlas(atlas: PetAtlas): void {
+    this.atlas = atlas;
+    this.applyState(this.atlas.animations[this.currentState] ? this.currentState : "idle");
+  }
+
+  playOnce(state: string, fallbackState = "idle", frameEvents: FrameEvents = {}): void {
+    const anim = this.atlas.animations[state];
+    if (!anim) {
+      this.applyState(fallbackState);
+      return;
+    }
+
+    this.stop();
+    this.currentState = state;
+    this.currentFrame = 0;
+    this.showFrame(0);
+    frameEvents[0]?.();
+
+    const advance = () => {
+      this.currentFrame += 1;
+      if (this.currentFrame >= anim.frames) {
+        this.applyState(this.atlas.animations[fallbackState] ? fallbackState : "idle");
+        return;
+      }
+      this.showFrame(this.currentFrame);
+      frameEvents[this.currentFrame]?.();
+      this.timerHandle = window.setTimeout(advance, this.frameDelay(anim, this.currentFrame));
+    };
+    this.timerHandle = window.setTimeout(advance, this.frameDelay(anim, 0));
   }
 
   destroy(): void {
     this.stop();
+  }
+
+  private inferAtlasFromSpritesheet(url: string): void {
+    const image = new Image();
+    image.onload = () => {
+      const rows = Math.floor(image.naturalHeight / this.atlas.cellHeight);
+      const inferredFrameCounts = this.inferFrameCountsByRow(image, rows);
+      const animations = { ...this.atlas.animations };
+
+      for (const [key, preset] of Object.entries(MODE_ANIMATION_PRESETS)) {
+        if (rows > preset.row && !animations[key]) {
+          animations[key] = this.normalizedAnimation(preset, inferredFrameCounts[preset.row]);
+        }
+      }
+
+      for (const [key, animation] of Object.entries(animations)) {
+        animations[key] = this.normalizedAnimation(animation, inferredFrameCounts[animation.row]);
+      }
+
+      this.atlas = {
+        ...this.atlas,
+        rows: Math.max(this.atlas.rows, rows),
+        animations,
+      };
+
+      if (isMeritMode && this.hasState("merit")) {
+        document.getElementById("pet-container")?.classList.remove("merit-active", "merit-hit");
+        this.applyState("merit");
+      } else if (isFocusMode && this.hasState("focus")) {
+        this.applyState("focus");
+      } else if (isMusicRhythmMode && this.hasState("music")) {
+        this.applyState("music");
+      }
+    };
+    image.src = url;
+  }
+
+  private normalizedAnimation(animation: FrameAnimation, inferredFrames = 0): FrameAnimation {
+    const frames = Math.max(1, Math.min(this.atlas.columns, Math.max(animation.frames, inferredFrames)));
+    const frameDurations = Array.from({ length: frames }, (_, index) => this.frameDelay(animation, index));
+    return { ...animation, frames, frameDurations };
+  }
+
+  private inferFrameCountsByRow(image: HTMLImageElement, rows: number): number[] {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return [];
+      ctx.drawImage(image, 0, 0);
+      const counts: number[] = [];
+      const cols = Math.min(this.atlas.columns, Math.floor(image.naturalWidth / this.atlas.cellWidth));
+      for (let row = 0; row < rows; row += 1) {
+        let lastContentFrame = 0;
+        for (let col = 0; col < cols; col += 1) {
+          const data = ctx.getImageData(
+            col * this.atlas.cellWidth,
+            row * this.atlas.cellHeight,
+            this.atlas.cellWidth,
+            this.atlas.cellHeight,
+          ).data;
+          for (let index = 3; index < data.length; index += 4) {
+            if (data[index] > 12) {
+              lastContentFrame = col + 1;
+              break;
+            }
+          }
+        }
+        counts[row] = lastContentFrame;
+      }
+      return counts;
+    } catch (err) {
+      console.warn("Failed to infer animation frame counts:", err);
+      return [];
+    }
   }
 }
 
@@ -196,12 +386,17 @@ function spawnParticles(x: number, y: number): void {
 // ── Music Rhythm Visualizer ──
 
 const LS_MUSIC_RHYTHM_ENABLED = "pet_music_rhythm_enabled";
+const LS_MUSIC_RHYTHM_SYNC_MODE = "pet_music_rhythm_sync_mode";
 const MUSIC_NOTE_CHARS = ["♪", "♫", "♬", "♩"];
 let isMusicRhythmAutoEnabled = localStorage.getItem(LS_MUSIC_RHYTHM_ENABLED) !== "false";
 let isMusicRhythmMode = false;
 let musicRhythmTimerId: number | null = null;
 let musicRhythmPollTimerId: number | null = null;
 let lastSystemAudioPlaying = false;
+
+function getMusicRhythmSyncMode(): MusicRhythmSyncMode {
+  return localStorage.getItem(LS_MUSIC_RHYTHM_SYNC_MODE) === "aligned" ? "aligned" : "independent";
+}
 
 function spawnMusicNote(): void {
   const container = document.getElementById("pet-container");
@@ -241,8 +436,13 @@ function setMusicRhythmMode(enabled: boolean, announce = true): void {
     musicRhythmTimerId = null;
   }
   if (enabled) {
+    const engine = (window as any).__petEngine as PetEngine | undefined;
+    if (engine?.hasState("music")) engine.applyState("music");
     spawnMusicNote();
     scheduleNextMusicBeat();
+  } else {
+    const engine = (window as any).__petEngine as PetEngine | undefined;
+    if (engine?.currentState === "music") engine.applyState("idle");
   }
 
   if (announce) {
@@ -342,6 +542,7 @@ let lastPetInteractionTime = 0;
 let isPetHovered = false;
 let isPetMenuOpen = false;
 let isPetPanelOpen = false;
+let isRecallAnimating = false;
 let lastDragEndTime = 0;
 let isWindowIgnoringCursor = false;
 let lastKnownCursorX = -1;
@@ -362,8 +563,13 @@ const LS_TODOS = "pet_todos";
 const LS_PRIMARY_PET_ID = "pet_primary_project_id";
 const LS_FOCUS_MINUTES = "pet_focus_minutes";
 const LS_SUMMONED_PET_IDS = "pet_summoned_pet_ids";
+const LS_PET_ASSETS_VERSION = "pet_assets_version";
+const LS_PET_EXTERNAL_SPEECH = "pet_external_speech";
+const LS_PET_WINDOW_STATE_VERSION = "pet_window_state_version";
 const LS_MERIT_TEXT = "pet_merit_text";
 const LS_MERIT_COUNT = "pet_merit_count";
+const LS_MERIT_TODAY_DATE = "pet_merit_today_date";
+const LS_MERIT_TODAY_COUNT = "pet_merit_today_count";
 const LS_MERIT_ENABLED = "pet_merit_enabled";
 const MERIT_DEFAULT_TEXT = "功德";
 const MERIT_HIT_INTERVAL_MS = 1600;
@@ -404,10 +610,6 @@ async function getApiKey(): Promise<string | null> {
   return await invoke<string | null>("get_api_key");
 }
 
-async function hasApiConfig(): Promise<boolean> {
-  return !!localStorage.getItem(LS_API_ENDPOINT) && !!(await getApiKey());
-}
-
 function getSavedSummonedPetIds(): string[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(LS_SUMMONED_PET_IDS) || "[]");
@@ -419,6 +621,10 @@ function getSavedSummonedPetIds(): string[] {
 
 function setSavedSummonedPetIds(petIds: string[]): void {
   localStorage.setItem(LS_SUMMONED_PET_IDS, JSON.stringify(petIds.filter(Boolean)));
+}
+
+function notifyPetWindowStateChanged(): void {
+  localStorage.setItem(LS_PET_WINDOW_STATE_VERSION, String(Date.now()));
 }
 
 function removeOneSavedSummonedPetId(petId: string): void {
@@ -434,10 +640,13 @@ interface TodoItem {
   taskText: string;
   createdAt: number;
   delayMinutes: number | null;
+  recurrence?: "once" | "repeat";
+  nextTriggerAt?: number;
 }
 
 const todoTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let reminderAudio: HTMLAudioElement | null = null;
+let dismissActiveReminder: (() => void) | null = null;
 
 function formatDelay(minutes: number): string {
   if (minutes < 1) return `${Math.round(minutes * 60)}秒`;
@@ -448,7 +657,7 @@ function formatDelay(minutes: number): string {
 }
 
 let lastSmartSpeechTimestamp = 0;
-const SMART_COOLDOWN = 10 * 60 * 1000;
+const SMART_COOLDOWN = 5 * 60 * 1000;
 
 function getPetSizeScale(): number {
   const saved = Number(localStorage.getItem(LS_PET_SIZE_SCALE) || "0.6");
@@ -605,7 +814,7 @@ function startFocusMode(minutes: number, engine: PetEngine): void {
   focusEndTime = Date.now() + focusDurationMs;
   lastPetInteractionTime = Date.now();
   lastActivityTime = Date.now();
-  engine.applyState("review");
+  engine.applyState(engine.hasState("focus") ? "focus" : "review");
   showSpeech(`专注 ${duration} 分钟，开始工作`, 2600);
   syncFocusPresetButtons(duration);
 
@@ -619,7 +828,8 @@ function startFocusMode(minutes: number, engine: PetEngine): void {
     const remainingText = formatFocusRemaining(remaining);
     updateFocusPanelState(remaining, true);
     setFocusBubbleText(`专注中 ${remainingText}`);
-    if (engine.currentState !== "review") engine.applyState("review");
+    const focusState = engine.hasState("focus") ? "focus" : "review";
+    if (engine.currentState !== focusState) engine.applyState(focusState);
   }, 1000);
 
   updateFocusPanelState(focusDurationMs, true);
@@ -727,28 +937,72 @@ function setMeritCount(count: number): void {
   localStorage.setItem(LS_MERIT_COUNT, String(Math.max(0, Math.floor(count))));
 }
 
+function getMeritDateKey(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function ensureMeritTodayCount(): void {
+  const today = getMeritDateKey();
+  if (localStorage.getItem(LS_MERIT_TODAY_DATE) === today) return;
+  localStorage.setItem(LS_MERIT_TODAY_DATE, today);
+  localStorage.setItem(LS_MERIT_TODAY_COUNT, "0");
+}
+
+function getMeritTodayCount(): number {
+  ensureMeritTodayCount();
+  const count = Number(localStorage.getItem(LS_MERIT_TODAY_COUNT) || "0");
+  return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+}
+
+function setMeritTodayCount(count: number): void {
+  ensureMeritTodayCount();
+  localStorage.setItem(LS_MERIT_TODAY_COUNT, String(Math.max(0, Math.floor(count))));
+}
+
 function updateMeritPanelState(): void {
   const label = document.getElementById("merit-state-label");
-  const count = document.getElementById("merit-count-text");
+  const totalCount = document.getElementById("merit-total-count-text");
+  const todayCount = document.getElementById("merit-today-count-text");
   const input = document.getElementById("merit-text-input") as HTMLInputElement | null;
   if (label) label.textContent = isMeritMode ? "木鱼敲击中" : "准备敲木鱼";
-  if (count) count.textContent = `今日 ${getMeritCount()} 次`;
+  if (totalCount) totalCount.textContent = String(getMeritCount());
+  if (todayCount) todayCount.textContent = String(getMeritTodayCount());
   if (input && document.activeElement !== input) input.value = getMeritText();
+}
+
+function triggerFallbackMeritHit(container: HTMLElement | null): void {
+  if (!container) return;
+  container.classList.remove("merit-hit");
+  void container.offsetWidth;
+  container.classList.add("merit-hit");
+  window.setTimeout(() => container.classList.remove("merit-hit"), 260);
+}
+
+function getMeritSoundFrame(engine: PetEngine): number {
+  return Math.max(0, Math.min(2, engine.frameCount("merit") - 1));
 }
 
 function triggerMeritHit(engine: PetEngine): void {
   const container = document.getElementById("pet-container");
   const text = getMeritText();
   setMeritCount(getMeritCount() + 1);
+  setMeritTodayCount(getMeritTodayCount() + 1);
   updateMeritPanelState();
-  if (container) {
-    container.classList.remove("merit-hit");
-    void container.offsetWidth;
-    container.classList.add("merit-hit");
-    window.setTimeout(() => container.classList.remove("merit-hit"), 260);
+
+  if (engine.hasState("merit")) {
+    engine.playOnce("merit", isMeritMode ? "merit" : "idle", {
+      [getMeritSoundFrame(engine)]: () => playSound("woodfish"),
+    });
+  } else {
+    triggerFallbackMeritHit(container);
+    if (engine.currentState !== "review") engine.applyState("review");
+    playSound("woodfish");
   }
-  if (engine.currentState !== "review") engine.applyState("review");
-  playSound("woodfish");
+
   showSpeech(`${text} +1`, 900, false);
 }
 
@@ -776,8 +1030,8 @@ function startMeritMode(engine: PetEngine): void {
   isDraggingInProgress = false;
   lastPetInteractionTime = Date.now();
   lastActivityTime = Date.now();
-  container?.classList.add("merit-active");
-  engine.applyState("review");
+  container?.classList.toggle("merit-active", !engine.hasState("merit"));
+  engine.applyState(engine.hasState("merit") ? "merit" : "review");
   updateMeritPanelState();
   showSpeech(`${text}模式开始`, 1800);
   triggerMeritHit(engine);
@@ -937,6 +1191,8 @@ function setupManagerSettingsSync(): void {
   let lastScale = getPetSizeScale();
   let lastAlwaysOnTop = isAlwaysOnTop;
   let lastPrimaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
+  let lastPetAssetsVersion = localStorage.getItem(LS_PET_ASSETS_VERSION) || "";
+  let lastMusicRhythmSyncMode = getMusicRhythmSyncMode();
   window.setInterval(() => {
     const nextScale = getPetSizeScale();
     if (Math.abs(nextScale - lastScale) > 0.001) {
@@ -951,12 +1207,24 @@ function setupManagerSettingsSync(): void {
       void getCurrentWindow().setAlwaysOnTop(nextAlwaysOnTop);
     }
 
+    const nextMusicRhythmSyncMode = getMusicRhythmSyncMode();
+    if (nextMusicRhythmSyncMode !== lastMusicRhythmSyncMode) {
+      lastMusicRhythmSyncMode = nextMusicRhythmSyncMode;
+      const engine = (window as any).__petEngine as PetEngine | undefined;
+      engine?.refreshCurrentAnimationTiming();
+    }
+
     const nextPrimaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
-    if (getCurrentWindow().label === "pet" && nextPrimaryPetId !== lastPrimaryPetId) {
+    const nextPetAssetsVersion = localStorage.getItem(LS_PET_ASSETS_VERSION) || "";
+    const shouldReloadPrimaryPet = getCurrentWindow().label === "pet" && nextPrimaryPetId !== lastPrimaryPetId;
+    const shouldReloadEditedAssets = nextPetAssetsVersion !== lastPetAssetsVersion;
+    if (shouldReloadPrimaryPet || shouldReloadEditedAssets) {
       lastPrimaryPetId = nextPrimaryPetId;
-      void loadSpritesheetUrl().then((url) => {
+      lastPetAssetsVersion = nextPetAssetsVersion;
+      void loadPetAssets().then(({ spritesheetUrl, manifest }) => {
         const engine = (window as any).__petEngine as PetEngine | undefined;
-        engine?.setSpritesheet(url);
+        engine?.setAtlas(atlasFromManifest(manifest));
+        engine?.setSpritesheet(`${spritesheetUrl}${spritesheetUrl.includes("?") ? "&" : "?"}v=${Date.now()}`);
       });
     }
   }, 600);
@@ -966,6 +1234,11 @@ async function restoreSavedSummonedPets(): Promise<void> {
   if (getCurrentWindow().label !== "pet") return;
   const savedPetIds = getSavedSummonedPetIds();
   if (savedPetIds.length === 0) return;
+  const primaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
+  if (savedPetIds.length === 1 && savedPetIds[0] === primaryPetId) {
+    setSavedSummonedPetIds([]);
+    return;
+  }
 
   try {
     const existing = await invoke<Array<{ label: string; petId: string }>>("list_summoned_pet_windows");
@@ -1129,11 +1402,11 @@ function setupGitHubSettingsPanel(): void {
   });
 }
 
-// ── Smart Todo Panel ──
+// ── Todo And Reminder Panels ──
 
-let todoPanelJustOpened = false;
+let taskPanelJustOpened = false;
 
-function positionTodoPanel(panel: HTMLElement): void {
+function positionTaskPanel(panel: HTMLElement): void {
   const pet = document.getElementById("pet-container");
   const margin = 12;
   const gap = 12;
@@ -1177,162 +1450,104 @@ function positionTodoPanel(panel: HTMLElement): void {
   panel.style.visibility = "";
 }
 
-function showTodoPanel(): void {
-  const panel = document.getElementById("todo-panel");
-  const input = document.getElementById("todo-input") as HTMLInputElement | null;
+function showTaskPanel(panelId: "todo-panel" | "reminder-panel"): void {
+  const panel = document.getElementById(panelId);
   if (!panel) return;
   const engine = (window as any).__petEngine as PetEngine | undefined;
+  const otherPanelId = panelId === "todo-panel" ? "reminder-panel" : "todo-panel";
+  const otherPanel = document.getElementById(otherPanelId);
+  if (otherPanel) otherPanel.style.display = "none";
 
-  // 根据 API 配置状态切换 placeholder
-  if (input) {
-    input.placeholder = "输入记事内容 (配置 API 解锁倒计时)";
-    void hasApiConfig().then((hasApi) => {
-      input.placeholder = hasApi
-        ? "10分钟后叫我喝水 / 学习深度学习"
-        : "输入记事内容 (配置 API 解锁倒计时)";
-    });
-  }
-
-  todoPanelJustOpened = true;
-  positionTodoPanel(panel);
+  taskPanelJustOpened = true;
+  positionTaskPanel(panel);
   lastPetInteractionTime = Date.now();
   engine?.applyState("idle");
-  // 下一帧解除锁定，防止刚打开就被全局 mousedown 关闭
-  requestAnimationFrame(() => { todoPanelJustOpened = false; });
+  requestAnimationFrame(() => { taskPanelJustOpened = false; });
 }
 
-async function parseTodoIntent(userInput: string): Promise<TodoItem | null> {
-  // 本地正则先拦截常见时间格式，不走 API
-  const localResult = matchLocalReminder(userInput);
-  if (localResult) return localResult;
+function showTodoPanel(): void {
+  showTaskPanel("todo-panel");
+}
 
-  // 纯文字任务交给大模型判断
-  const endpoint0 = localStorage.getItem(LS_API_ENDPOINT);
-  const apiKey = await getApiKey();
-  const model = localStorage.getItem(LS_API_MODEL) || "gpt-3.5-turbo";
-  if (!endpoint0 || !apiKey) {
-    showSpeech("请先配置 API 节点", 3000);
-    return null;
-  }
+function showReminderPanel(): void {
+  showTaskPanel("reminder-panel");
+}
 
-  let endpoint = endpoint0.trim().replace(/\/+$/, "");
-  if (!endpoint.endsWith("/chat/completions")) {
-    endpoint += "/v1/chat/completions";
-  }
-
-  const systemPrompt = 'Reply only with JSON: {"type":"note","delayMinutes":null,"taskText":"<task>"}.';
-
+function readTodoItems(): TodoItem[] {
   try {
-    const resp = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userInput },
-        ],
-        max_tokens: 80,
-        temperature: 0.1,
-      }),
-    });
-
-    if (!resp.ok) {
-      const errBody = await resp.text().catch(() => "");
-      console.error(`parseTodoIntent HTTP ${resp.status}:`, errBody);
-      throw new Error(`HTTP ${resp.status}`);
-    }
-
-    const data = await resp.json();
-    if (data.error) {
-      console.error("parseTodoIntent API error:", data.error);
-      throw new Error(data.error.message || "API error");
-    }
-
-    const raw = data.choices?.[0]?.message?.content?.trim();
-    if (!raw) throw new Error("Empty response");
-
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON found");
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    return {
-      id: `todo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      type: parsed.type === "reminder" ? "reminder" : "note",
-      taskText: String(parsed.taskText || userInput),
-      createdAt: Date.now(),
-      delayMinutes: parsed.type === "reminder" ? Number(parsed.delayMinutes) : null,
-    };
-  } catch (err) {
-    // API 失败时降级为本地备忘录
-    console.warn("parseTodoIntent API failed, fallback to note:", err);
-    return {
-      id: `todo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      type: "note",
-      taskText: userInput,
-      createdAt: Date.now(),
-      delayMinutes: null,
-    };
+    const parsed = JSON.parse(localStorage.getItem(LS_TODOS) || "[]") as TodoItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 
-/** 本地正则匹配常见时间格式，命中直接返回 reminder，不走 API */
-function matchLocalReminder(input: string): TodoItem | null {
-  const patterns: [RegExp, (m: RegExpMatchArray) => number][] = [
-    // Xs / X秒
-    [/\b(\d+)\s*[sS秒]/, (m) => +m[1] / 60],
-    // X分钟 / X分
-    [/\b(\d+)\s*[分mM][钟]?/, (m) => +m[1]],
-    // X小时
-    [/\b(\d+)\s*[hH小时]/, (m) => +m[1] * 60],
-  ];
+function writeTodoItems(items: TodoItem[]): void {
+  localStorage.setItem(LS_TODOS, JSON.stringify(items));
+}
 
-  for (const [re, toMinutes] of patterns) {
-    const m = input.match(re);
-    if (m) {
-      const minutes = toMinutes(m);
-      if (minutes > 0) {
-        // 去掉时间描述 + "后" + "提醒我/叫我" + 尾部标点，提取核心任务
-        let taskText = input
-          .replace(re, "")
-          .replace(/^后/, "")
-          .replace(/提醒我|提醒一下我|叫我|叫一下我/g, "")
-          .replace(/[,，。、;；!！\s]+$/g, "")
-          .trim();
-        return {
-          id: `todo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          type: "reminder",
-          taskText: taskText || "",
-          createdAt: Date.now(),
-          delayMinutes: Math.max(minutes, 1 / 60), // 最少 1 秒
-        };
-      }
-    }
+function getNextTriggerAt(item: TodoItem): number {
+  return item.nextTriggerAt ?? item.createdAt + (item.delayMinutes || 0) * 60000;
+}
+
+function clearTodoTimers(id: string): void {
+  const timer = todoTimers.get(id);
+  const tickTimer = todoTimers.get(`${id}_tick`);
+  if (timer) clearTimeout(timer);
+  if (tickTimer) clearInterval(tickTimer);
+  todoTimers.delete(id);
+  todoTimers.delete(`${id}_tick`);
+}
+
+function removeTodoItem(id: string, removeElement = true): void {
+  clearTodoTimers(id);
+  writeTodoItems(readTodoItems().filter((item) => item.id !== id));
+  if (removeElement) {
+    document.getElementById(`todo-${id}`)?.remove();
+    document.getElementById(`reminder-${id}`)?.remove();
   }
+}
 
-  return null;
+function upsertTodoItem(item: TodoItem): void {
+  const items = readTodoItems();
+  const index = items.findIndex((saved) => saved.id === item.id);
+  if (index >= 0) items[index] = item;
+  else items.push(item);
+  writeTodoItems(items);
 }
 
 function setupTodoPanel(): void {
   const panelEl = document.getElementById("todo-panel");
+  const reminderPanelEl = document.getElementById("reminder-panel");
   const inputEl = document.getElementById("todo-input") as HTMLInputElement | null;
   const submitBtnEl = document.getElementById("todo-submit") as HTMLButtonElement | null;
   const listEl = document.getElementById("todo-list");
-  if (!panelEl || !inputEl || !submitBtnEl || !listEl) return;
+  const reminderInputEl = document.getElementById("reminder-input") as HTMLInputElement | null;
+  const reminderDelayEl = document.getElementById("reminder-delay") as HTMLInputElement | null;
+  const reminderUnitEl = document.getElementById("reminder-unit") as HTMLSelectElement | null;
+  const reminderRepeatEl = document.getElementById("reminder-repeat") as HTMLSelectElement | null;
+  const reminderSubmitEl = document.getElementById("reminder-submit") as HTMLButtonElement | null;
+  const reminderListEl = document.getElementById("reminder-list");
+  if (!panelEl || !reminderPanelEl || !inputEl || !submitBtnEl || !listEl || !reminderInputEl || !reminderDelayEl || !reminderUnitEl || !reminderRepeatEl || !reminderSubmitEl || !reminderListEl) return;
   const panel = panelEl;
+  const reminderPanel = reminderPanelEl;
   const input = inputEl;
   const submitBtn = submitBtnEl;
   const list = listEl;
+  const reminderInput = reminderInputEl;
+  const reminderDelay = reminderDelayEl;
+  const reminderUnit = reminderUnitEl;
+  const reminderRepeat = reminderRepeatEl;
+  const reminderSubmit = reminderSubmitEl;
+  const reminderList = reminderListEl;
 
-  // 点击面板外部关闭
   document.addEventListener("mousedown", (e) => {
-    if (todoPanelJustOpened) return;
+    if (taskPanelJustOpened) return;
     if (panel.style.display === "block" && !panel.contains(e.target as Node)) {
       panel.style.display = "none";
+    }
+    if (reminderPanel.style.display === "block" && !reminderPanel.contains(e.target as Node)) {
+      reminderPanel.style.display = "none";
     }
   });
 
@@ -1361,8 +1576,7 @@ function setupTodoPanel(): void {
     doneBtn.className = "todo-done-btn";
     doneBtn.textContent = "DONE";
     doneBtn.addEventListener("click", () => {
-      const todos = (JSON.parse(localStorage.getItem(LS_TODOS) || "[]") as TodoItem[]).filter((t) => t.id !== item.id);
-      localStorage.setItem(LS_TODOS, JSON.stringify(todos));
+      removeTodoItem(item.id, false);
       el.style.opacity = "0";
       el.style.transition = "opacity 0.2s";
       setTimeout(() => el.remove(), 200);
@@ -1376,113 +1590,111 @@ function setupTodoPanel(): void {
   }
 
   function renderReminderItem(item: TodoItem): void {
+    clearTodoTimers(item.id);
+    document.getElementById(`reminder-${item.id}`)?.remove();
     const el = document.createElement("div");
     el.className = "todo-item-reminder";
-    el.id = `todo-${item.id}`;
+    el.id = `reminder-${item.id}`;
+
+    const actions = document.createElement("div");
+    actions.className = "todo-actions";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "todo-done-btn";
+    cancelBtn.textContent = "取消";
+    cancelBtn.addEventListener("click", () => removeTodoItem(item.id));
+    actions.appendChild(cancelBtn);
 
     const text = document.createElement("span");
     text.className = "todo-text";
     text.textContent = item.taskText;
 
+    const badge = document.createElement("span");
+    badge.className = "reminder-badge";
+    badge.textContent = item.recurrence === "repeat" ? "循环" : "单次";
+
     const countdown = document.createElement("span");
     countdown.className = "todo-countdown";
 
-    const endAt = item.createdAt + (item.delayMinutes || 0) * 60000;
-
     function tick(): void {
-      const remaining = Math.max(0, endAt - Date.now());
+      const remaining = Math.max(0, getNextTriggerAt(item) - Date.now());
       if (remaining <= 0) {
         countdown.textContent = "00:00";
         return;
       }
-      const m = Math.floor(remaining / 60000);
+      const hours = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
       const s = Math.floor((remaining % 60000) / 1000);
-      countdown.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      countdown.textContent = hours > 0
+        ? `${String(hours).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+        : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     }
     tick();
     const intervalId = setInterval(tick, 1000);
     todoTimers.set(`${item.id}_tick`, intervalId as unknown as ReturnType<typeof setTimeout>);
 
+    el.appendChild(actions);
     el.appendChild(countdown);
+    el.appendChild(badge);
     el.appendChild(text);
-    list.prepend(el);
+    reminderList.prepend(el);
+  }
+
+  async function alertReminder(item: TodoItem): Promise<void> {
+    dismissActiveReminder?.();
+    const appWindow = getCurrentWindow();
+    const wasOnTop = isAlwaysOnTop;
+    if (!wasOnTop) await appWindow.setAlwaysOnTop(true);
+
+    reminderAudio = new Audio(new URL("../assets/audio/crunch.mp3", import.meta.url).href);
+    reminderAudio.loop = true;
+    reminderAudio.volume = Object.values(sfx)[0]?.volume ?? 0.6;
+    reminderAudio.play().catch(() => {});
+
+    const intervalText = formatDelay(item.delayMinutes!);
+    const prefix = item.recurrence === "repeat" ? `循环提醒（每${intervalText}）：` : "提醒：";
+    showSpeech(`${prefix}${item.taskText || "时间到了"}`, 999999);
+
+    const container = document.getElementById("pet-container");
+    container?.classList.add("reminder-pulse");
+    const hitbox = document.getElementById("pet-hitbox");
+    let dismissed = false;
+    const dismissReminder = (): void => {
+      if (dismissed) return;
+      dismissed = true;
+      reminderAudio?.pause();
+      reminderAudio = null;
+      container?.classList.remove("reminder-pulse");
+      document.getElementById("pet-speech-bubble")?.classList.remove("show-bubble");
+      if (!wasOnTop) void appWindow.setAlwaysOnTop(false);
+      hitbox?.removeEventListener("click", dismissReminder);
+      if (dismissActiveReminder === dismissReminder) dismissActiveReminder = null;
+    };
+    dismissActiveReminder = dismissReminder;
+    hitbox?.addEventListener("click", dismissReminder, { once: true });
   }
 
   function scheduleReminder(item: TodoItem): void {
     if (item.type !== "reminder" || !item.delayMinutes) return;
-    const ms = item.delayMinutes * 60000;
+    const ms = Math.max(0, getNextTriggerAt(item) - Date.now());
 
-    const timerId = setTimeout(async () => {
-      // 先取出 tick 定时器再清理 map
-      const tickTimer = todoTimers.get(`${item.id}_tick`);
-      todoTimers.delete(item.id);
-      todoTimers.delete(`${item.id}_tick`);
-      if (tickTimer) clearInterval(tickTimer);
-
-      // 置顶显示
-      const appWindow = getCurrentWindow();
-      const wasOnTop = isAlwaysOnTop;
-      if (!wasOnTop) await appWindow.setAlwaysOnTop(true);
-
-      // 循环播放 crunch 音效
-      reminderAudio = new Audio(new URL("../assets/audio/crunch.mp3", import.meta.url).href);
-      reminderAudio.loop = true;
-      reminderAudio.volume = Object.values(sfx)[0]?.volume ?? 0.6;
-      reminderAudio.play().catch(() => {});
-
-      const reminderMsg = item.taskText
-        ? `${formatDelay(item.delayMinutes!)}到啦，快去${item.taskText}吧`
-        : `${formatDelay(item.delayMinutes!)}到啦！`;
-      showSpeech(reminderMsg, 999999);
-
-      // 持续视觉反馈
-      const container = document.getElementById("pet-container");
-      if (container) container.classList.add("reminder-pulse");
-
-      // 用户点击宠物后结束提醒
-      const hitbox = document.getElementById("pet-hitbox");
-      let dismissed = false;
-      function dismissReminder(): void {
-        if (dismissed) return;
-        dismissed = true;
-
-        // 停止音效
-        if (reminderAudio) {
-          reminderAudio.pause();
-          reminderAudio = null;
-        }
-
-        // 移除视觉反馈
-        if (container) container.classList.remove("reminder-pulse");
-
-        // 隐藏气泡
-        const bubble = document.getElementById("pet-speech-bubble");
-        if (bubble) bubble.classList.remove("show-bubble");
-
-        // 恢复置顶状态
-        if (!wasOnTop) appWindow.setAlwaysOnTop(false);
-
-        hitbox?.removeEventListener("click", dismissReminder);
+    const timerId = setTimeout(() => {
+      clearTodoTimers(item.id);
+      void alertReminder(item);
+      if (item.recurrence === "repeat") {
+        item.nextTriggerAt = Date.now() + item.delayMinutes! * 60000;
+        upsertTodoItem(item);
+        renderReminderItem(item);
+        scheduleReminder(item);
+      } else {
+        removeTodoItem(item.id);
       }
-      hitbox?.addEventListener("click", dismissReminder, { once: true });
-
-      // 自动移除 DOM
-      const el = document.getElementById(`todo-${item.id}`);
-      if (el) {
-        el.style.opacity = "0";
-        el.style.transition = "opacity 0.3s";
-        setTimeout(() => el.remove(), 300);
-      }
-
-      // 清理 localStorage
-      const todos = (JSON.parse(localStorage.getItem(LS_TODOS) || "[]") as TodoItem[]).filter((t) => t.id !== item.id);
-      localStorage.setItem(LS_TODOS, JSON.stringify(todos));
     }, ms);
 
     todoTimers.set(item.id, timerId);
   }
 
-  async function handleSubmit(): Promise<void> {
+  function handleTodoSubmit(): void {
     const raw = input.value.trim();
     if (!raw) {
       panel.style.display = "none";
@@ -1493,48 +1705,56 @@ function setupTodoPanel(): void {
     input.value = "";
     panel.style.display = "none";
 
-    const hasApi = await hasApiConfig();
-
-    let item: TodoItem | null;
-
-    if (!hasApi) {
-      // 无 API：直接作为记事本条目，跳过 AI 解析
-      item = {
-        id: `todo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        type: "note",
-        taskText: raw,
-        createdAt: Date.now(),
-        delayMinutes: null,
-      };
-    } else {
-      // 有 API：走 AI 意图解析
-      item = await parseTodoIntent(raw);
-    }
-
-    if (!item) return;
-
-    // 存储
-    const todos: TodoItem[] = JSON.parse(localStorage.getItem(LS_TODOS) || "[]");
-    todos.push(item);
-    localStorage.setItem(LS_TODOS, JSON.stringify(todos));
-
-    if (item.type === "reminder") {
-      renderReminderItem(item);
-      scheduleReminder(item);
-      showSpeech(`已设定 ${formatDelay(item.delayMinutes!)}后提醒`, 3000);
-    } else {
-      renderNoteItem(item);
-      showSpeech("已记录备忘", 2000);
-    }
+    const item: TodoItem = {
+      id: `todo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      type: "note",
+      taskText: raw,
+      createdAt: Date.now(),
+      delayMinutes: null,
+    };
+    upsertTodoItem(item);
+    renderNoteItem(item);
+    showSpeech("已添加待办", 2000);
   }
 
-  submitBtn.addEventListener("click", handleSubmit);
+  function handleReminderSubmit(): void {
+    const raw = reminderInput.value.trim();
+    const amount = Number(reminderDelay.value);
+    if (!raw || !Number.isFinite(amount) || amount <= 0) {
+      showSpeech("请填写提醒内容和有效时间", 2400);
+      return;
+    }
+    const multiplier = reminderUnit.value === "hours" ? 60 : reminderUnit.value === "seconds" ? 1 / 60 : 1;
+    const delayMinutes = Math.max(amount * multiplier, 1 / 60);
+    const item: TodoItem = {
+      id: `reminder_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      type: "reminder",
+      taskText: raw,
+      createdAt: Date.now(),
+      delayMinutes,
+      recurrence: reminderRepeat.value === "repeat" ? "repeat" : "once",
+      nextTriggerAt: Date.now() + delayMinutes * 60000,
+    };
+    reminderInput.value = "";
+    reminderPanel.style.display = "none";
+    upsertTodoItem(item);
+    renderReminderItem(item);
+    scheduleReminder(item);
+    const kind = item.recurrence === "repeat" ? "循环提醒" : "提醒";
+    showSpeech(`已设定${kind}：${formatDelay(delayMinutes)}后`, 3000);
+  }
+
+  submitBtn.addEventListener("click", handleTodoSubmit);
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") handleSubmit();
+    if (e.key === "Enter") handleTodoSubmit();
+  });
+  reminderSubmit.addEventListener("click", handleReminderSubmit);
+  reminderInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleReminderSubmit();
   });
 
-  // 恢复已有待办，过滤掉过期的
-  const saved: TodoItem[] = JSON.parse(localStorage.getItem(LS_TODOS) || "[]");
+  // Older reminders were single-use items without recurrence or nextTriggerAt.
+  const saved = readTodoItems();
   const now = Date.now();
   const kept: TodoItem[] = [];
   for (const item of saved) {
@@ -1542,17 +1762,19 @@ function setupTodoPanel(): void {
       renderNoteItem(item);
       kept.push(item);
     } else if (item.type === "reminder") {
-      const endAt = item.createdAt + (item.delayMinutes || 0) * 60000;
-      if (now < endAt) {
+      if (!item.delayMinutes || item.delayMinutes <= 0) continue;
+      item.recurrence = item.recurrence === "repeat" ? "repeat" : "once";
+      if (item.recurrence === "repeat" && getNextTriggerAt(item) <= now) {
+        item.nextTriggerAt = now + item.delayMinutes * 60000;
+      }
+      if (getNextTriggerAt(item) > now) {
         renderReminderItem(item);
         scheduleReminder(item);
         kept.push(item);
       }
     }
   }
-  if (kept.length !== saved.length) {
-    localStorage.setItem(LS_TODOS, JSON.stringify(kept));
-  }
+  writeTodoItems(kept);
 }
 
 async function checkGitHubStatus(): Promise<void> {
@@ -1594,7 +1816,6 @@ async function triggerSmartSpeech(): Promise<void> {
   const apiKey = await getApiKey();
 
   if (!endpoint || !apiKey) {
-    localStorage.setItem(LS_CHAT_MODE, "basic");
     showSpeech("请先配置 API 节点", 3000);
     return;
   }
@@ -1627,6 +1848,7 @@ async function triggerSmartSpeech(): Promise<void> {
   const basePersona = personaMode === "custom"
     ? (localStorage.getItem(LS_CUSTOM_PERSONA) || PERSONA_MAP["tsundere"])
     : (PERSONA_MAP[personaMode] || PERSONA_MAP["tsundere"]);
+  const model = localStorage.getItem(LS_API_MODEL) || "gpt-3.5-turbo";
 
   const systemPrompt = `设定：${basePersona}\n当前系统时间：${timeString}。\n要求：请结合当前真实时间与你的设定，用不超过20个字回复或吐槽。严禁包含任何表情符号、颜文字或多余的解释。`;
 
@@ -1638,7 +1860,7 @@ async function triggerSmartSpeech(): Promise<void> {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: localStorage.getItem(LS_API_MODEL) || "gpt-3.5-turbo",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: "现在请跟我打招呼或者吐槽我。" },
@@ -1659,8 +1881,8 @@ async function triggerSmartSpeech(): Promise<void> {
     }
   } catch (err) {
     console.error("LLM request failed:", err);
-    showSpeech("API 连不上，还是聊聊天吧", 3000);
-    fetchHitokoto();
+    lastSmartSpeechTimestamp = nowTs;
+    showSpeech("大模型调用失败，先聊聊天吧", 4000);
   }
 }
 
@@ -1674,6 +1896,13 @@ function fetchHitokoto(): void {
     .catch(() => {});
 }
 
+function activeModeAnimationState(engine: PetEngine): string | null {
+  if (isMeritMode && engine.hasState("merit")) return "merit";
+  if (isFocusMode) return engine.hasState("focus") ? "focus" : "review";
+  if (isMusicRhythmMode && engine.hasState("music")) return "music";
+  return null;
+}
+
 function forceEndDrag(engine: PetEngine, container: HTMLElement): void {
   const didDrag = hasStartedDragging;
   if (manualDragFrame !== null) {
@@ -1682,7 +1911,7 @@ function forceEndDrag(engine: PetEngine, container: HTMLElement): void {
   }
   manualDragSessionId += 1;
   if (hasStartedDragging) {
-    engine.applyState("idle");
+    engine.applyState(activeModeAnimationState(engine) ?? "idle");
     container.classList.remove("is-lifting");
     container.classList.remove("is-dragging");
     container.classList.add("is-dropping");
@@ -1818,6 +2047,7 @@ function isBlockingPetPanelOpen(): boolean {
     "custom-persona-panel",
     "github-settings-panel",
     "todo-panel",
+    "reminder-panel",
   ];
   return panelIds.some((id) => {
     const panel = document.getElementById(id) as HTMLElement | null;
@@ -1839,6 +2069,7 @@ function isPointOverInteractivePetArea(x: number, y: number): boolean {
     "custom-persona-panel",
     "github-settings-panel",
     "todo-panel",
+    "reminder-panel",
   ].some((id) => {
     const panel = document.getElementById(id) as HTMLElement | null;
     return !!panel && isElementVisible(panel) && isPointInRect(x, y, panel.getBoundingClientRect());
@@ -2002,6 +2233,7 @@ function weightedRoamDecision(): (typeof ROAM_DECISIONS)[number]["action"] {
 
 function canAutoRoam(): boolean {
   return !isExiting
+    && !isRecallAnimating
     && !isMouseDown
     && !hasStartedDragging
     && !isDraggingInProgress
@@ -2021,6 +2253,7 @@ function isManualPetControlActive(): boolean {
 function shouldFreezeRoamPhysics(state: RoamState): boolean {
   const recentlyDragged = Date.now() - lastDragEndTime < 900;
   return isExiting
+    || isRecallAnimating
     || isFocusMode
     || isMeritMode
     || isManualPetControlActive()
@@ -2157,8 +2390,21 @@ function chooseLeapTarget(state: RoamState): RoamPlatform | null {
 function chooseNextRoamAction(engine: PetEngine, state: RoamState, now: number): void {
   if (now < state.nextDecisionAt) return;
 
+  const activityLevel = localStorage.getItem("pet_activity_level") || "middle";
+  let decision = weightedRoamDecision();
+
+  if (activityLevel === "quiet") {
+    if (decision === "walkLeft" || decision === "walkRight" || decision === "runLeft" || decision === "runRight" || decision === "jump") {
+      decision = "idle";
+    }
+  } else if (activityLevel === "middle") {
+    if (decision === "jump") {
+      decision = "idle";
+    }
+  }
+
   let duration = randomBetween(1000, 2400);
-  switch (weightedRoamDecision()) {
+  switch (decision) {
     case "walkLeft":
       state.facing = "left";
       state.vx = -randomBetween(65, 120);
@@ -2303,11 +2549,16 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
 
   const recentlyDragged = Date.now() - lastDragEndTime < 1200;
   const shouldSyncWindow = now - state.lastWindowSyncAt > 220;
-  if (shouldFreezeRoamPhysics(state)) {
+  const customMusicStateActive = isMusicRhythmMode && engine.hasState("music");
+  if (shouldFreezeRoamPhysics(state) || customMusicStateActive) {
     if (shouldSyncWindow) await syncRoamStateFromWindow(engine, state, false);
     state.vx = 0;
     state.nextDecisionAt = now + 500;
-    if (state.grounded) setRoamAction(engine, state, isMeritMode || isFocusMode ? "review" : "idle");
+    if (!isMeritMode) {
+      const fixedState = activeModeAnimationState(engine) ?? "idle";
+      if (engine.currentState !== fixedState) engine.applyState(fixedState);
+      state.action = fixedState === "idle" ? "idle" : "review";
+    }
     return;
   }
 
@@ -2444,7 +2695,7 @@ async function setupDrag(engine: PetEngine): Promise<void> {
 
   // mousedown - 潜伏阶段
   hitbox.addEventListener("mousedown", (e) => {
-    if (e.button !== 0 || isExiting || isDraggingInProgress) return;
+    if (e.button !== 0 || isExiting || isRecallAnimating || isDraggingInProgress) return;
     if (isFocusMode) {
       showSpeech("专注中，先把工作做完", 1800);
       return;
@@ -2469,7 +2720,7 @@ async function setupDrag(engine: PetEngine): Promise<void> {
       return;
     }
 
-    if (!isMouseDown || hasStartedDragging || isExiting || isDraggingInProgress) return;
+    if (!isMouseDown || hasStartedDragging || isExiting || isRecallAnimating || isDraggingInProgress) return;
 
     const dx = e.clientX - mouseDownX;
     const dy = e.clientY - mouseDownY;
@@ -2520,7 +2771,30 @@ async function setupDrag(engine: PetEngine): Promise<void> {
 
 // ── Pet Loading ──
 
-async function loadSpritesheetUrl(): Promise<string> {
+function atlasFromManifest(manifest: PetManifest | null): PetAtlas {
+  const animations = {
+    ...CODEX_ATLAS.animations,
+    ...(manifest?.animations || {}),
+  };
+  const rows = Math.max(
+    CODEX_ATLAS.rows,
+    ...Object.values(animations).map((animation) => animation.row + 1),
+  );
+  const atlas = {
+    ...CODEX_ATLAS,
+    rows,
+    animations,
+  };
+  console.log("Pet atlas loaded", {
+    pet: manifest?.id || "builtin",
+    spritesheet: manifest?.spritesheetPath || "builtin",
+    states: Object.keys(animations),
+    hasMerit: Boolean(animations.merit),
+  });
+  return atlas;
+}
+
+async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetManifest | null }> {
   const params = new URLSearchParams(window.location.search);
   const windowLabel = getCurrentWindow().label;
   const summonedPetId = /^pet-(.+)-\d+$/.exec(windowLabel)?.[1] ?? null;
@@ -2529,16 +2803,25 @@ async function loadSpritesheetUrl(): Promise<string> {
     : null;
   const projectPetId = params.get("petId") || summonedPetId || primaryPetId;
   if (projectPetId === "ikun-pet") {
-    return new URL("../builtin-pets/ikun-pet/spritesheet.webp", import.meta.url).href;
+    return {
+      spritesheetUrl: new URL("../builtin-pets/ikun-pet/spritesheet.webp", import.meta.url).href,
+      manifest: null,
+    };
   }
   if (projectPetId) {
     try {
       const petDir = await invoke<string>("get_project_pet_dir", { petId: projectPetId });
-      const content = await fetch(convertFileSrc(`${petDir}/pet.json`)).then((resp) => resp.json()) as PetManifest;
+      const content = await invoke<PetManifest>("read_project_pet_manifest", { petId: projectPetId });
       const spritesheetPath = `${petDir}/${content.spritesheetPath}`;
-      const url = convertFileSrc(spritesheetPath);
-      console.log(`Loading project pet: ${content.displayName} from ${url}`);
-      return url;
+      const url = `${convertFileSrc(spritesheetPath)}?v=${Date.now()}`;
+      console.log("Loading project pet", {
+        requestedPetId: projectPetId,
+        manifestId: content.id,
+        spritesheetPath: content.spritesheetPath,
+        hasMerit: Boolean(content.animations?.merit),
+        url,
+      });
+      return { spritesheetUrl: url, manifest: content };
     } catch (e) {
       console.warn("Project pet failed to load, using fallback:", e);
     }
@@ -2555,31 +2838,101 @@ async function loadSpritesheetUrl(): Promise<string> {
       const spritesheetPath = `${petDir}/${pet.spritesheetPath}`;
       const url = convertFileSrc(spritesheetPath);
       console.log(`Loading pet: ${pet.displayName} from ${url}`);
-      return url;
+      return { spritesheetUrl: url, manifest: pet };
     }
   } catch (e) {
     console.warn("No imported pets found, using fallback:", e);
   }
 
   // Fallback: local test spritesheet
-  return new URL("./spritesheet.webp", import.meta.url).href;
+  return { spritesheetUrl: new URL("./spritesheet.webp", import.meta.url).href, manifest: null };
+}
+
+const RECALL_EFFECT_CLASSES = ["recall-portal", "recall-dust", "recall-shadow-sink", "recall-light-fold"] as const;
+type RecallEffectClass = typeof RECALL_EFFECT_CLASSES[number];
+
+function resetRecallDisappearEffect(container: HTMLElement): void {
+  container.classList.remove("recall-disappearing", ...RECALL_EFFECT_CLASSES);
+  container.style.removeProperty("--recall-drift-x");
+  container.style.removeProperty("--recall-tilt");
+  container.style.removeProperty("--recall-duration");
+}
+
+function randomRecallEffectClass(): RecallEffectClass {
+  return RECALL_EFFECT_CLASSES[Math.floor(Math.random() * RECALL_EFFECT_CLASSES.length)];
+}
+
+function playRecallDisappearEffect(): Promise<void> {
+  const container = document.getElementById("pet-container") as HTMLElement | null;
+  if (!container) return Promise.resolve();
+
+  resetRecallDisappearEffect(container);
+  const effect = randomRecallEffectClass();
+  const duration = 860 + Math.round(Math.random() * 260);
+  const startedAt = Date.now();
+  container.style.setProperty("--recall-drift-x", `${Math.round((Math.random() * 2 - 1) * 24)}px`);
+  container.style.setProperty("--recall-tilt", `${(Math.random() * 10 - 5).toFixed(1)}deg`);
+  container.style.setProperty("--recall-duration", `${duration}ms`);
+  void container.offsetWidth;
+  container.classList.add("recall-disappearing", effect);
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const finish = (): void => {
+      if (resolved) return;
+      resolved = true;
+      container.removeEventListener("animationend", onAnimationEnd);
+      resolve();
+    };
+    const onAnimationEnd = (): void => {
+      if (Date.now() - startedAt >= duration * 0.78) finish();
+    };
+    container.addEventListener("animationend", onAnimationEnd);
+    window.setTimeout(finish, duration + 180);
+  });
 }
 
 async function recallCurrentPet(): Promise<void> {
+  if (isRecallAnimating) return;
   const appWindow = getCurrentWindow();
   const label = appWindow.label;
   const summonedPetId = /^pet-(.+)-\d+$/.exec(label)?.[1] ?? null;
+  const container = document.getElementById("pet-container") as HTMLElement | null;
   try {
+    if (await getVisiblePetCount() <= 1) return;
+    isRecallAnimating = true;
+    isPetMenuOpen = false;
+    lastPetInteractionTime = Date.now();
+    await playRecallDisappearEffect();
+    if (container) container.style.visibility = "hidden";
     if (label === "pet") {
       await invoke("hide_primary_pet_window");
+      if (container) {
+        resetRecallDisappearEffect(container);
+        container.style.removeProperty("visibility");
+      }
+      isRecallAnimating = false;
+      notifyPetWindowStateChanged();
       return;
     }
     if (summonedPetId) {
       removeOneSavedSummonedPetId(summonedPetId);
       await invoke("close_summoned_pet_window", { label });
+      notifyPetWindowStateChanged();
+      return;
     }
+    if (container) {
+      resetRecallDisappearEffect(container);
+      container.style.removeProperty("visibility");
+    }
+    isRecallAnimating = false;
   } catch (err) {
     console.warn("recall current pet failed:", err);
+    if (container) {
+      resetRecallDisappearEffect(container);
+      container.style.removeProperty("visibility");
+    }
+    isRecallAnimating = false;
   }
 }
 
@@ -2598,13 +2951,14 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   const hitbox = document.getElementById("pet-hitbox");
   const menu = document.getElementById("pet-context-menu") as HTMLElement | null;
   const managerButton = document.getElementById("context-manager") as HTMLButtonElement | null;
+  const reminderButton = document.getElementById("context-reminder") as HTMLButtonElement | null;
   const todoButton = document.getElementById("context-todo") as HTMLButtonElement | null;
   const focusButton = document.getElementById("context-focus") as HTMLButtonElement | null;
   const meritButton = document.getElementById("context-merit") as HTMLButtonElement | null;
   const musicButton = document.getElementById("context-music") as HTMLButtonElement | null;
   const recallButton = document.getElementById("context-recall") as HTMLButtonElement | null;
   const quitButton = document.getElementById("context-quit") as HTMLButtonElement | null;
-  if (!hitbox || !menu || !managerButton || !todoButton || !focusButton || !meritButton || !musicButton || !recallButton || !quitButton) return;
+  if (!hitbox || !menu || !managerButton || !reminderButton || !todoButton || !focusButton || !meritButton || !musicButton || !recallButton || !quitButton) return;
 
   // Apply persisted always-on-top state on startup
   await appWindow.setAlwaysOnTop(isAlwaysOnTop);
@@ -2683,7 +3037,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
 
   hitbox.addEventListener("contextmenu", async (e) => {
     e.preventDefault();
-    if (isExiting) return;
+    if (isExiting || isRecallAnimating) return;
 
     void showMenu();
   });
@@ -2696,6 +3050,11 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   todoButton.addEventListener("click", () => {
     hideMenu();
     showTodoPanel();
+  });
+
+  reminderButton.addEventListener("click", () => {
+    hideMenu();
+    showReminderPanel();
   });
 
   focusButton.addEventListener("click", () => {
@@ -2714,6 +3073,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   });
 
   recallButton.addEventListener("click", () => {
+    if (isRecallAnimating) return;
     hideMenu();
     void recallCurrentPet();
   });
@@ -2941,6 +3301,14 @@ function setupVolumePanel(): void {
 
   window.addEventListener("storage", (event) => {
     if (event.key === LS_PET_VOLUME) updatePanel(getPetVolumePercent());
+    if (event.key === LS_PET_EXTERNAL_SPEECH && event.newValue) {
+      try {
+        const payload = JSON.parse(event.newValue) as { text?: string; durationMs?: number };
+        if (payload.text) showSpeech(payload.text, payload.durationMs || 6000, false);
+      } catch (error) {
+        console.warn("Invalid external speech payload:", error);
+      }
+    }
   });
 
   panel.addEventListener("mouseenter", () => {
@@ -2976,8 +3344,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const spritesheetUrl = await loadSpritesheetUrl();
-  const engine = new PetEngine(spriteEl, CODEX_ATLAS, spritesheetUrl);
+  const { spritesheetUrl, manifest } = await loadPetAssets();
+  const engine = new PetEngine(spriteEl, atlasFromManifest(manifest), spritesheetUrl);
   (window as any).__petEngine = engine;
   await applyPetSizeScale();
 

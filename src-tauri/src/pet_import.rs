@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -12,7 +13,16 @@ const MAX_PET_JSON_BYTES: u64 = 256 * 1024;
 const MAX_FILE_BYTES: u64 = 50 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 200 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES: u64 = 100 * 1024 * 1024;
+const MAX_SPRITESHEET_BYTES: usize = 20 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_SECS: u64 = 60;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FrameAnimation {
+    pub row: u32,
+    pub frames: u32,
+    #[serde(rename = "frameDurations")]
+    pub frame_durations: Vec<u32>,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PetManifest {
@@ -26,6 +36,8 @@ pub struct PetManifest {
     pub kind: Option<String>,
     #[serde(default)]
     pub version: Option<String>,
+    #[serde(default)]
+    pub animations: BTreeMap<String, FrameAnimation>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -35,6 +47,25 @@ pub struct ProjectPet {
     pub dir: String,
     #[serde(rename = "spritesheetFile")]
     pub spritesheet_file: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DebugImageReference {
+    pub name: String,
+    #[serde(rename = "base64")]
+    pub base64_data: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DebugGenerationInput {
+    pub references: Vec<DebugImageReference>,
+    pub prompt: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GeneratedImageInput {
+    #[serde(rename = "base64")]
+    pub base64_data: String,
 }
 
 fn pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -466,6 +497,83 @@ pub fn delete_project_pet(app: AppHandle, pet_id: String) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub fn read_project_pet_spritesheet(app: AppHandle, pet_id: String) -> Result<Vec<u8>, String> {
+    let pet_id = sanitize_id(&pet_id)?;
+    let dir = project_pets_dir(&app)?.join(&pet_id);
+    if !dir.is_dir() {
+        return Err("Pet folder was not found".to_string());
+    }
+
+    let pet_json = dir.join("pet.json");
+    let content =
+        fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
+    let manifest: PetManifest =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    let spritesheet_path = normalize_manifest_path(&manifest.spritesheet_path)?;
+    let spritesheet = dir.join(spritesheet_path);
+    let bytes =
+        fs::read(&spritesheet).map_err(|e| format!("Failed to read spritesheet: {}", e))?;
+    if bytes.len() > MAX_SPRITESHEET_BYTES {
+        return Err("Spritesheet is too large".to_string());
+    }
+    Ok(bytes)
+}
+
+#[tauri::command]
+pub fn read_project_pet_manifest(app: AppHandle, pet_id: String) -> Result<PetManifest, String> {
+    let pet_id = sanitize_id(&pet_id)?;
+    let dir = project_pets_dir(&app)?.join(&pet_id);
+    if !dir.is_dir() {
+        return Err("Pet folder was not found".to_string());
+    }
+
+    let pet_json = dir.join("pet.json");
+    let content =
+        fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
+    serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))
+}
+
+#[tauri::command]
+pub fn save_project_pet_spritesheet(
+    app: AppHandle,
+    pet_id: String,
+    bytes: Vec<u8>,
+    animations: BTreeMap<String, FrameAnimation>,
+) -> Result<ProjectPet, String> {
+    if bytes.is_empty() {
+        return Err("Spritesheet is empty".to_string());
+    }
+    if bytes.len() > MAX_SPRITESHEET_BYTES {
+        return Err("Spritesheet is too large".to_string());
+    }
+
+    let pet_id = sanitize_id(&pet_id)?;
+    let dir = project_pets_dir(&app)?.join(&pet_id);
+    if !dir.is_dir() {
+        return Err("Pet folder was not found".to_string());
+    }
+
+    let pet_json = dir.join("pet.json");
+    let content =
+        fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
+    let mut manifest: PetManifest =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+
+    let file_name = "spritesheet_edited.webp";
+    fs::write(dir.join(file_name), bytes)
+        .map_err(|e| format!("Failed to save spritesheet: {}", e))?;
+    manifest.spritesheet_path = file_name.to_string();
+    manifest.animations = animations;
+
+    let next_content = serde_json::to_string_pretty(&manifest)
+        .map_err(|e| format!("Failed to serialize pet.json: {}", e))?;
+    fs::write(&pet_json, format!("{next_content}\n"))
+        .map_err(|e| format!("Failed to update pet.json: {}", e))?;
+
+    project_pet_from_dir(dir)
+}
+
+#[tauri::command]
 pub fn open_pet_folder(app: AppHandle, pet_id: Option<String>) -> Result<(), String> {
     let path = match pet_id {
         Some(id) => project_pets_dir(&app)?.join(sanitize_id(&id)?),
@@ -506,6 +614,125 @@ pub fn get_project_pet_dir(app: AppHandle, pet_id: String) -> Result<String, Str
     dir.to_str()
         .map(|s| s.to_string())
         .ok_or_else(|| "Invalid project pet path".to_string())
+}
+
+#[tauri::command]
+pub fn save_project_pet_generation_references(
+    app: AppHandle,
+    pet_id: String,
+    input: DebugGenerationInput,
+) -> Result<Vec<String>, String> {
+    let dir = project_pets_dir(&app)?.join(sanitize_id(&pet_id)?);
+    if !dir.exists() {
+        return Err(format!("Project pet not found: {}", pet_id));
+    }
+
+    let mut saved = Vec::new();
+    let prompt_path = dir.join("ai_input_prompt.txt");
+    fs::write(&prompt_path, input.prompt)
+        .map_err(|e| format!("Failed to write generation prompt: {e}"))?;
+    saved.push(prompt_path.to_string_lossy().to_string());
+
+    for reference in input.references {
+        let name = sanitize_debug_reference_name(&reference.name)?;
+        let bytes = decode_base64(&reference.base64_data)?;
+        if bytes.len() > MAX_FILE_BYTES as usize {
+            return Err(format!("Reference image is too large: {name}"));
+        }
+        let path = dir.join(name);
+        fs::write(&path, bytes).map_err(|e| format!("Failed to write reference image: {e}"))?;
+        saved.push(path.to_string_lossy().to_string());
+    }
+    Ok(saved)
+}
+
+#[tauri::command]
+pub fn save_project_pet_generated_images(
+    app: AppHandle,
+    pet_id: String,
+    images: Vec<GeneratedImageInput>,
+) -> Result<Vec<String>, String> {
+    let dir = project_pets_dir(&app)?.join(sanitize_id(&pet_id)?);
+    if !dir.is_dir() {
+        return Err(format!("Project pet not found: {}", pet_id));
+    }
+    if images.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let pet_json = dir.join("pet.json");
+    let content =
+        fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
+    let manifest: PetManifest =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    let name = generated_image_name_prefix(&manifest);
+    let mut saved = Vec::new();
+
+    for (index, image) in images.into_iter().enumerate() {
+        let bytes = decode_base64(&image.base64_data)?;
+        if bytes.is_empty() || bytes.len() > MAX_FILE_BYTES as usize {
+            return Err("Generated image is empty or too large".to_string());
+        }
+        let file_name = format!("{name}_{:02}.png", index + 1);
+        let path = dir.join(&file_name);
+        fs::write(&path, bytes).map_err(|e| format!("Failed to write generated image: {e}"))?;
+        saved.push(path.to_string_lossy().to_string());
+    }
+    Ok(saved)
+}
+
+fn generated_image_name_prefix(manifest: &PetManifest) -> String {
+    let cleaned: String = manifest
+        .display_name
+        .trim()
+        .chars()
+        .filter(|ch| !matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') && !ch.is_control())
+        .collect::<String>()
+        .trim_end_matches(&[' ', '.'][..])
+        .to_string();
+    if cleaned.is_empty() {
+        manifest.id.clone()
+    } else {
+        cleaned
+    }
+}
+
+fn sanitize_debug_reference_name(name: &str) -> Result<String, String> {
+    let cleaned: String = name
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_' || *ch == '.')
+        .collect();
+    if cleaned.is_empty() || !cleaned.ends_with(".png") {
+        Err("Invalid debug reference filename".to_string())
+    } else {
+        Ok(cleaned)
+    }
+}
+
+fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
+    let mut buffer = 0u32;
+    let mut bits = 0u8;
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    for byte in input.bytes().filter(|byte| !byte.is_ascii_whitespace()) {
+        if byte == b'=' {
+            break;
+        }
+        let value = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => return Err("Invalid base64 reference image".to_string()),
+        } as u32;
+        buffer = (buffer << 6) | value;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(((buffer >> bits) & 0xff) as u8);
+        }
+    }
+    Ok(out)
 }
 
 #[tauri::command]

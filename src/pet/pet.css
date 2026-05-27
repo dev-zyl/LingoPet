@@ -37,6 +37,22 @@ html, body {
   pointer-events: auto !important;
 }
 
+#pet-container::before,
+#pet-container::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#pet-visual {
+  position: relative;
+  width: 192px;
+  height: 208px;
+  z-index: 2;
+  transform-origin: bottom center;
+}
+
 #pet-sprite {
   width: 192px;
   height: 208px;
@@ -54,7 +70,7 @@ html, body {
   opacity: 0;
   transform: translateY(8px) scale(0.92);
   transition: opacity 180ms ease, transform 180ms ease;
-  z-index: 2;
+  z-index: 3;
 }
 
 #pet-container.merit-active #merit-woodfish {
@@ -153,6 +169,7 @@ html, body {
   border-radius: var(--hitbox-radius);
   pointer-events: auto !important;
   cursor: grab;
+  z-index: 4;
   -webkit-user-drag: none;
   background-color: transparent !important;
   border: 1px dashed transparent !important;
@@ -187,6 +204,261 @@ html, body {
 
 #pet-container.is-dropping {
   transform: translateX(-50%) scale(var(--pet-scale)) scaleY(0.9) scaleX(1.1) !important;
+}
+
+/* ── Recall Disappear Effects ── */
+
+#pet-container.recall-disappearing {
+  pointer-events: none !important;
+}
+
+#pet-container.recall-disappearing #pet-hitbox {
+  pointer-events: none !important;
+}
+
+#pet-container.recall-disappearing #pet-speech-bubble {
+  animation: recall-bubble-dismiss 220ms ease forwards;
+}
+
+#pet-container.recall-disappearing.merit-active #merit-woodfish {
+  animation: recall-overlay-fade var(--recall-duration, 980ms) ease forwards;
+}
+
+#pet-container.recall-portal::before {
+  left: 50%;
+  bottom: 8px;
+  width: 166px;
+  height: 48px;
+  z-index: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.88) 0 8%, rgba(116, 216, 255, 0.42) 18%, rgba(75, 128, 255, 0.12) 38%, transparent 64%),
+    radial-gradient(ellipse at center, transparent 0 42%, rgba(174, 230, 255, 0.86) 45% 50%, transparent 57%);
+  filter: blur(0.4px) drop-shadow(0 0 16px rgba(92, 190, 255, 0.54));
+  transform: translateX(-50%) scale(0.28);
+  animation: recall-portal-ring var(--recall-duration, 980ms) cubic-bezier(0.18, 0.72, 0.22, 1) forwards;
+}
+
+#pet-container.recall-portal::after {
+  left: 50%;
+  bottom: 12px;
+  width: 118px;
+  height: 170px;
+  z-index: 3;
+  border-radius: 46% 46% 20% 20%;
+  background:
+    radial-gradient(ellipse at 50% 82%, rgba(255, 255, 255, 0.5), transparent 34%),
+    linear-gradient(90deg, transparent, rgba(158, 225, 255, 0.22), rgba(255, 255, 255, 0.38), rgba(128, 199, 255, 0.18), transparent);
+  filter: blur(5px);
+  transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleY(0.2);
+  animation: recall-portal-column var(--recall-duration, 980ms) cubic-bezier(0.2, 0.75, 0.25, 1) forwards;
+}
+
+#pet-container.recall-portal #pet-visual {
+  animation: recall-portal-body var(--recall-duration, 980ms) cubic-bezier(0.2, 0.75, 0.25, 1) forwards;
+}
+
+#pet-container.recall-dust::before {
+  left: 8px;
+  top: 22px;
+  width: 176px;
+  height: 166px;
+  z-index: 3;
+  background:
+    radial-gradient(circle at 18% 78%, rgba(212, 196, 162, 0.72) 0 2px, transparent 6px),
+    radial-gradient(circle at 30% 58%, rgba(236, 226, 202, 0.62) 0 2px, transparent 7px),
+    radial-gradient(circle at 42% 71%, rgba(184, 169, 143, 0.56) 0 3px, transparent 9px),
+    radial-gradient(circle at 57% 48%, rgba(243, 239, 228, 0.48) 0 2px, transparent 8px),
+    radial-gradient(circle at 71% 68%, rgba(194, 180, 155, 0.55) 0 3px, transparent 9px),
+    radial-gradient(circle at 84% 52%, rgba(242, 232, 208, 0.46) 0 2px, transparent 8px);
+  filter: blur(1.4px);
+  transform: translateX(0) scale(0.72);
+  animation: recall-dust-front var(--recall-duration, 1040ms) cubic-bezier(0.2, 0.7, 0.22, 1) forwards;
+}
+
+#pet-container.recall-dust::after {
+  left: 0;
+  bottom: 10px;
+  width: 192px;
+  height: 82px;
+  z-index: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 45% 68%, rgba(96, 78, 58, 0.3), transparent 56%),
+    radial-gradient(ellipse at 58% 48%, rgba(219, 205, 178, 0.34), transparent 62%);
+  filter: blur(8px);
+  transform: translateX(calc(var(--recall-drift-x, 0px) * -0.3));
+  animation: recall-dust-ground var(--recall-duration, 1040ms) ease-out forwards;
+}
+
+#pet-container.recall-dust #pet-visual {
+  animation: recall-dust-body var(--recall-duration, 1040ms) cubic-bezier(0.22, 0.78, 0.2, 1) forwards;
+}
+
+#pet-container.recall-shadow-sink::before {
+  left: 50%;
+  bottom: 6px;
+  width: 138px;
+  height: 34px;
+  z-index: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0.72) 0 22%, rgba(12, 8, 15, 0.46) 42%, rgba(0, 0, 0, 0.1) 68%, transparent 76%);
+  filter: blur(5px);
+  transform: translateX(-50%) scale(0.62);
+  animation: recall-shadow-pool var(--recall-duration, 920ms) cubic-bezier(0.2, 0.75, 0.22, 1) forwards;
+}
+
+#pet-container.recall-shadow-sink::after {
+  left: 50%;
+  bottom: 20px;
+  width: 154px;
+  height: 132px;
+  z-index: 3;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, transparent 0 34%, rgba(11, 8, 16, 0.3) 58%, rgba(0, 0, 0, 0.58) 78%, transparent 82%);
+  filter: blur(7px);
+  transform: translateX(-50%) scale(0.7);
+  animation: recall-shadow-vignette var(--recall-duration, 920ms) ease-in forwards;
+}
+
+#pet-container.recall-shadow-sink #pet-visual {
+  animation: recall-shadow-body var(--recall-duration, 920ms) cubic-bezier(0.18, 0.72, 0.24, 1) forwards;
+}
+
+#pet-container.recall-light-fold::before {
+  left: 50%;
+  top: 4px;
+  width: 52px;
+  height: 204px;
+  z-index: 4;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 246, 188, 0.22), rgba(255, 255, 255, 0.96), rgba(116, 218, 255, 0.28), transparent);
+  filter: blur(1.2px) drop-shadow(0 0 14px rgba(255, 248, 190, 0.55));
+  transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleX(0.04);
+  animation: recall-fold-glint var(--recall-duration, 860ms) cubic-bezier(0.24, 0.7, 0.2, 1) forwards;
+}
+
+#pet-container.recall-light-fold::after {
+  left: 22px;
+  top: 24px;
+  width: 148px;
+  height: 154px;
+  z-index: 3;
+  background:
+    radial-gradient(circle at 22% 32%, rgba(255, 249, 202, 0.58) 0 1px, transparent 5px),
+    radial-gradient(circle at 38% 72%, rgba(146, 226, 255, 0.44) 0 1px, transparent 6px),
+    radial-gradient(circle at 64% 26%, rgba(255, 255, 255, 0.46) 0 1px, transparent 5px),
+    radial-gradient(circle at 80% 62%, rgba(255, 236, 177, 0.42) 0 1px, transparent 6px);
+  filter: blur(0.8px);
+  transform: rotate(var(--recall-tilt, 0deg)) scale(0.76);
+  animation: recall-fold-sparks var(--recall-duration, 860ms) ease-out forwards;
+}
+
+#pet-container.recall-light-fold #pet-visual {
+  animation: recall-fold-body var(--recall-duration, 860ms) cubic-bezier(0.2, 0.78, 0.24, 1) forwards;
+}
+
+@keyframes recall-bubble-dismiss {
+  to { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.96); }
+}
+
+@keyframes recall-overlay-fade {
+  100% { opacity: 0; filter: blur(4px); transform: translateY(10px) scale(0.9); }
+}
+
+@keyframes recall-portal-ring {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.22); }
+  22% { opacity: 1; transform: translateX(-50%) scale(1.04); }
+  72% { opacity: 0.88; transform: translateX(-50%) scale(0.86); }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.18); }
+}
+
+@keyframes recall-portal-column {
+  0% { opacity: 0; transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleY(0.08); }
+  28% { opacity: 0.7; transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleY(0.9); }
+  100% { opacity: 0; transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleY(0.15); }
+}
+
+@keyframes recall-portal-body {
+  0% { opacity: 1; transform: translateY(0) scale(1); filter: url(#remove-fringe) brightness(1); clip-path: inset(0 0 0 0); }
+  38% { opacity: 1; transform: translateY(-5px) scale(0.98, 1.03); filter: url(#remove-fringe) brightness(1.24) saturate(1.08) drop-shadow(0 0 10px rgba(125, 211, 252, 0.45)); }
+  78% { opacity: 0.72; transform: translateY(28px) scale(0.7, 0.54); filter: url(#remove-fringe) brightness(1.55) blur(1.6px); clip-path: inset(0 10% 30% 10% round 34%); }
+  100% { opacity: 0; transform: translateY(58px) scale(0.18, 0.06); filter: url(#remove-fringe) brightness(2) blur(4px); clip-path: inset(40% 45% 54% 45% round 50%); }
+}
+
+@keyframes recall-dust-front {
+  0% { opacity: 0; transform: translate(0, 8px) scale(0.68); }
+  28% { opacity: 0.84; transform: translate(calc(var(--recall-drift-x, 0px) * 0.28), 0) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--recall-drift-x, 0px) + 10px), -48px) scale(1.34); }
+}
+
+@keyframes recall-dust-ground {
+  0% { opacity: 0; transform: translateX(0) scale(0.7); }
+  35% { opacity: 0.75; transform: translateX(calc(var(--recall-drift-x, 0px) * -0.25)) scale(1.04); }
+  100% { opacity: 0; transform: translateX(calc(var(--recall-drift-x, 0px) * -0.75)) scale(1.38); }
+}
+
+@keyframes recall-dust-body {
+  0% { opacity: 1; transform: translateY(0) rotate(0deg); filter: url(#remove-fringe) blur(0) saturate(1); clip-path: inset(0 0 0 0); }
+  42% { opacity: 0.86; transform: translate(calc(var(--recall-drift-x, 0px) * 0.18), -4px) rotate(calc(var(--recall-tilt, 0deg) * 0.35)); filter: url(#remove-fringe) blur(0.6px) saturate(0.88) contrast(0.95); clip-path: inset(3% 2% 7% 2% round 12%); }
+  100% { opacity: 0; transform: translate(var(--recall-drift-x, 0px), -34px) rotate(var(--recall-tilt, 0deg)) scale(0.96); filter: url(#remove-fringe) blur(5px) saturate(0.45) contrast(0.7); clip-path: inset(18% 22% 34% 20% round 38%); }
+}
+
+@keyframes recall-shadow-pool {
+  0% { opacity: 0.18; transform: translateX(-50%) scale(0.58); }
+  34% { opacity: 0.9; transform: translateX(-50%) scale(1.16); }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.36); }
+}
+
+@keyframes recall-shadow-vignette {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.72); }
+  48% { opacity: 0.5; transform: translateX(-50%) scale(1.04); }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.42); }
+}
+
+@keyframes recall-shadow-body {
+  0% { opacity: 1; transform: translateY(0) scale(1); filter: url(#remove-fringe) brightness(1); clip-path: inset(0 0 0 0); }
+  38% { opacity: 1; transform: translateY(10px) scale(1.03, 0.86); filter: url(#remove-fringe) brightness(0.72) saturate(0.72); }
+  76% { opacity: 0.58; transform: translateY(54px) scale(0.82, 0.34); filter: url(#remove-fringe) brightness(0.38) blur(1.2px); clip-path: inset(0 8% 46% 8% round 34%); }
+  100% { opacity: 0; transform: translateY(78px) scale(0.5, 0.04); filter: url(#remove-fringe) brightness(0.16) blur(4px); clip-path: inset(18% 30% 78% 30% round 50%); }
+}
+
+@keyframes recall-fold-glint {
+  0% { opacity: 0; transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleX(0.04); }
+  34% { opacity: 0.92; transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleX(1); }
+  72% { opacity: 0.8; transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleX(0.18); }
+  100% { opacity: 0; transform: translateX(calc(-50% + var(--recall-drift-x, 0px))) scaleX(0.02); }
+}
+
+@keyframes recall-fold-sparks {
+  0% { opacity: 0; transform: rotate(var(--recall-tilt, 0deg)) scale(0.72); }
+  44% { opacity: 0.72; transform: translateX(calc(var(--recall-drift-x, 0px) * 0.2)) rotate(var(--recall-tilt, 0deg)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--recall-drift-x, 0px) * -0.8), -26px) rotate(var(--recall-tilt, 0deg)) scale(1.22); }
+}
+
+@keyframes recall-fold-body {
+  0% { opacity: 1; transform: perspective(380px) rotateY(0deg) scaleX(1); filter: url(#remove-fringe) brightness(1); clip-path: inset(0 0 0 0); }
+  44% { opacity: 0.94; transform: perspective(380px) rotateY(20deg) scaleX(0.46); filter: url(#remove-fringe) brightness(1.32) saturate(1.12) blur(0.2px); clip-path: inset(0 10% 0 10% round 18%); }
+  74% { opacity: 0.56; transform: perspective(380px) rotateY(64deg) scaleX(0.12); filter: url(#remove-fringe) brightness(1.8) blur(1.8px); clip-path: inset(0 42% 0 42% round 40%); }
+  100% { opacity: 0; transform: perspective(380px) rotateY(82deg) scaleX(0.02); filter: url(#remove-fringe) brightness(2.1) blur(5px); clip-path: inset(0 49% 0 49% round 50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pet-container.recall-disappearing #pet-visual,
+  #pet-container.recall-disappearing #merit-woodfish {
+    animation: recall-reduced-fade 220ms ease forwards !important;
+  }
+
+  #pet-container.recall-disappearing::before,
+  #pet-container.recall-disappearing::after {
+    animation: none !important;
+  }
+}
+
+@keyframes recall-reduced-fade {
+  to { opacity: 0; filter: blur(1px); }
 }
 /* ── Speech Bubble ── */
 
@@ -313,6 +585,16 @@ html, body {
   color: #f2bb43;
   font-size: 14px;
   line-height: 1;
+}
+
+.context-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .context-menu-item.danger {
@@ -876,6 +1158,7 @@ html, body {
 /* ── Todo Panel (Neon Geek) ── */
 
 #todo-panel,
+#reminder-panel,
 #focus-panel,
 #merit-panel {
   position: fixed;
@@ -906,18 +1189,21 @@ html, body {
 }
 
 #todo-panel::-webkit-scrollbar,
+#reminder-panel::-webkit-scrollbar,
 #focus-panel::-webkit-scrollbar,
 #merit-panel::-webkit-scrollbar {
   width: 6px;
 }
 
 #todo-panel::-webkit-scrollbar-track,
+#reminder-panel::-webkit-scrollbar-track,
 #focus-panel::-webkit-scrollbar-track,
 #merit-panel::-webkit-scrollbar-track {
   background: transparent;
 }
 
 #todo-panel::-webkit-scrollbar-thumb,
+#reminder-panel::-webkit-scrollbar-thumb,
 #focus-panel::-webkit-scrollbar-thumb,
 #merit-panel::-webkit-scrollbar-thumb {
   background: rgba(52, 211, 153, 0.4);
@@ -925,6 +1211,7 @@ html, body {
 }
 
 #todo-panel::-webkit-scrollbar-thumb:hover,
+#reminder-panel::-webkit-scrollbar-thumb:hover,
 #focus-panel::-webkit-scrollbar-thumb:hover,
 #merit-panel::-webkit-scrollbar-thumb:hover {
   background: rgba(52, 211, 153, 0.8);
@@ -952,6 +1239,10 @@ html, body {
 }
 
 #todo-input,
+#reminder-input,
+#reminder-delay,
+#reminder-unit,
+#reminder-repeat,
 #focus-minutes-input {
   flex: 1;
   min-width: 0;
@@ -968,16 +1259,22 @@ html, body {
 }
 
 #todo-input:focus,
+#reminder-input:focus,
+#reminder-delay:focus,
+#reminder-unit:focus,
+#reminder-repeat:focus,
 #focus-minutes-input:focus {
   border-color: #00ffaa;
   box-shadow: 0 0 6px rgba(0, 255, 170, 0.3);
 }
 
-#todo-input::placeholder {
+#todo-input::placeholder,
+#reminder-input::placeholder {
   color: rgba(255, 255, 255, 0.2);
 }
 
 #todo-submit,
+#reminder-submit,
 #focus-start {
   flex-shrink: 0;
   background: linear-gradient(135deg, #00ffaa, #00cc88);
@@ -994,12 +1291,14 @@ html, body {
 }
 
 #todo-submit:hover,
+#reminder-submit:hover,
 #focus-start:hover {
   background: linear-gradient(135deg, #33ffbb, #00ffaa);
   box-shadow: 0 0 10px rgba(0, 255, 170, 0.4);
 }
 
 #todo-submit:disabled,
+#reminder-submit:disabled,
 #focus-start:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -1301,12 +1600,29 @@ html, body {
   background: rgba(0, 0, 0, 0.26);
 }
 
-#merit-count-text {
+.merit-count-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(255, 247, 237, 0.68);
+  font: 800 12px/1 "Segoe UI", system-ui, sans-serif;
+}
+
+.merit-count-line + .merit-count-line {
+  margin-top: 8px;
+}
+
+.merit-count-line strong {
   color: #fde68a;
   font: 800 20px/1 "Cascadia Code", "Fira Code", "Consolas", monospace;
   letter-spacing: 0;
   text-align: center;
   text-shadow: 0 0 14px rgba(245, 158, 11, 0.28);
+}
+
+.merit-count-today strong {
+  font-size: 24px;
 }
 
 .merit-input-wrap {
@@ -1393,21 +1709,51 @@ html, body {
   padding-bottom: 40px;
 }
 
-#todo-list::-webkit-scrollbar {
+#reminder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+#todo-list::-webkit-scrollbar,
+#reminder-list::-webkit-scrollbar {
   width: 6px;
 }
 
-#todo-list::-webkit-scrollbar-track {
+#todo-list::-webkit-scrollbar-track,
+#reminder-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-#todo-list::-webkit-scrollbar-thumb {
+#todo-list::-webkit-scrollbar-thumb,
+#reminder-list::-webkit-scrollbar-thumb {
   background: rgba(52, 211, 153, 0.4);
   border-radius: 4px;
 }
 
-#todo-list::-webkit-scrollbar-thumb:hover {
+#todo-list::-webkit-scrollbar-thumb:hover,
+#reminder-list::-webkit-scrollbar-thumb:hover {
   background: rgba(52, 211, 153, 0.8);
+}
+
+.reminder-options-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#reminder-delay {
+  width: 56px;
+  flex: none;
+}
+
+#reminder-unit,
+#reminder-repeat {
+  flex: none;
+  padding: 8px 6px;
 }
 
 /* Note item (permanent memo) */
@@ -1507,6 +1853,13 @@ html, body {
   text-align: right;
   margin-left: 12px;
   margin-bottom: 4px;
+}
+
+.reminder-badge {
+  display: inline-block;
+  margin-right: 6px;
+  color: rgba(96, 165, 250, 0.9);
+  font-size: 10px;
 }
 
 /* Reminder pulse (pet visual feedback) */

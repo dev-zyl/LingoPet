@@ -1,0 +1,58 @@
+server:
+  port: 8080
+  tomcat:
+    uri-encoding: UTF-8
+
+spring:
+  application:
+    name: vibepet-backend
+  
+  # 数据源配置 (使用环境变量, 便于本地 localhost 开发和 Docker 线上部署无缝切换)
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:vibepet_db}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 20000
+      max-lifetime: 1800000
+  
+  # JPA/Hibernate 配置
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: update # 自动建表与更新表结构
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+
+  # Redis 配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 3000ms
+
+  # 限制文件上传大小为 10MB
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# 自定义配置
+vibepet:
+  # 动作图片在服务器上的本地保存路径 (在 Docker 中挂载在 /images 目录)
+  upload-dir: ${UPLOAD_DIR:/images}
+  # 图片对外的 CDN/URL 前缀 (例如套了 Cloudflare 后为域名路径，留空则默认使用相对路径 /images)
+  cdn-prefix: ${CDN_PREFIX:}
