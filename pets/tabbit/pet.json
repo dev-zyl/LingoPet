@@ -1,0 +1,20 @@
+{
+  "id": "tabbit",
+  "displayName": "哆啦a梦",
+  "description": "A cheerful blue-and-white cat-like robot pet inspired by the reference image.",
+  "spritesheetPath": "spritesheet_edited.webp",
+  "kind": "creature",
+  "version": null,
+  "animations": {
+    "merit": {
+      "row": 9,
+      "frames": 4,
+      "frameDurations": [
+        150,
+        150,
+        150,
+        150
+      ]
+    }
+  }
+}

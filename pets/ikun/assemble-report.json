@@ -1,0 +1,464 @@
+[
+  {
+    "row": 0,
+    "state": "idle",
+    "frames": 6,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/idle/00.png",
+        "x": 12,
+        "y": 7,
+        "width": 168,
+        "height": 182
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/idle/01.png",
+        "x": 204,
+        "y": 7,
+        "width": 167,
+        "height": 186
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/idle/02.png",
+        "x": 396,
+        "y": 7,
+        "width": 168,
+        "height": 181
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/idle/03.png",
+        "x": 588,
+        "y": 7,
+        "width": 168,
+        "height": 182
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/idle/04.png",
+        "x": 780,
+        "y": 7,
+        "width": 168,
+        "height": 180
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/idle/05.png",
+        "x": 972,
+        "y": 7,
+        "width": 168,
+        "height": 178
+      }
+    ]
+  },
+  {
+    "row": 1,
+    "state": "running-right",
+    "frames": 8,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/00.png",
+        "x": 12,
+        "y": 215,
+        "width": 168,
+        "height": 174
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/01.png",
+        "x": 204,
+        "y": 215,
+        "width": 168,
+        "height": 181
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/02.png",
+        "x": 396,
+        "y": 217,
+        "width": 168,
+        "height": 170
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/03.png",
+        "x": 588,
+        "y": 215,
+        "width": 168,
+        "height": 172
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/04.png",
+        "x": 780,
+        "y": 215,
+        "width": 168,
+        "height": 172
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/05.png",
+        "x": 972,
+        "y": 215,
+        "width": 168,
+        "height": 180
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/06.png",
+        "x": 1164,
+        "y": 215,
+        "width": 168,
+        "height": 180
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-right/07.png",
+        "x": 1356,
+        "y": 217,
+        "width": 168,
+        "height": 172
+      }
+    ]
+  },
+  {
+    "row": 2,
+    "state": "running-left",
+    "frames": 8,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/00.png",
+        "x": 12,
+        "y": 423,
+        "width": 168,
+        "height": 179
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/01.png",
+        "x": 204,
+        "y": 423,
+        "width": 168,
+        "height": 176
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/02.png",
+        "x": 396,
+        "y": 423,
+        "width": 168,
+        "height": 177
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/03.png",
+        "x": 588,
+        "y": 423,
+        "width": 168,
+        "height": 178
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/04.png",
+        "x": 780,
+        "y": 423,
+        "width": 168,
+        "height": 174
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/05.png",
+        "x": 972,
+        "y": 423,
+        "width": 168,
+        "height": 181
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/06.png",
+        "x": 1164,
+        "y": 423,
+        "width": 168,
+        "height": 179
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running-left/07.png",
+        "x": 1356,
+        "y": 423,
+        "width": 168,
+        "height": 182
+      }
+    ]
+  },
+  {
+    "row": 3,
+    "state": "waving",
+    "frames": 4,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waving/00.png",
+        "x": 12,
+        "y": 631,
+        "width": 168,
+        "height": 182
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waving/01.png",
+        "x": 204,
+        "y": 644,
+        "width": 168,
+        "height": 162
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waving/02.png",
+        "x": 396,
+        "y": 642,
+        "width": 168,
+        "height": 164
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waving/03.png",
+        "x": 588,
+        "y": 636,
+        "width": 168,
+        "height": 170
+      }
+    ]
+  },
+  {
+    "row": 4,
+    "state": "jumping",
+    "frames": 5,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/jumping/00.png",
+        "x": 12,
+        "y": 839,
+        "width": 168,
+        "height": 180
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/jumping/01.png",
+        "x": 216,
+        "y": 839,
+        "width": 144,
+        "height": 186
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/jumping/02.png",
+        "x": 404,
+        "y": 839,
+        "width": 152,
+        "height": 186
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/jumping/03.png",
+        "x": 588,
+        "y": 844,
+        "width": 168,
+        "height": 170
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/jumping/04.png",
+        "x": 780,
+        "y": 839,
+        "width": 168,
+        "height": 176
+      }
+    ]
+  },
+  {
+    "row": 5,
+    "state": "failed",
+    "frames": 8,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/00.png",
+        "x": 12,
+        "y": 1047,
+        "width": 168,
+        "height": 174
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/01.png",
+        "x": 204,
+        "y": 1047,
+        "width": 168,
+        "height": 171
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/02.png",
+        "x": 396,
+        "y": 1047,
+        "width": 168,
+        "height": 161
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/03.png",
+        "x": 588,
+        "y": 1047,
+        "width": 168,
+        "height": 160
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/04.png",
+        "x": 780,
+        "y": 1048,
+        "width": 168,
+        "height": 174
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/05.png",
+        "x": 972,
+        "y": 1048,
+        "width": 168,
+        "height": 174
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/06.png",
+        "x": 1164,
+        "y": 1052,
+        "width": 168,
+        "height": 170
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/failed/07.png",
+        "x": 1356,
+        "y": 1066,
+        "width": 168,
+        "height": 156
+      }
+    ]
+  },
+  {
+    "row": 6,
+    "state": "waiting",
+    "frames": 6,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waiting/00.png",
+        "x": 12,
+        "y": 1255,
+        "width": 168,
+        "height": 184
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waiting/01.png",
+        "x": 204,
+        "y": 1255,
+        "width": 167,
+        "height": 186
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waiting/02.png",
+        "x": 396,
+        "y": 1255,
+        "width": 168,
+        "height": 185
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waiting/03.png",
+        "x": 588,
+        "y": 1255,
+        "width": 168,
+        "height": 186
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waiting/04.png",
+        "x": 780,
+        "y": 1255,
+        "width": 168,
+        "height": 184
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/waiting/05.png",
+        "x": 972,
+        "y": 1255,
+        "width": 168,
+        "height": 186
+      }
+    ]
+  },
+  {
+    "row": 7,
+    "state": "running",
+    "frames": 6,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running/00.png",
+        "x": 12,
+        "y": 1463,
+        "width": 168,
+        "height": 184
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running/01.png",
+        "x": 204,
+        "y": 1463,
+        "width": 168,
+        "height": 186
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running/02.png",
+        "x": 396,
+        "y": 1463,
+        "width": 168,
+        "height": 184
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running/03.png",
+        "x": 588,
+        "y": 1463,
+        "width": 168,
+        "height": 179
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running/04.png",
+        "x": 780,
+        "y": 1463,
+        "width": 168,
+        "height": 181
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/running/05.png",
+        "x": 972,
+        "y": 1463,
+        "width": 168,
+        "height": 183
+      }
+    ]
+  },
+  {
+    "row": 8,
+    "state": "review",
+    "frames": 6,
+    "placements": [
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/review/00.png",
+        "x": 12,
+        "y": 1671,
+        "width": 168,
+        "height": 181
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/review/01.png",
+        "x": 204,
+        "y": 1671,
+        "width": 168,
+        "height": 184
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/review/02.png",
+        "x": 396,
+        "y": 1672,
+        "width": 168,
+        "height": 174
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/review/03.png",
+        "x": 588,
+        "y": 1671,
+        "width": 168,
+        "height": 179
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/review/04.png",
+        "x": 780,
+        "y": 1678,
+        "width": 168,
+        "height": 168
+      },
+      {
+        "frame": "/Users/adampeng/Documents/Codex/2026-05-02/pets-fireball-selected-refresh-tuck-away/ikun-white-frames/review/05.png",
+        "x": 972,
+        "y": 1674,
+        "width": 168,
+        "height": 172
+      }
+    ]
+  }
+]

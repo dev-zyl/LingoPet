@@ -1,0 +1,20 @@
+{
+  "id": "miku",
+  "displayName": "Miku",
+  "description": "based on hatsune miku.",
+  "spritesheetPath": "spritesheet_edited.webp",
+  "kind": "creature",
+  "version": null,
+  "animations": {
+    "merit": {
+      "row": 9,
+      "frames": 4,
+      "frameDurations": [
+        150,
+        150,
+        150,
+        300
+      ]
+    }
+  }
+}

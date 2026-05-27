@@ -1,0 +1,76 @@
+{
+  "rows": [
+    {
+      "row": 0,
+      "state": "idle",
+      "expected_frames": 6,
+      "source_row": 0,
+      "source_components": 6,
+      "mirrored_from_running_right": false
+    },
+    {
+      "row": 1,
+      "state": "running-right",
+      "expected_frames": 8,
+      "source_row": 1,
+      "source_components": 8,
+      "mirrored_from_running_right": false
+    },
+    {
+      "row": 2,
+      "state": "running-left",
+      "expected_frames": 8,
+      "source_row": 1,
+      "source_components": 8,
+      "mirrored_from_running_right": true
+    },
+    {
+      "row": 3,
+      "state": "waving",
+      "expected_frames": 4,
+      "source_row": 3,
+      "source_components": 4,
+      "mirrored_from_running_right": false
+    },
+    {
+      "row": 4,
+      "state": "jumping",
+      "expected_frames": 5,
+      "source_row": 4,
+      "source_components": 5,
+      "mirrored_from_running_right": false
+    },
+    {
+      "row": 5,
+      "state": "failed",
+      "expected_frames": 8,
+      "source_row": 5,
+      "source_components": 8,
+      "mirrored_from_running_right": false
+    },
+    {
+      "row": 6,
+      "state": "waiting",
+      "expected_frames": 6,
+      "source_row": 6,
+      "source_components": 6,
+      "mirrored_from_running_right": false
+    },
+    {
+      "row": 7,
+      "state": "running",
+      "expected_frames": 6,
+      "source_row": 7,
+      "source_components": 6,
+      "mirrored_from_running_right": false
+    },
+    {
+      "row": 8,
+      "state": "review",
+      "expected_frames": 6,
+      "source_row": 8,
+      "source_components": 6,
+      "mirrored_from_running_right": false
+    }
+  ]
+}

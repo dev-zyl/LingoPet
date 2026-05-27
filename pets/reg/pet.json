@@ -1,0 +1,44 @@
+{
+  "id": "reg",
+  "displayName": "Reg",
+  "description": "A small brave boy-like robot delver inspired by Reg from Made in Abyss, curious and protective.",
+  "spritesheetPath": "spritesheet_edited.webp",
+  "kind": null,
+  "version": null,
+  "animations": {
+    "focus": {
+      "row": 10,
+      "frames": 4,
+      "frameDurations": [
+        300,
+        300,
+        360,
+        300
+      ]
+    },
+    "merit": {
+      "row": 9,
+      "frames": 4,
+      "frameDurations": [
+        150,
+        150,
+        150,
+        300
+      ]
+    },
+    "music": {
+      "row": 11,
+      "frames": 8,
+      "frameDurations": [
+        150,
+        150,
+        180,
+        240,
+        240,
+        240,
+        240,
+        240
+      ]
+    }
+  }
+}

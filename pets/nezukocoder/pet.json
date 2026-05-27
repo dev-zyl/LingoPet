@@ -1,0 +1,20 @@
+{
+  "id": "nezukocoder",
+  "displayName": "NezukoCoder",
+  "description": "A chibi Nezuko-inspired coding companion typing on a laptop with a simple OpenAI emblem.",
+  "spritesheetPath": "spritesheet_edited.webp",
+  "kind": null,
+  "version": null,
+  "animations": {
+    "merit": {
+      "row": 9,
+      "frames": 4,
+      "frameDurations": [
+        150,
+        150,
+        150,
+        300
+      ]
+    }
+  }
+}

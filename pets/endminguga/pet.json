@@ -1,0 +1,20 @@
+{
+  "id": "endminguga",
+  "displayName": "GUGUGAGA",
+  "description": "A chibi penguin-suit desktop pet girl with black bob hair, blue-gray eyes, yellow beak hood, white belly, flippers, yellow feet, and a silver ring accessory.",
+  "spritesheetPath": "spritesheet_edited.webp",
+  "kind": "person",
+  "version": null,
+  "animations": {
+    "merit": {
+      "row": 9,
+      "frames": 4,
+      "frameDurations": [
+        150,
+        150,
+        150,
+        300
+      ]
+    }
+  }
+}

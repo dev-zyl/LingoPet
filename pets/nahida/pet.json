@@ -1,0 +1,7 @@
+{
+  "id": "nahida",
+  "displayName": "纳西妲",
+  "description": "A compact Codex digital pet inspired by Nahida, the Dendro archon from Genshin Impact.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "object"
+}

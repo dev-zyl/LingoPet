@@ -1,0 +1,34 @@
+{
+  "id": "miaodex",
+  "displayName": "MiaoDex",
+  "description": "A tiny gray-and-white kitten Codex companion with oversized glossy eyes, a pink nose, and one paw raised.",
+  "spritesheetPath": "spritesheet_edited.webp",
+  "kind": null,
+  "version": null,
+  "animations": {
+    "merit": {
+      "row": 9,
+      "frames": 4,
+      "frameDurations": [
+        150,
+        150,
+        150,
+        300
+      ]
+    },
+    "music": {
+      "row": 10,
+      "frames": 8,
+      "frameDurations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        180,
+        240
+      ]
+    }
+  }
+}

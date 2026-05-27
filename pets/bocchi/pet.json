@@ -1,0 +1,7 @@
+{
+  "id": "bocchi",
+  "displayName": "bocchi",
+  "description": "Bocchi The Rock! Hitori Gotoh",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}
