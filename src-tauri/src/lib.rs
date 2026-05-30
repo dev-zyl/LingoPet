@@ -24,7 +24,7 @@ use windows::{
     },
 };
 
-const API_KEY_SERVICE: &str = "VibePet";
+const API_KEY_SERVICE: &str = "LingoPet";
 const API_KEY_ACCOUNT: &str = "pet_api_key";
 #[cfg(windows)]
 const RPC_E_CHANGED_MODE: HRESULT = HRESULT(0x80010106u32 as i32);
@@ -121,7 +121,7 @@ fn open_manager_window(app: tauri::AppHandle) -> Result<(), String> {
     }
 
     WebviewWindowBuilder::new(&app, "config", WebviewUrl::App("config/index.html".into()))
-        .title("VibePet Manager")
+        .title("灵动宠物管理面板")
         .inner_size(1000.0, 720.0)
         .resizable(true)
         .build()
@@ -157,7 +157,7 @@ fn summon_pet_window(app: tauri::AppHandle, pet_id: String) -> Result<String, St
                 &window_label,
                 WebviewUrl::App(pet_url.into()),
             )
-            .title("VibePet")
+            .title("灵动宠物")
             .inner_size(192.0, 256.0)
             .transparent(true)
             .decorations(false)
@@ -268,13 +268,13 @@ fn toggle_primary_pet_window(app: tauri::AppHandle) {
 fn setup_system_tray(app: &tauri::App) -> tauri::Result<()> {
     let open_manager = MenuItem::with_id(app, "open_manager", "打开管理面板", true, None::<&str>)?;
     let toggle_pet = MenuItem::with_id(app, "toggle_pet", "显示/隐藏桌宠", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit_app", "退出 VibePet", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit_app", "退出 灵动宠物", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open_manager, &toggle_pet, &separator, &quit])?;
     let icon = app.default_window_icon().cloned();
 
-    let mut tray_builder = TrayIconBuilder::with_id("vibepet")
-        .tooltip("VibePet")
+    let mut tray_builder = TrayIconBuilder::with_id("lingopet")
+        .tooltip("灵动宠物")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -369,7 +369,7 @@ fn list_desktop_platforms() -> Result<Vec<DesktopPlatform>, String> {
         let mut title_buf = vec![0u16; text_len as usize + 1];
         let title_len = GetWindowTextW(hwnd, &mut title_buf);
         let title = String::from_utf16_lossy(&title_buf[..title_len.max(0) as usize]);
-        if title.contains("VibePet") || class_name.contains("VibePet") {
+        if title.contains("LingoPet") || title.contains("灵动宠物") || class_name.contains("LingoPet") || class_name.contains("灵动宠物") {
             return BOOL(1);
         }
 

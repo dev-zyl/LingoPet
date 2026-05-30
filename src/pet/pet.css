@@ -466,7 +466,8 @@ html, body {
   position: absolute;
   bottom: calc(100% + 12px);
   left: 50%;
-  transform: translateX(-50%) translateY(10px);
+  transform: translateX(-50%) translateY(10px) scale(var(--bubble-scale-factor, 1));
+  transform-origin: bottom center;
   width: max-content;
   max-width: 268px;
   min-width: 188px;
@@ -723,7 +724,7 @@ html, body {
 
 #pet-speech-bubble.show-bubble {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0) scale(var(--bubble-scale-factor, 1));
 }
 
 /* ── Context Menu ── */

@@ -431,10 +431,27 @@ function setStatus(el: HTMLElement, message = "", isError = false): void {
   }
 
   if ((el === els.editorStatus || el === els.workshopStatus) && message.trim()) {
+    // 屏蔽进入创意工坊、搜索或分类过滤等被动产生的同步及统计提示气泡，杜绝弹窗堆叠
+    if (el === els.workshopStatus && (
+      message.includes("正在同步") ||
+      message.startsWith("共 ") ||
+      message.startsWith("已展示 ") ||
+      message.includes("未找到")
+    )) {
+      return;
+    }
+    // 屏蔽宠物编辑页面初始加载图集、切帧统计及普通单元格帧保存替换等被动/频闪气泡，杜绝弹窗堆叠
+    if (el === els.editorStatus && (
+      message.includes("正在加载") ||
+      message.startsWith("已切分") ||
+      message.startsWith("已替换第")
+    )) {
+      return;
+    }
     let type: "success" | "error" | "info" = "info";
     if (isError || message.includes("失败") || message.includes("错误") || message.includes("无法") || message.includes("不支持") || message.includes("已熔断")) {
       type = "error";
-    } else if (message.includes("已复制") || message.includes("已粘贴") || message.includes("已替换") || message.includes("保存成功") || message.includes("套用成功") || message.includes("成功") || message.includes("已开启") || message.includes("已解锁")) {
+    } else if (message.includes("已复制") || message.includes("已粘贴") || message.includes("粘贴") || message.includes("已替换") || message.includes("保存成功") || message.includes("套用成功") || message.includes("成功") || message.includes("已开启") || message.includes("已解锁")) {
       type = "success";
     }
     showMessage(message, type);
@@ -1733,7 +1750,7 @@ async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTM
   button.textContent = "召唤中...";
   try {
     if (!isTauriRuntime()) {
-      throw new Error("请在 VibePet 桌面应用的管理面板中召唤桌宠。");
+      throw new Error("请在灵动宠物桌面应用的管理面板中召唤桌宠。");
     }
     if (!allowMultiplePets()) {
       await invoke("close_all_summoned_pet_windows");
@@ -1749,7 +1766,6 @@ async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTM
       }, 900);
       return;
     }
-    rememberPrimaryPet(petId);
     await invoke<string>("summon_pet_window", { petId });
     addSavedSummonedPetId(petId);
     button.textContent = "已召唤";
@@ -1933,7 +1949,7 @@ els.summonGroupBtn.addEventListener("click", async () => {
 
   try {
     if (!isTauriRuntime()) {
-      throw new Error("请在 VibePet 桌面应用的管理面板中召唤桌宠。");
+      throw new Error("请在灵动宠物桌面应用的管理面板中召唤桌宠。");
     }
 
     if (!allowMultiplePets()) {
@@ -1964,9 +1980,6 @@ els.summonGroupBtn.addEventListener("click", async () => {
 
     for (let i = 0; i < currentFilteredPets.length; i++) {
       const pet = currentFilteredPets[i];
-      if (i === 0) {
-        rememberPrimaryPet(pet.id);
-      }
       await invoke("summon_pet_window", { petId: pet.id });
       addSavedSummonedPetId(pet.id);
       await new Promise((resolve) => window.setTimeout(resolve, 100));
@@ -3484,9 +3497,9 @@ function renderWorkshop(): void {
 
   // 动态更新筛选计数值！支持在切换选项卡时立即呈现精确的当前可用条数与差异化高特征提示！
   if (state.currentWorkshopTag === "downloaded") {
-    setStatus(els.workshopStatus, `创意工坊过滤成功，已展示 ${filtered.length} 个已下载桌宠的动作扩展包。`);
+    setStatus(els.workshopStatus, `已展示 ${filtered.length} 个已下载桌宠的动作扩展包。`);
   } else {
-    setStatus(els.workshopStatus, `创意工坊同步成功，共展示全部 ${filtered.length} 个动作扩展包。`);
+    setStatus(els.workshopStatus, `共 ${filtered.length} 个动作扩展包。`);
   }
 
   const fragment = document.createDocumentFragment();
@@ -4034,14 +4047,13 @@ async function fetchWorkshopItems(): Promise<void> {
 
   // 动作索引是静态内容，按可用性在三个公共分发源之间回退。
   const endpoints = [
-    "https://raw.gitmirror.com/ZhangYiLong416/vibepet-workshop/main/patches/index.json",
-    "https://raw.githubusercontent.com/ZhangYiLong416/vibepet-workshop/main/patches/index.json",
-    "https://fastly.jsdelivr.net/gh/ZhangYiLong416/vibepet-workshop@main/patches/index.json"
+    "https://raw.gitmirror.com/ZhangYiLong416/LingoPet-workshop/main/patches/index.json",
+    "https://raw.githubusercontent.com/ZhangYiLong416/LingoPet-workshop/main/patches/index.json",
+    "https://fastly.jsdelivr.net/gh/ZhangYiLong416/LingoPet-workshop@main/patches/index.json"
   ];
 
   let lastError: Error | null = null;
   let successData: any = null;
-  let activeChannel = "";
 
   for (let i = 0; i < endpoints.length; i++) {
     const apiBase = endpoints[i];
@@ -4049,23 +4061,12 @@ async function fetchWorkshopItems(): Promise<void> {
       const listUrl = new URL(apiBase);
       listUrl.searchParams.set("t", String(Date.now())); // 追加随机时间戳，彻底击穿 WebView/CDN 本地缓存
 
-      if (i === 0) {
-        setStatus(els.workshopStatus, "正在通过国内加速通道同步创意工坊...");
-        activeChannel = "国内加速镜像";
-      } else if (i === 1) {
-        setStatus(els.workshopStatus, "正在通过 GitHub 官方直连同步创意工坊...");
-        activeChannel = "GitHub直连";
-      } else {
-        setStatus(els.workshopStatus, "正在通过 CDN 容灾兜底通道同步创意工坊...");
-        activeChannel = "CDN兜底";
-      }
-
       const resp = await fetch(listUrl);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       if (Array.isArray(data)) {
         successData = data;
-        break; // 成功拉取到合规的数组结构，终止轮询！
+        break; // 成功拉取到合规 of 数组结构，终止轮询！
       } else {
         throw new Error("数据格式不合规");
       }
@@ -4086,8 +4087,7 @@ async function fetchWorkshopItems(): Promise<void> {
       return item;
     });
 
-    // 附带成功通道输出，逼格满满
-    setStatus(els.workshopStatus, `创意工坊同步成功 (${activeChannel})，共展示全部 ${state.workshopItems.length} 个动作扩展包。`);
+    setStatus(els.workshopStatus, `共 ${state.workshopItems.length} 个动作扩展包。`);
     renderWorkshop();
   } else {
     console.error("创意工坊所有高可用同步通道均告折戟：", lastError);

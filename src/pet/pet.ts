@@ -667,6 +667,74 @@ function getPetSizeScale(): number {
   return Math.min(1.4, Math.max(0.35, saved));
 }
 
+function getBubbleScaleFactor(petScale: number): number {
+  let targetVisualScale = 0.85;
+  if (petScale <= 0.4) {
+    // 迷你尺寸：适当缩小视觉占比至 0.62，避免气泡过于庞大遮挡头部
+    targetVisualScale = 0.62;
+  } else if (petScale <= 0.6) {
+    // 标准尺寸：视觉占比 0.80
+    targetVisualScale = 0.80;
+  } else if (petScale <= 1.0) {
+    // 醒目尺寸：视觉占比 0.92
+    targetVisualScale = 0.92;
+  } else {
+    // 超大尺寸：视觉占比 0.85，精致小巧
+    targetVisualScale = 0.85;
+  }
+  return targetVisualScale / petScale;
+}
+
+async function updateSpeechBubbleWindowState(show: boolean): Promise<void> {
+  const bubble = document.getElementById("pet-speech-bubble");
+  if (!bubble) return;
+
+  const scale = getPetSizeScale();
+  const appWindow = getCurrentWindow();
+  const size = getPetPixelSize(scale);
+
+  // 1. 获取屏幕缩放和当前窗口的物理坐标
+  const scaleFactor = await appWindow.scaleFactor();
+  const pos = await appWindow.outerPosition();
+
+  // 2. 算出现在已应用的 padding 和下一个需要的 padding
+  const currentPaddingStr = document.documentElement.style.getPropertyValue("--pet-window-top-padding");
+  const currentPadding = currentPaddingStr ? parseFloat(currentPaddingStr) : PET_WINDOW_TOP_PADDING;
+
+  let actualPadding = PET_WINDOW_TOP_PADDING;
+
+  if (show) {
+    const bubbleScaleFactor = getBubbleScaleFactor(scale);
+    document.documentElement.style.setProperty("--bubble-scale-factor", String(bubbleScaleFactor));
+
+    // 给浏览器一帧时间来应用最新的字体缩放和文字渲染，以获得气泡的最新的自适应实际高度
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const rawHeight = bubble.offsetHeight || 120;
+    const bubbleVisualScale = scale * bubbleScaleFactor;
+
+    // 气泡底部距桌宠身体顶部有 12px 物理偏置，额外留出 32px 安全顶部空隙（含 20px 点击/拉伸动画弹性安全缓冲区）
+    const requiredPadding = Math.round((rawHeight + 12) * bubbleVisualScale + 32);
+    actualPadding = Math.max(PET_WINDOW_TOP_PADDING, requiredPadding);
+  }
+
+  // 3. 计算物理 Y 轴的微调位移量，以确保桌宠身体在屏幕上的物理坐标绝对静止
+  const currentDiffPhysical = Math.round((currentPadding - PET_WINDOW_TOP_PADDING) * scaleFactor);
+  const nextDiffPhysical = Math.round((actualPadding - PET_WINDOW_TOP_PADDING) * scaleFactor);
+  const yAdjustment = nextDiffPhysical - currentDiffPhysical;
+
+  const height = Math.round(actualPadding + Math.max(PET_BASE_HEIGHT, PET_BASE_HEIGHT * scale));
+
+  // 4. 应用 CSS 变量和物理尺寸/坐标调整
+  document.documentElement.style.setProperty("--pet-window-top-padding", `${actualPadding}px`);
+
+  // 先设置绝对坐标，再撑开或回缩尺寸，确保位移完美抵消，毫无跳动感
+  await Promise.all([
+    appWindow.setPosition(new PhysicalPosition(pos.x, pos.y - yAdjustment)),
+    appWindow.setSize(new LogicalSize(size.width, height))
+  ]);
+}
+
 function getPetPixelSize(scale = getPetSizeScale()): { width: number; height: number } {
   return {
     width: Math.round(Math.max(PET_BASE_WIDTH + PET_CONTEXT_MENU_SPACE, PET_BASE_WIDTH * scale + PET_CONTEXT_MENU_SPACE)),
@@ -701,12 +769,24 @@ async function applyPetSizeScale(scale = getPetSizeScale()): Promise<void> {
   const nextScale = Math.min(1.4, Math.max(0.35, scale));
   localStorage.setItem(LS_PET_SIZE_SCALE, String(nextScale));
   document.documentElement.style.setProperty("--pet-scale", String(nextScale));
-  document.documentElement.style.setProperty("--pet-window-top-padding", `${PET_WINDOW_TOP_PADDING}px`);
 
-  const appWindow = getCurrentWindow();
-  const size = getPetPixelSize(nextScale);
-  await appWindow.setSize(new LogicalSize(size.width, size.height));
-  await clampCurrentWindowToRoamBounds();
+  const bubbleScaleFactor = getBubbleScaleFactor(nextScale);
+  document.documentElement.style.setProperty("--bubble-scale-factor", String(bubbleScaleFactor));
+
+  const bubble = document.getElementById("pet-speech-bubble");
+  const isSpeechShowing = bubble?.classList.contains("show-bubble") || false;
+
+  if (isSpeechShowing) {
+    // 气泡正在展示中，同步重新计算气泡展开需要的窗口高度
+    void updateSpeechBubbleWindowState(true);
+  } else {
+    // 气泡不在展示中，应用正常的紧凑高度
+    document.documentElement.style.setProperty("--pet-window-top-padding", `${PET_WINDOW_TOP_PADDING}px`);
+    const appWindow = getCurrentWindow();
+    const size = getPetPixelSize(nextScale);
+    await appWindow.setSize(new LogicalSize(size.width, size.height));
+    await clampCurrentWindowToRoamBounds();
+  }
 }
 
 function setupSizePanel(): void {
@@ -789,6 +869,7 @@ function setFocusBubbleText(text: string): void {
   if (!bubble || !bubbleText) return;
   bubbleText.textContent = text;
   bubble.classList.add("show-bubble");
+  void updateSpeechBubbleWindowState(true);
 }
 
 function clearFocusTimer(): void {
@@ -1668,6 +1749,7 @@ function setupTodoPanel(): void {
       reminderAudio = null;
       container?.classList.remove("reminder-pulse");
       document.getElementById("pet-speech-bubble")?.classList.remove("show-bubble");
+      void updateSpeechBubbleWindowState(false);
       if (!wasOnTop) void appWindow.setAlwaysOnTop(false);
       hitbox?.removeEventListener("click", dismissReminder);
       if (dismissActiveReminder === dismissReminder) dismissActiveReminder = null;
@@ -3279,9 +3361,12 @@ function showSpeech(text: string, durationMs: number, withSound = true): void {
   bubble.classList.add("show-bubble");
   if (withSound) playSound("bubble");
 
+  void updateSpeechBubbleWindowState(true);
+
   (window as any).speechBubbleTimerId = setTimeout(() => {
     bubble.classList.remove("show-bubble");
     (window as any).speechBubbleTimerId = null;
+    void updateSpeechBubbleWindowState(false);
   }, durationMs);
 }
 
@@ -3414,7 +3499,7 @@ async function main(): Promise<void> {
   // GitHub 贡献度监控：启动 3 秒后初检，之后每 5 分钟轮询
   setTimeout(() => checkGitHubStatus(), 3000);
   setInterval(() => checkGitHubStatus(), 5 * 60 * 1000);
-  console.log("VibePet engine initialized");
+  console.log("LingoPet engine initialized");
 }
 
 // ── File Drop -> Recycle Bin ──

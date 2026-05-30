@@ -1,0 +1,453 @@
+﻿diff --git a/src/config/config.ts b/src/config/config.ts
+index f947a2e..8df9814 100644
+--- a/src/config/config.ts
++++ b/src/config/config.ts
+@@ -26,9 +26,12 @@ interface WorkshopItem {
+   framesCount: number;
+   frameDuration: number;
+   imageUrl: string;
++  status?: "published" | "hidden";
++  metaPath?: string;
+ }
+ 
+ type ModeActionKey = "focus" | "music" | "merit";
++type EditorPreviewBackground = "checker" | "paper" | "gray" | "ink" | "mint" | "sky";
+ 
+ interface ModeActionPreset {
+   label: string;
+@@ -43,6 +46,7 @@ interface FrameAnimation {
+ }
+ 
+ const WORKSHOP_SHARE_API = "https://api.1024588.xyz/api/share";
++const WORKSHOP_MANAGE_API = "https://api.1024588.xyz/api/workshop-manage";
+ const EMPTY_PETS_IMAGE = new URL("./empty-pets.png", import.meta.url).href;
+ 
+ const LS_PET_ASSETS_VERSION = "pet_assets_version";
+@@ -96,6 +100,7 @@ const LS_CHAT_MODE = "pet_chat_mode";
+ const LS_PERSONA_MODE = "pet_persona_mode";
+ const LS_CUSTOM_PERSONA = "pet_custom_persona_text";
+ const LS_MUSIC_RHYTHM_SYNC_MODE = "pet_music_rhythm_sync_mode";
++const LS_SPEECH_BUBBLE_STYLE = "pet_speech_bubble_style";
+ const LS_ALLOW_MULTIPLE_PETS = "pet_allow_multiple_instances";
+ const LS_PRIMARY_PET_ID = "pet_primary_project_id";
+ const LS_SUMMONED_PET_IDS = "pet_summoned_pet_ids";
+@@ -103,6 +108,8 @@ const LS_FAVORITE_PET_IDS = "pet_favorite_pet_ids";
+ const LS_CUSTOM_TAGS = "pet_custom_tags";
+ const LS_PET_WINDOW_STATE_VERSION = "pet_window_state_version";
+ const LS_PET_VOLUME = "pet-volume";
++const LS_EDITOR_PREVIEW_BACKGROUND = "pet_editor_preview_background";
++const LS_WORKSHOP_ADMIN_TOKEN = "workshop_admin_token";
+ const BUILTIN_IKUN_PET: ProjectPet = {
+   id: "ikun-pet",
+   displayName: "楦″摜ikun",
+@@ -189,6 +196,8 @@ const els = {
+   petInstanceModeRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="pet-instance-mode"]')],
+   petActivityLevelRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="pet-activity-level"]')],
+   musicRhythmSyncRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="music-rhythm-sync"]')],
++  speechBubbleStyleRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="speech-bubble-style"]')],
++  editorPreviewBackgroundRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="editor-preview-background"]')],
+   sizePresets: [...document.querySelectorAll<HTMLButtonElement>(".size-presets button")],
+   sizeSlider: document.getElementById("manager-size-slider") as HTMLInputElement,
+   sizeInput: document.getElementById("manager-size-input") as HTMLInputElement,
+@@ -218,6 +227,7 @@ const els = {
+   workshopGrid: document.getElementById("workshop-grid") as HTMLDivElement,
+   workshopSearch: document.getElementById("workshop-search-input") as HTMLInputElement,
+   workshopActionFilter: document.getElementById("workshop-action-filter") as HTMLSelectElement,
++  workshopAdminToggle: document.getElementById("workshop-admin-toggle") as HTMLButtonElement,
+   workshopStatus: document.getElementById("workshop-status") as HTMLParagraphElement,
+ 
+   // 闆ⅶ鍥剧紪杈戝櫒
+@@ -236,6 +246,9 @@ const els = {
+   editorEraserSizeValue: document.getElementById("editor-eraser-size-value") as HTMLSpanElement,
+   editorEraserUndo: document.getElementById("editor-eraser-undo-btn") as HTMLButtonElement,
+   editorEraserCursor: document.getElementById("editor-eraser-cursor") as HTMLDivElement,
++  editorFrameStageWrap: document.getElementById("editor-frame-stage-wrap") as HTMLDivElement,
++  editorActionScaleSlider: document.getElementById("editor-action-scale-slider") as HTMLInputElement,
++  editorActionScaleInput: document.getElementById("editor-action-scale-input") as HTMLInputElement,
+   editorClear: document.getElementById("editor-clear-btn") as HTMLButtonElement,
+   editorCopy: document.getElementById("editor-copy-btn") as HTMLButtonElement,
+   editorPaste: document.getElementById("editor-paste-btn") as HTMLButtonElement,
+@@ -273,6 +286,8 @@ const state = {
+   editorPreviewMode: "frame" as "frame" | "action",
+   editorPreviewFrame: 0,
+   editorPreviewTimer: null as number | null,
++  editorActionScale: 1.0,
++  editorPreviewBackground: (localStorage.getItem(LS_EDITOR_PREVIEW_BACKGROUND) as EditorPreviewBackground) || "checker",
+   editorEraserEnabled: false,
+   editorErasing: false,
+   editorErasePointerId: null as number | null,
+@@ -292,11 +307,16 @@ const state = {
+   editorMoveSourceOffset: null as { x: number; y: number } | null,
+   editorMoveChanged: false,
+   editorDirty: false,
++  editorZoomScale: 1.0, // CSS 瑙嗚缂╂斁姣斾緥锛?.5~1.5锛夛紝绾鍥剧缉鏀句笉鎹熷け浠讳綍鍍忕礌
+ 
+   // 鍒涙剰宸ュ潑
+   workshopItems: [] as WorkshopItem[],
+   workshopSearchQuery: "",
+   workshopFilterType: "all",
++  workshopAdminToken: "",
++  workshopAdminRevealed: false,
++  workshopAdminRevealClicks: 0,
++  workshopAdminRevealStartedAt: 0,
+ 
+ };
+ 
+@@ -338,6 +358,40 @@ function setApiConfigStatus(message = "", isError = false): void {
+   els.apiConfigStatus.classList.toggle("error", isError);
+ }
+ 
++function isWorkshopAdminMode(): boolean {
++  return state.workshopAdminToken.trim().length > 0;
++}
++
++function updateWorkshopAdminToggle(): void {
++  const active = isWorkshopAdminMode();
++  els.workshopAdminToggle.hidden = !state.workshopAdminRevealed;
++  els.workshopAdminToggle.textContent = active ? "\u7ba1\u7406\u5458\u5df2\u5f00\u542f" : "\u7ba1\u7406\u5458\u6a21\u5f0f";
++  els.workshopAdminToggle.classList.toggle("is-active", active);
++}
++
++function setWorkshopAdminToken(token: string): void {
++  state.workshopAdminToken = token.trim();
++  localStorage.removeItem(LS_WORKSHOP_ADMIN_TOKEN);
++  updateWorkshopAdminToggle();
++}
++
++function handleWorkshopAdminRevealTap(): void {
++  const now = Date.now();
++  if (now - state.workshopAdminRevealStartedAt > 3000) {
++    state.workshopAdminRevealStartedAt = now;
++    state.workshopAdminRevealClicks = 0;
++  }
++
++  state.workshopAdminRevealClicks += 1;
++  if (state.workshopAdminRevealClicks < 10) return;
++
++  state.workshopAdminRevealed = true;
++  state.workshopAdminRevealClicks = 0;
++  state.workshopAdminRevealStartedAt = 0;
++  updateWorkshopAdminToggle();
++  setStatus(els.workshopStatus, "\u7ba1\u7406\u5458\u5165\u53e3\u5df2\u89e3\u9501\u3002");
++}
++
+ function normalizeApiEndpoint(value: string): string {
+   const endpoint = value.trim().replace(/\/+$/, "");
+   if (!endpoint) return "";
+@@ -1685,6 +1739,28 @@ function updateVolumeControls(percent: number): void {
+   els.volumeText.textContent = `${next}%`;
+ }
+ 
++function clampEditorActionScale(percent: number): number {
++  return Math.min(130, Math.max(70, Math.round(percent)));
++}
++
++function updateEditorActionScaleControls(percent: number): void {
++  const next = clampEditorActionScale(percent);
++  state.editorActionScale = next / 100;
++  els.editorActionScaleSlider.value = String(next);
++  els.editorActionScaleInput.value = String(next);
++}
++
++function getEditorPreviewBackground(): EditorPreviewBackground {
++  const saved = localStorage.getItem(LS_EDITOR_PREVIEW_BACKGROUND);
++  return saved === "paper" || saved === "gray" || saved === "ink" || saved === "mint" || saved === "sky" ? saved : "checker";
++}
++
++function applyEditorPreviewBackground(background: EditorPreviewBackground): void {
++  state.editorPreviewBackground = background;
++  localStorage.setItem(LS_EDITOR_PREVIEW_BACKGROUND, background);
++  els.editorFrameStageWrap.dataset.previewBg = background;
++}
++
+ async function loadSettings(): Promise<void> {
+   els.autostartToggle.checked = await isEnabled().catch(() => false);
+   els.alwaysTopToggle.checked = localStorage.getItem("pet-always-on-top") !== "false";
+@@ -1700,6 +1776,15 @@ async function loadSettings(): Promise<void> {
+   for (const radio of els.musicRhythmSyncRadios) {
+     radio.checked = radio.value === musicRhythmSync;
+   }
++  const bubbleStyle = localStorage.getItem(LS_SPEECH_BUBBLE_STYLE) || "1";
++  for (const radio of els.speechBubbleStyleRadios) {
++    radio.checked = radio.value === bubbleStyle;
++  }
++  const editorPreviewBackground = getEditorPreviewBackground();
++  for (const radio of els.editorPreviewBackgroundRadios) {
++    radio.checked = radio.value === editorPreviewBackground;
++  }
++  applyEditorPreviewBackground(editorPreviewBackground);
+   updateSizeControls(Math.round(getPetSizeScale() * 100));
+   updateVolumeControls(getPetVolumePercent());
+   els.chatMode.value = localStorage.getItem(LS_CHAT_MODE) || "basic";
+@@ -1714,7 +1799,11 @@ async function loadSettings(): Promise<void> {
+ }
+ 
+ els.navItems.forEach((item) => {
+-  item.addEventListener("click", () => setView((item.dataset.view || "mine") as ViewName));
++  item.addEventListener("click", () => {
++    const view = (item.dataset.view || "mine") as ViewName;
++    if (view === "workshop") handleWorkshopAdminRevealTap();
++    setView(view);
++  });
+ });
+ els.sortButtons.forEach((button) => {
+   button.addEventListener("click", () => {
+@@ -1873,6 +1962,18 @@ els.musicRhythmSyncRadios.forEach((radio) => {
+     localStorage.setItem(LS_MUSIC_RHYTHM_SYNC_MODE, radio.value);
+   });
+ });
++els.speechBubbleStyleRadios.forEach((radio) => {
++  radio.addEventListener("change", () => {
++    if (!radio.checked) return;
++    localStorage.setItem(LS_SPEECH_BUBBLE_STYLE, radio.value);
++  });
++});
++els.editorPreviewBackgroundRadios.forEach((radio) => {
++  radio.addEventListener("change", () => {
++    if (!radio.checked) return;
++    applyEditorPreviewBackground(radio.value as EditorPreviewBackground);
++  });
++});
+ els.sizePresets.forEach((button) => {
+   button.addEventListener("click", () => {
+     const percent = Number(button.dataset.sizePercent);
+@@ -2113,6 +2214,9 @@ els.toggleApiKeyVisibility.addEventListener("click", () => {
+     renderWorkshop();
+   });
+ 
++  updateWorkshopAdminToggle();
++  els.workshopAdminToggle.addEventListener("click", () => void openWorkshopAdminDialog());
++
+   els.workshopActionFilter.addEventListener("change", () => {
+     state.workshopFilterType = els.workshopActionFilter.value;
+     renderWorkshop();
+@@ -2503,6 +2607,34 @@ function convertTwoByTwoToStrip(image: HTMLImageElement): HTMLCanvasElement {
+   return canvas;
+ }
+ 
++function buildHorizontalStripCanvas(image: HTMLImageElement, framesCount: number): HTMLCanvasElement {
++  const canvas = document.createElement("canvas");
++  canvas.width = framesCount * ATLAS_CELL_WIDTH;
++  canvas.height = ATLAS_CELL_HEIGHT;
++  const ctx = canvas.getContext("2d");
++  if (!ctx) throw new Error("鏃犳硶鍒涘缓鐢诲竷澶勭悊妯増鍥?);
++
++  ctx.imageSmoothingEnabled = true;
++  ctx.imageSmoothingQuality = "high";
++
++  const sourceCellWidth = image.naturalWidth / framesCount;
++  for (let i = 0; i < framesCount; i++) {
++    ctx.drawImage(
++      image,
++      i * sourceCellWidth,
++      0,
++      sourceCellWidth,
++      image.naturalHeight,
++      i * ATLAS_CELL_WIDTH,
++      0,
++      ATLAS_CELL_WIDTH,
++      ATLAS_CELL_HEIGHT
++    );
++  }
++
++  return canvas;
++}
++
+ async function importActionStripImage(file: File): Promise<void> {
+   const action = state.editorActions[state.editorSelectedRow];
+   if (!action) {
+@@ -2525,6 +2657,11 @@ async function importActionStripImage(file: File): Promise<void> {
+     const imgWidth = rawImage.naturalWidth;
+     const imgHeight = rawImage.naturalHeight;
+     const isTwoByTwo = imgWidth > 10 && imgHeight > 10 && (imgWidth / imgHeight >= 0.7 && imgWidth / imgHeight <= 1.3);
++    const expectedStripWidth = framesCount * ATLAS_CELL_WIDTH;
++    const looksLikeHorizontalStrip = !isTwoByTwo
++      && imgWidth > imgHeight
++      && Math.abs(imgHeight - ATLAS_CELL_HEIGHT) <= 48
++      && Math.abs(imgWidth - expectedStripWidth) <= Math.max(ATLAS_CELL_WIDTH, expectedStripWidth * 0.15);
+ 
+     let targetFramesCount = framesCount;
+     let canvas: HTMLCanvasElement;
+@@ -2532,6 +2669,8 @@ async function importActionStripImage(file: File): Promise<void> {
+     if (isTwoByTwo) {
+       targetFramesCount = 4;
+       canvas = convertTwoByTwoToStrip(rawImage);
++    } else if (looksLikeHorizontalStrip) {
++      canvas = buildHorizontalStripCanvas(rawImage, targetFramesCount);
+     } else {
+       const processed = cropAndAutoCenterImage(rawImage);
+       canvas = document.createElement("canvas");
+@@ -2725,6 +2864,63 @@ function copyTextToClipboard(text: string): Promise<void> {
+   return Promise.resolve();
+ }
+ 
++async function openWorkshopAdminDialog(): Promise<void> {
++  const token = window.prompt("\u8bf7\u8f93\u5165\u521b\u610f\u5de5\u574a\u7ba1\u7406\u5458\u53e3\u4ee4\u3002\u7559\u7a7a\u5e76\u786e\u8ba4\u53ef\u9000\u51fa\u7ba1\u7406\u5458\u6a21\u5f0f\u3002", state.workshopAdminToken);
++  if (token === null) return;
++  setWorkshopAdminToken(token);
++  renderWorkshop();
++  setStatus(els.workshopStatus, token.trim() ? "\u7ba1\u7406\u5458\u6a21\u5f0f\u5df2\u5f00\u542f\u3002" : "\u5df2\u9000\u51fa\u7ba1\u7406\u5458\u6a21\u5f0f\u3002");
++}
++
++async function manageWorkshopItem(item: WorkshopItem, action: "hide" | "restore" | "delete"): Promise<void> {
++  if (!isWorkshopAdminMode()) {
++    window.alert("\u8bf7\u5148\u5f00\u542f\u7ba1\u7406\u5458\u6a21\u5f0f\u3002");
++    return;
++  }
++  if (!item.metaPath) {
++    window.alert("\u5f53\u524d\u6761\u76ee\u7f3a\u5c11\u5143\u6570\u636e\u8def\u5f84\uff0c\u65e0\u6cd5\u7ba1\u7406\u3002");
++    return;
++  }
++  if (action === "delete" && !window.confirm(`\u786e\u8ba4\u6c38\u4e45\u5220\u9664\u300c${item.title}\u300d\u5417\uff1f\n\u8fd9\u4f1a\u540c\u65f6\u5220\u9664\u5143\u6570\u636e\u548c\u9884\u89c8\u56fe\u3002`)) {
++    return;
++  }
++
++  const actionLabel = action === "hide" ? "\u9690\u85cf" : action === "restore" ? "\u6062\u590d" : "\u5220\u9664";
++
++  try {
++    setStatus(els.workshopStatus, `\u6b63\u5728${actionLabel}\u300c${item.title}\u300d...`);
++    const response = await fetch(WORKSHOP_MANAGE_API, {
++      method: "POST",
++      headers: {
++        "Content-Type": "application/json",
++        "x-admin-token": state.workshopAdminToken,
++      },
++      body: JSON.stringify({ action, metaPath: item.metaPath }),
++    });
++    const result = await response.json().catch(() => ({}));
++    if (!response.ok) {
++      if (response.status === 401) {
++        setWorkshopAdminToken("");
++        renderWorkshop();
++      }
++      throw new Error(result.error || `HTTP ${response.status}`);
++    }
++
++    if (action === "delete") {
++      state.workshopItems = state.workshopItems.filter((entry) => entry.metaPath !== item.metaPath);
++    } else {
++      item.status = action === "hide" ? "hidden" : "published";
++    }
++
++    renderWorkshop();
++    setStatus(els.workshopStatus, `\u5df2${actionLabel}\u300c${item.title}\u300d\u3002`);
++  } catch (err) {
++    console.error(err);
++    const message = err instanceof Error ? err.message : String(err);
++    setStatus(els.workshopStatus, `${actionLabel}\u5931\u8d25\uff1a${message}`, true);
++  }
++}
++
+ async function loadSpritesheetImage(pet: ProjectPet): Promise<HTMLImageElement> {
+   if (!isTauriRuntime()) {
+     return loadImageElement(projectPetSpriteUrl(pet));
+@@ -2877,15 +3073,27 @@ function stopEditorActionPreview(): void {
+   }
+ }
+ 
++function drawCanvasToEditorPreview(canvas: HTMLCanvasElement | null): void {
++  const ctx = els.editorFrameCanvas.getContext("2d");
++  if (!ctx) return;
++  ctx.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
++  if (!canvas || !frameHasContent(canvas)) return;
++
++  const scale = state.editorActionScale;
++  const drawW = Math.max(1, Math.round(canvas.width * scale));
++  const drawH = Math.max(1, Math.round(canvas.height * scale));
++  const dx = Math.round((ATLAS_CELL_WIDTH - drawW) / 2);
++  const dy = Math.round((ATLAS_CELL_HEIGHT - drawH) / 2);
++
++  ctx.imageSmoothingEnabled = false;
++  ctx.drawImage(canvas, dx, dy, drawW, drawH);
++}
++
+ function drawSelectedEditorFrame(): void {
+   stopEditorActionPreview();
+   state.editorPreviewMode = "frame";
+   const frame = state.editorActions[state.editorSelectedRow]?.frames[state.editorSelectedCol];
+-  const ctx = els.editorFrameCanvas.getContext("2d");
+-  if (ctx) {
+-    ctx.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+-    if (frameHasContent(frame)) ctx.drawImage(frame!, 0, 0);
+-  }
++  drawCanvasToEditorPreview(frame || null);
+   const action = state.editorActions[state.editorSelectedRow];
+   els.editorFrameTitle.textContent = action ? `甯х紪杈戯細${action.name} 路 绗?${state.editorSelectedCol + 1} 甯 : "甯х紪杈?;
+   els.editorPaste.disabled = !state.editorClipboard;
+@@ -2914,10 +3122,8 @@ function playSelectedEditorAction(frameIndex = 0): void {
+   const activeIdx = frameIndex % validIndices.length;
+   state.editorPreviewFrame = activeIdx;
+   state.editorSelectedCol = validIndices[activeIdx];
+-  const ctx = els.editorFrameCanvas.getContext("2d");
+-  ctx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+   const frame = action.frames[state.editorSelectedCol];
+-  if (frameHasContent(frame)) ctx?.drawImage(frame!, 0, 0);
++  drawCanvasToEditorPreview(frame || null);
+ 
+   const duration = action.frameDurations?.[state.editorSelectedCol] || 120;
+   state.editorPreviewTimer = window.setTimeout(() => {
+@@ -3269,7 +3475,8 @@ function renderWorkshop(): void {
+       item.title.toLowerCase().includes(query) ||
+       (item.author && item.author.toLowerCase().includes(query));
+     const matchFilter = filterType === "all" || item.actionType === filterType;
+-    return matchSearch && matchFilter;
++    const visibleToViewer = isWorkshopAdminMode() || item.status !== "hidden";
++    return visibleToViewer && matchSearch && matchFilter;
+   });
+ 
+   // 濡傛灉绛涢€変簡鈥滀粎灞曠ず宸蹭笅杞芥瀹犵殑鎵╁睍鍖呪€濓紙鍗囩骇涓哄ぇ灏忓啓鏃犲叧鐨勫己鍋ュ畨鍏ㄨ繃婊ゅ尮閰嶏級
+@@ -3346,6 +3553,12 @@ function renderWorkshop(): void {
+     const titleExtra = document.createElement("div");
+     titleExtra.className = "pet-title-extra";
+     titleExtra.append(badgeSpan);
++    if (isWorkshopAdminMode() && item.status === "hidden") {
++      const hiddenBadge = document.createElement("span");
++      hiddenBadge.className = "workshop-status-badge";
++      hiddenBadge.textContent = "\u5df2\u9690\u85cf";
++      titleExtra.append(hiddenBadge);
++    }
+ 
+     // 鍙充晶涓€閿鐢ㄦ寜閽?     const applyBtn = document.createElement("button");
+@@ -3354,12 +3567,29 @@ function renderWorkshop(): void {
+     applyBtn.textContent = "涓€閿鐢?;
+     applyBtn.addEventListener("click", () => void choosePetToApply(item));
+ 
++    const actions: HTMLElement[] = [applyBtn];
++    if (isWorkshopAdminMode() && item.metaPath) {
++      const visibilityBtn = document.createElement("button");
++      visibilityBtn.className = "secondary-button workshop-manage-button";
++      visibilityBtn.type = "button";
++      visibilityBtn.textContent = item.status === "hidden" ? "\u6062\u590d" : "\u9690\u85cf";
++      visibilityBtn.addEventListener("click", () => void manageWorkshopItem(item, item.status === "hidden" ? "restore" : "hide"));
++      actions.push(visibilityBtn);
++
++      const deleteBtn = document.createElement("button");
++      deleteBtn.className = "danger-button workshop-manage-button";
++      deleteBtn.type = "button";
++      deleteBtn.textContent = "\u5220\u9664";
++      deleteBtn.addEventListener("click", () => void manageWorkshopItem(item, "delete"));
++      actions.push(deleteBtn);
++    }
++
+     // 璋冪敤 renderListRow 鐢熸垚鍗＄墖琛?     const rowEl = renderListRow({
+       title: item.title,
+       subtitle: `浣滆€咃細${item.author || "鍖垮悕澶т浆"} 路 鍏?${item.framesCount} 甯?路 甯х巼 ${item.frameDuration}ms`,
+       spriteUrl: item.imageUrl,
+-      actions: [applyBtn],
++      actions,
+       titleExtra,
+       customPreview: previewContainer,
+     });
+@@ -3888,7 +4118,11 @@ async function fetchWorkshopItems(): Promise<void> {
+       if (item && item.imageUrl && typeof item.imageUrl === "string") {
+         item.imageUrl = item.imageUrl.replace("https://raw.githubusercontent.com/", "https://raw.gitmirror.com/");
+       }
+-      return item;
++      return {
++        ...item,
++        status: item?.status === "hidden" ? "hidden" : "published",
++        metaPath: typeof item?.metaPath === "string" ? item.metaPath : "",
++      };
+     });
+ 
+     // 闄勫甫鎴愬姛閫氶亾杈撳嚭锛岄€兼牸婊℃弧

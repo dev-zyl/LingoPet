@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-VibePet is a Tauri v2 desktop pet app. The backend is Rust under `src-tauri/`, and the frontend is Vite + TypeScript with plain DOM and CSS under `src/`. There is no React, Vue, Canvas, or WebGL runtime in the app.
+LingoPet (灵动宠物) is a Tauri v2 desktop pet app. The backend is Rust under `src-tauri/`, and the frontend is Vite + TypeScript with plain DOM and CSS under `src/`. There is no React, Vue, Canvas, or WebGL runtime in the app.
 
 The app has two Tauri windows:
 

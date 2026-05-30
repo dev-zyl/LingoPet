@@ -1,4 +1,4 @@
-# VibePet
+# LingoPet
 
 [简体中文](README.md)
 

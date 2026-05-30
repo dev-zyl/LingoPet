@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "VibePet",
-  "version": "0.1.10",
-  "identifier": "com.vibepet.app",
+  "productName": "LingoPet",
+  "version": "0.2.0",
+  "identifier": "com.lingopet.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5175",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "pet",
-        "title": "VibePet",
+        "title": "LingoPet",
         "url": "pet/index.html",
         "width": 192,
         "height": 208,
@@ -27,7 +27,7 @@
       },
       {
         "label": "config",
-        "title": "桌宠管理面板",
+        "title": "灵动桌宠控制面板",
         "url": "config/index.html",
         "width": 1000,
         "height": 720,
@@ -39,13 +39,19 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost https: http:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost https: http:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/pets/**", "../pets/**"]
+        "scope": [
+          "$APPDATA/pets/**",
+          "../pets/**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -61,8 +67,11 @@
         "uninstallerIcon": "icons/icon.ico",
         "uninstallerHeaderImage": "installer-art/nsis-uninstall-header.bmp",
         "installMode": "both",
-        "languages": ["SimpChinese", "English"],
-        "startMenuFolder": "VibePet"
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "startMenuFolder": "LingoPet"
       }
     }
   }

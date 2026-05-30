@@ -1,504 +1,604 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>桌宠管理面板</title>
-  </head>
-  <body>
-    <a class="skip-link" href="#main-content">跳转到主要内容</a>
-    <div id="app">
-      <aside class="sidebar">
-        <div class="brand">
-          <img class="brand-icon" src="./app-icon.png" alt="" width="44" height="44" />
-          <div>
-            <h1>桌宠管理面板</h1>
-            <p>VibePet</p>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>灵动宠物控制面板</title>
+</head>
+
+<body>
+  <a class="skip-link" href="#main-content">跳转到主要内容</a>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="brand-icon" src="./app-icon.png" alt="" width="44" height="44" />
+        <div>
+          <h1>灵动桌宠</h1>
+          <p>LingoPet</p>
+        </div>
+      </div>
+      <nav class="nav" aria-label="管理功能">
+        <button class="nav-item active" data-view="mine" type="button"><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 11.5 12 4l8 7.5"></path>
+            <path d="M6.5 10v9h11v-9"></path>
+            <path d="M10 19v-5h4v5"></path>
+          </svg><span>我的桌宠</span></button>
+        <button class="nav-item" data-view="recall" type="button"><svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="8"></circle>
+            <path d="M12 8v8M8 12h8"></path>
+          </svg><span>宠物召回</span></button>
+        <button class="nav-item" data-view="market" type="button"><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 9V7a5 5 0 0 1 10 0v2"></path>
+            <path d="M5 9h14l-1 11H6L5 9Z"></path>
+          </svg><span>宠物市场</span></button>
+        <button class="nav-item" data-view="workshop" type="button"><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m14 6 4 4"></path>
+            <path d="M5 19 19 5"></path>
+            <path d="M4 13 11 20"></path>
+            <path d="M13 4 20 11"></path>
+          </svg><span>创意工坊</span></button>
+        <button class="nav-item" data-view="settings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5Z"></path>
+            <path
+              d="M19 12a7 7 0 0 0-.08-1l2-1.5-2-3.46-2.32 1a7.2 7.2 0 0 0-1.72-1L14.6 3.5h-4L10.3 6a7.2 7.2 0 0 0-1.72 1l-2.32-1-2 3.46 2 1.5a7 7 0 0 0 0 2.08l-2 1.5 2 3.46 2.32-1a7.2 7.2 0 0 0 1.72 1l.3 2.5h4l.28-2.5a7.2 7.2 0 0 0 1.72-1l2.32 1 2-3.46-2-1.5c.05-.35.08-.69.08-1.04Z">
+            </path>
+          </svg><span>设置</span></button>
+      </nav>
+      <section class="online-card" aria-label="在线桌宠状态">
+        <div class="online-card-count">
+          <strong id="online-pet-count">0</strong>
+          <span>只桌宠在线</span>
+        </div>
+        <div id="online-pet-avatars" class="online-pet-avatars" aria-hidden="true"></div>
+        <button id="online-pet-action" class="online-card-action" type="button">查看 / 召回</button>
+      </section>
+    </aside>
+
+    <main id="main-content" class="content" tabindex="-1">
+      <header class="topbar">
+        <div>
+          <h2 id="view-title">我的桌宠</h2>
+          <p id="view-subtitle">管理本地宠物并召唤多个桌面实例。</p>
+        </div>
+        <div class="topbar-actions" style="display: flex; align-items: center; gap: 8px;">
+          <button id="refresh-btn" class="ghost-button refresh-button" type="button"><svg viewBox="0 0 24 24"
+              aria-hidden="true">
+              <path d="M20 11a8 8 0 0 0-14.2-4.8L4 8"></path>
+              <path d="M4 4v4h4"></path>
+              <path d="M4 13a8 8 0 0 0 14.2 4.8L20 16"></path>
+              <path d="M20 20v-4h-4"></path>
+            </svg><span>刷新</span></button>
+          <div id="editor-topbar-actions" class="editor-topbar-actions" style="display: none; gap: 8px;">
+            <button id="editor-back-btn" class="ghost-button" type="button">返回列表</button>
+            <button id="editor-save-btn" class="primary-button" type="button">保存 WebP</button>
           </div>
         </div>
-        <nav class="nav" aria-label="管理功能">
-          <button class="nav-item active" data-view="mine" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5"></path><path d="M6.5 10v9h11v-9"></path><path d="M10 19v-5h4v5"></path></svg><span>我的桌宠</span></button>
-          <button class="nav-item" data-view="recall" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v8M8 12h8"></path></svg><span>宠物召回</span></button>
-          <button class="nav-item" data-view="market" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V7a5 5 0 0 1 10 0v2"></path><path d="M5 9h14l-1 11H6L5 9Z"></path></svg><span>宠物市场</span></button>
-          <button class="nav-item" data-view="workshop" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6 4 4"></path><path d="M5 19 19 5"></path><path d="M4 13 11 20"></path><path d="M13 4 20 11"></path></svg><span>创意工坊</span></button>
-          <button class="nav-item" data-view="settings" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5Z"></path><path d="M19 12a7 7 0 0 0-.08-1l2-1.5-2-3.46-2.32 1a7.2 7.2 0 0 0-1.72-1L14.6 3.5h-4L10.3 6a7.2 7.2 0 0 0-1.72 1l-2.32-1-2 3.46 2 1.5a7 7 0 0 0 0 2.08l-2 1.5 2 3.46 2.32-1a7.2 7.2 0 0 0 1.72 1l.3 2.5h4l.28-2.5a7.2 7.2 0 0 0 1.72-1l2.32 1 2-3.46-2-1.5c.05-.35.08-.69.08-1.04Z"></path></svg><span>设置</span></button>
-        </nav>
-        <section class="online-card" aria-label="在线桌宠状态">
-          <div class="online-card-count">
-            <strong id="online-pet-count">0</strong>
-            <span>只桌宠在线</span>
-          </div>
-          <div id="online-pet-avatars" class="online-pet-avatars" aria-hidden="true"></div>
-          <button id="online-pet-action" class="online-card-action" type="button">查看 / 召回</button>
-        </section>
-      </aside>
+      </header>
 
-      <main id="main-content" class="content" tabindex="-1">
-        <header class="topbar">
+      <section id="mine-view" class="view active">
+
+        <div class="toolbar">
+          <input id="mine-search-input" type="search" placeholder="搜索本地桌宠名称" />
+          <button id="import-local-pet" class="primary-button" type="button">本地导入</button>
+        </div>
+        <div class="tags-section mine-tags-section">
+          <div id="mine-tags-list" class="tags-tabs">
+            <button class="tag-tab active" data-tag="all" type="button">全部</button>
+            <button class="tag-tab" data-tag="favorite" type="button">已收藏</button>
+          </div>
+          <div class="tags-actions" aria-label="分组操作">
+            <button id="add-tag-btn" class="tag-action-button" type="button" aria-label="新建分组" title="新建分组">
+              <svg class="icon-fill" viewBox="0 0 1024 1024" aria-hidden="true">
+                <path
+                  d="M512 0C228.894118 0 0 228.894118 0 512S228.894118 1024 512 1024 1024 795.105882 1024 512 795.105882 0 512 0z m0 963.764706C265.035294 963.764706 60.235294 758.964706 60.235294 512S265.035294 60.235294 512 60.235294 963.764706 265.035294 963.764706 512 758.964706 963.764706 512 963.764706z">
+                </path>
+                <path
+                  d="M752.941176 481.882353H542.117647V271.058824c0-18.070588-12.047059-30.117647-30.117647-30.117648s-30.117647 12.047059-30.117647 30.117648V481.882353H271.058824c-18.070588 0-30.117647 12.047059-30.117648 30.117647s12.047059 30.117647 30.117648 30.117647H481.882353v210.823529c0 18.070588 12.047059 30.117647 30.117647 30.117648s30.117647-12.047059 30.117647-30.117648V542.117647h210.823529c18.070588 0 30.117647-12.047059 30.117648-30.117647s-12.047059-30.117647-30.117648-30.117647z">
+                </path>
+              </svg>
+            </button>
+            <button id="delete-tag-btn" class="tag-action-button tag-action-danger hidden" type="button"
+              aria-label="删除当前分组" title="删除当前分组">
+              <svg class="icon-fill" viewBox="0 0 1024 1024" aria-hidden="true">
+                <path
+                  d="M512 0c281.6 0 512 230.4 512 512s-230.4 512-512 512S0 793.6 0 512 230.4 0 512 0z m0 89.6C278.4 89.6 89.6 278.4 89.6 512S278.4 934.4 512 934.4 934.4 745.6 934.4 512 745.6 89.6 512 89.6zM240 467.2h540.8v89.6H240v-89.6z">
+                </path>
+              </svg>
+            </button>
+            <button id="summon-group-btn" class="tag-action-button tag-action-summon hidden" type="button"
+              aria-label="一键召唤当前分组" title="一键召唤当前分组">
+              <svg class="icon-fill summon-paw-icon" viewBox="0 0 1024 1024" aria-hidden="true">
+                <path
+                  d="M578.35790073 232.33166444l0.66509063 1.66409133 0.66509063-1.06450894c40.42859395-58.9619676 98.82464311-76.29799615 171.09479219-49.31314936l2.69584615 0.99900071C814.03745134 208.04175394 845.64790794 255.38965602 851.47086284 315.08404216c1.96342761 20.06462883 0.66509062 41.39302083-2.8286823 60.69247701l-0.86434487 4.59103602 1.66318149-0.3320904a95.66296056 95.66296056 0 0 1 38.86367482-0.20016408l2.66218218 0.5995824c40.72793022 9.31672785 75.66565964 49.57791182 87.84382394 98.49073303 13.50925537 54.13710357-2.29642783 109.47155222-48.34781262 149.06764557-61.2574856 54.83585814-94.63120575 136.65656309-99.75449622 246.56028773a19.49780056 19.49780056 0 0 1-20.43129303 18.56703764 19.49780056 19.49780056 0 0 1-18.63345568-20.33030117c5.55728259-119.65262494 42.95703014-211.29046793 112.93257103-274.01188077 34.87131134-29.94636526 46.31705708-70.14113118 36.26882054-110.46964306-8.88455542-35.7029021-33.60663834-64.25266803-58.66263133-69.9755409-14.90676456-3.46010898-29.71344707-0.56500859-43.6548749 6.65545549a80.88903216 80.88903216 0 0 0-9.58331 5.82295489l-1.66409134 1.23100906-2.16268182 1.66318149-0.39941832 0.26658216-0.23291821 0.2329182-0.36575435 0.2329182-1.56400929 0.66509063-4.65836391 1.89700952-1.06450896 0.20016407-1.29742713 0.16559028-1.59767325 0.10008204-3.19352684-0.16650011-5.85661886-1.82968161-6.38887334-4.99136416-3.72669115-6.92112781-0.79883662-5.72287287 0.2329182-2.99518242 0.33300024-1.46392728 0.16650011-0.66509061 1.86334557-4.29260956 0.49950036-0.99809087 0.2656723-0.39941831 0.40032816-0.53225448 0.16559027-0.16650012 0.20016408-0.33300023c9.48231812-14.97318263 17.73453703-53.57118513 14.44001834-87.1441595-4.49186382-45.91854862-27.38426511-80.22394153-73.20273168-97.95847857-69.11028619-26.68551052-115.79309764-4.22619149-147.73655449 72.40389506-7.41971832 17.73544687-33.44013821 15.20610083-37.26691138-3.6266091-18.96645594-93.79961497-66.41534987-130.66710808-147.93671857-117.32435279-89.5734235 16.96936435-119.45246085 69.20945839-93.9315413 166.70301039 4.72387217 18.00111919-16.2387655 31.67687469-30.97902993 20.197465-42.45752979-33.07438386-87.24424154-35.20431157-138.41982663-5.92303695l-1.63042737 0.93167279-1.46392726 1.130927c-47.8146483 36.60182077-58.3296311 73.00347746-41.72511124 118.55536188l0.79792679 2.1963458 1.3310911 3.3936909 0.69875459 1.69684547 1.43117314 3.39369091 0.76426282 1.66500116 1.53125517 3.42644503 1.63042738 3.3936909 1.73050941 3.46101882 1.79692749 3.46010898 1.92885381 3.56019104 1.99709158 3.59385497 2.16268183 3.66027305 2.26276388 3.76035511 2.39560005 3.85952731 2.52934602 3.95960932 2.66127237 4.05969138 2.79501836 4.22528166 2.96151847 4.32536368 3.12801858 4.52552778 3.26085475 4.65836392 3.460109 4.82486404 5.49086449 7.61988238L154.97903812 567.50003894l13.9414278 18.63345569c11.14731929 14.90676456 20.33030115 33.60663834 27.61718332 56.06686721l1.7305094 5.48995467c4.49186382 14.77392841 8.18580083 31.14462021 11.11365534 49.07932133l1.09817291 6.78738181 0.99809086 6.98754588 0.46583639 3.49377295 0.86434488 7.18770996 0.83250058 7.32054611 0.73241854 7.45338228 0.3320904 3.79310921 0.66600047 7.68630049 0.56591843 7.85189074c0.20016407 2.62942809 0.3320904 5.29161027 0.49859051 7.9865466l0.43308228 8.11847291 0.36575435 8.31863699 0.33300024 8.41871902 0.20016407 8.55155517 0.06550824 4.35811782 0.13283615 8.81813733 0.03366396 8.95097349v4.52461793l-0.03366396 9.18389169-0.06641808 4.65836393-0.13283616 9.38314592-0.13283615 4.75844596-0.2329182 9.64972808-0.33300022 9.74890029a19.49780056 19.49780056 0 0 1-20.26388309 18.73353773 19.49780056 19.49780056 0 0 1-18.83361976-20.13104692l0.33300024-9.41680987 0.13374599-4.65836393 0.20016407-9.18298185 0.16559027-9.05105552 0.06641809-8.85089146v-17.3023646l-0.13283616-8.4178092-0.16650011-8.25221889-0.2329182-8.11938275-0.16650013-3.99236345-0.33300021-7.85280061-0.39941833-7.71996442a793.35304023 793.35304023 0 0 0-0.23291819-3.82586335l-0.49859052-7.45338227-0.53225446-7.32054613-0.66600047-7.18770995-0.66509062-6.98754589a606.25240077 606.25240077 0 0 0-0.33300024-3.49377295l-0.79883663-6.75371784-0.86434486-6.6554555-0.43308227-3.22719078-0.93167279-6.38887334c-6.65454565-43.12262042-17.63536482-75.29899545-32.80871154-96.3280512L125.46575511 593.22112256l-6.58812757-8.91730953-6.15595513-8.41871903-3.85952731-5.32345455-5.45720055-7.71996443-3.39369091-4.89128213-3.26085475-4.75844596-3.09435462-4.65836392-2.96151848-4.45819986-2.79501835-4.35902764-2.6621822-4.25894561-2.49568205-4.19252753-1.23100908-2.02984569-2.32918197-4.05969137-1.130927-1.99618173-2.16359171-3.99327329-1.06450892-1.96251777-1.99618174-3.89410111-1.92976365-3.89228141-1.83059145-3.89319125-1.76326353-3.8595273a241.90192381 241.90192381 0 0 1-0.83159074-1.9634276l-1.66409133-3.89319126a248.09154292 248.09154292 0 0 1-0.76426283-1.96251778l-1.56491914-3.9932733c-24.12341037-63.38741333-8.25221891-119.12128031 56.33344936-167.36810103a19.56512849 19.56512849 0 0 1 1.76326352-1.16459096c50.24391229-29.61427487 98.89015134-35.30439361 144.14269951-16.8037741l1.56491912 0.66600048v-0.33300025C255.96454339 212.83295402 300.08616452 154.0383964 396.1812975 134.67252215l3.36093679-0.66509063c87.24424154-14.30809201 148.03589074 19.79804667 178.8147566 98.29147879z m-37.36699344 239.24065145c47.08222976 7.85189075 82.85245977 31.942547 112.26657059 63.81958577 43.18994833 46.84931156 65.38359504 99.88824222 65.21709493 158.75012778-0.06641807 20.43038317-4.724782 39.79625743-17.96836505 56.56545772-19.43138249 24.68932879-48.34690277 33.37462997-82.08637727 32.04353888-29.38135669-1.19825495-56.00044913-9.4168099-76.69741448-29.94727512-5.62279082-5.55637274-12.54391865-10.21473667-19.29763649-14.80668251a53.07168478 53.07168478 0 0 0-46.75104918-7.51980037c-8.48513709 2.49568208-17.3023646 4.858528-24.88858305 8.71805531-25.48816543 12.91058283-52.77325833 11.9780002-80.25669566 4.32536368-36.73465692-10.31481871-63.68674961-30.44586562-70.54145933-64.65117651-2.8951004-14.37541992-2.8951004-30.31302947 1.26467303-44.08795716 24.12341037-79.72535103 80.09019553-134.66038137 171.2612923-160.28138295a149.20048173 149.20048173 0 0 1 68.47794966-2.92785452z m262.49880713 6.58721774a63.55300361 63.55300361 0 1 1 63.52024949 110.03838049 63.55300361 63.55300361 0 0 1-63.55391343-110.03747065z m-582.29549052-93.2000326a84.68214138 84.68214138 0 1 1 0 169.3651926 84.68214138 84.68214138 0 0 1 0-169.3651926z m385.27945065-68.54436776a84.68214138 84.68214138 0 1 1 161.11388355 52.37384004 84.68214138 84.68214138 0 0 1-161.11388355-52.34017608z m-254.0800881-42.32469363a84.68214138 84.68214138 0 1 1 161.07930974 52.34017607 84.68214138 84.68214138 0 0 1-161.07930974-52.34017607z">
+                </path>
+              </svg>
+              <span class="tag-action-count" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+        <p id="mine-status" class="status"></p>
+        <div id="my-pets-list" class="pet-table"></div>
+        <div id="mine-pagination" class="pagination"></div>
+      </section>
+
+      <section id="editor-view" class="view">
+        <div class="panel-head" style="display: none !important;">
           <div>
-            <h2 id="view-title">我的桌宠</h2>
-            <p id="view-subtitle">管理本地宠物并召唤多个桌面实例。</p>
+            <p id="editor-pet-name" class="path-text"></p>
           </div>
-          <div class="topbar-actions" style="display: flex; align-items: center; gap: 8px;">
-            <button id="refresh-btn" class="ghost-button refresh-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.2-4.8L4 8"></path><path d="M4 4v4h4"></path><path d="M4 13a8 8 0 0 0 14.2 4.8L20 16"></path><path d="M20 20v-4h-4"></path></svg><span>刷新</span></button>
-            <div id="editor-topbar-actions" class="editor-topbar-actions" style="display: none; gap: 8px;">
-              <button id="editor-back-btn" class="ghost-button" type="button">返回列表</button>
-              <button id="editor-save-btn" class="primary-button" type="button">保存 WebP</button>
-            </div>
+          <div class="row-actions">
+            <button class="ghost-button" type="button">返回列表</button>
+            <button class="primary-button" type="button">保存 WebP</button>
           </div>
-        </header>
-
-        <section id="mine-view" class="view active">
-
-          <div class="toolbar">
-            <input id="mine-search-input" type="search" placeholder="搜索本地桌宠名称" />
-            <button id="import-local-pet" class="primary-button" type="button">本地导入</button>
-          </div>
-          <div class="tags-section mine-tags-section">
-            <div id="mine-tags-list" class="tags-tabs">
-              <button class="tag-tab active" data-tag="all" type="button">全部</button>
-              <button class="tag-tab" data-tag="favorite" type="button">已收藏</button>
+        </div>
+        <p id="editor-status" class="status"></p>
+        <div class="sprite-editor-shell">
+          <section class="sprite-editor-main" aria-label="桌宠帧编辑">
+            <div class="editor-main-header">
+              <h3 id="editor-frame-title">帧编辑</h3>
+              <span class="workspace-badge">工作区</span>
             </div>
-            <div class="tags-actions" aria-label="分组操作">
-              <button id="add-tag-btn" class="tag-action-button" type="button" aria-label="新建分组" title="新建分组">
-                <svg class="icon-fill" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M512 0C228.894118 0 0 228.894118 0 512S228.894118 1024 512 1024 1024 795.105882 1024 512 795.105882 0 512 0z m0 963.764706C265.035294 963.764706 60.235294 758.964706 60.235294 512S265.035294 60.235294 512 60.235294 963.764706 265.035294 963.764706 512 758.964706 963.764706 512 963.764706z"></path><path d="M752.941176 481.882353H542.117647V271.058824c0-18.070588-12.047059-30.117647-30.117647-30.117648s-30.117647 12.047059-30.117647 30.117648V481.882353H271.058824c-18.070588 0-30.117647 12.047059-30.117648 30.117647s12.047059 30.117647 30.117648 30.117647H481.882353v210.823529c0 18.070588 12.047059 30.117647 30.117647 30.117648s30.117647-12.047059 30.117647-30.117648V542.117647h210.823529c18.070588 0 30.117647-12.047059 30.117648-30.117647s-12.047059-30.117647-30.117648-30.117647z"></path></svg>
-              </button>
-              <button id="delete-tag-btn" class="tag-action-button tag-action-danger hidden" type="button" aria-label="删除当前分组" title="删除当前分组">
-                <svg class="icon-fill" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M512 0c281.6 0 512 230.4 512 512s-230.4 512-512 512S0 793.6 0 512 230.4 0 512 0z m0 89.6C278.4 89.6 89.6 278.4 89.6 512S278.4 934.4 512 934.4 934.4 745.6 934.4 512 745.6 89.6 512 89.6zM240 467.2h540.8v89.6H240v-89.6z"></path></svg>
-              </button>
-              <button id="summon-group-btn" class="tag-action-button tag-action-summon hidden" type="button" aria-label="一键召唤当前分组" title="一键召唤当前分组">
-                <svg class="icon-fill summon-paw-icon" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M578.35790073 232.33166444l0.66509063 1.66409133 0.66509063-1.06450894c40.42859395-58.9619676 98.82464311-76.29799615 171.09479219-49.31314936l2.69584615 0.99900071C814.03745134 208.04175394 845.64790794 255.38965602 851.47086284 315.08404216c1.96342761 20.06462883 0.66509062 41.39302083-2.8286823 60.69247701l-0.86434487 4.59103602 1.66318149-0.3320904a95.66296056 95.66296056 0 0 1 38.86367482-0.20016408l2.66218218 0.5995824c40.72793022 9.31672785 75.66565964 49.57791182 87.84382394 98.49073303 13.50925537 54.13710357-2.29642783 109.47155222-48.34781262 149.06764557-61.2574856 54.83585814-94.63120575 136.65656309-99.75449622 246.56028773a19.49780056 19.49780056 0 0 1-20.43129303 18.56703764 19.49780056 19.49780056 0 0 1-18.63345568-20.33030117c5.55728259-119.65262494 42.95703014-211.29046793 112.93257103-274.01188077 34.87131134-29.94636526 46.31705708-70.14113118 36.26882054-110.46964306-8.88455542-35.7029021-33.60663834-64.25266803-58.66263133-69.9755409-14.90676456-3.46010898-29.71344707-0.56500859-43.6548749 6.65545549a80.88903216 80.88903216 0 0 0-9.58331 5.82295489l-1.66409134 1.23100906-2.16268182 1.66318149-0.39941832 0.26658216-0.23291821 0.2329182-0.36575435 0.2329182-1.56400929 0.66509063-4.65836391 1.89700952-1.06450896 0.20016407-1.29742713 0.16559028-1.59767325 0.10008204-3.19352684-0.16650011-5.85661886-1.82968161-6.38887334-4.99136416-3.72669115-6.92112781-0.79883662-5.72287287 0.2329182-2.99518242 0.33300024-1.46392728 0.16650011-0.66509061 1.86334557-4.29260956 0.49950036-0.99809087 0.2656723-0.39941831 0.40032816-0.53225448 0.16559027-0.16650012 0.20016408-0.33300023c9.48231812-14.97318263 17.73453703-53.57118513 14.44001834-87.1441595-4.49186382-45.91854862-27.38426511-80.22394153-73.20273168-97.95847857-69.11028619-26.68551052-115.79309764-4.22619149-147.73655449 72.40389506-7.41971832 17.73544687-33.44013821 15.20610083-37.26691138-3.6266091-18.96645594-93.79961497-66.41534987-130.66710808-147.93671857-117.32435279-89.5734235 16.96936435-119.45246085 69.20945839-93.9315413 166.70301039 4.72387217 18.00111919-16.2387655 31.67687469-30.97902993 20.197465-42.45752979-33.07438386-87.24424154-35.20431157-138.41982663-5.92303695l-1.63042737 0.93167279-1.46392726 1.130927c-47.8146483 36.60182077-58.3296311 73.00347746-41.72511124 118.55536188l0.79792679 2.1963458 1.3310911 3.3936909 0.69875459 1.69684547 1.43117314 3.39369091 0.76426282 1.66500116 1.53125517 3.42644503 1.63042738 3.3936909 1.73050941 3.46101882 1.79692749 3.46010898 1.92885381 3.56019104 1.99709158 3.59385497 2.16268183 3.66027305 2.26276388 3.76035511 2.39560005 3.85952731 2.52934602 3.95960932 2.66127237 4.05969138 2.79501836 4.22528166 2.96151847 4.32536368 3.12801858 4.52552778 3.26085475 4.65836392 3.460109 4.82486404 5.49086449 7.61988238L154.97903812 567.50003894l13.9414278 18.63345569c11.14731929 14.90676456 20.33030115 33.60663834 27.61718332 56.06686721l1.7305094 5.48995467c4.49186382 14.77392841 8.18580083 31.14462021 11.11365534 49.07932133l1.09817291 6.78738181 0.99809086 6.98754588 0.46583639 3.49377295 0.86434488 7.18770996 0.83250058 7.32054611 0.73241854 7.45338228 0.3320904 3.79310921 0.66600047 7.68630049 0.56591843 7.85189074c0.20016407 2.62942809 0.3320904 5.29161027 0.49859051 7.9865466l0.43308228 8.11847291 0.36575435 8.31863699 0.33300024 8.41871902 0.20016407 8.55155517 0.06550824 4.35811782 0.13283615 8.81813733 0.03366396 8.95097349v4.52461793l-0.03366396 9.18389169-0.06641808 4.65836393-0.13283616 9.38314592-0.13283615 4.75844596-0.2329182 9.64972808-0.33300022 9.74890029a19.49780056 19.49780056 0 0 1-20.26388309 18.73353773 19.49780056 19.49780056 0 0 1-18.83361976-20.13104692l0.33300024-9.41680987 0.13374599-4.65836393 0.20016407-9.18298185 0.16559027-9.05105552 0.06641809-8.85089146v-17.3023646l-0.13283616-8.4178092-0.16650011-8.25221889-0.2329182-8.11938275-0.16650013-3.99236345-0.33300021-7.85280061-0.39941833-7.71996442a793.35304023 793.35304023 0 0 0-0.23291819-3.82586335l-0.49859052-7.45338227-0.53225446-7.32054613-0.66600047-7.18770995-0.66509062-6.98754589a606.25240077 606.25240077 0 0 0-0.33300024-3.49377295l-0.79883663-6.75371784-0.86434486-6.6554555-0.43308227-3.22719078-0.93167279-6.38887334c-6.65454565-43.12262042-17.63536482-75.29899545-32.80871154-96.3280512L125.46575511 593.22112256l-6.58812757-8.91730953-6.15595513-8.41871903-3.85952731-5.32345455-5.45720055-7.71996443-3.39369091-4.89128213-3.26085475-4.75844596-3.09435462-4.65836392-2.96151848-4.45819986-2.79501835-4.35902764-2.6621822-4.25894561-2.49568205-4.19252753-1.23100908-2.02984569-2.32918197-4.05969137-1.130927-1.99618173-2.16359171-3.99327329-1.06450892-1.96251777-1.99618174-3.89410111-1.92976365-3.89228141-1.83059145-3.89319125-1.76326353-3.8595273a241.90192381 241.90192381 0 0 1-0.83159074-1.9634276l-1.66409133-3.89319126a248.09154292 248.09154292 0 0 1-0.76426283-1.96251778l-1.56491914-3.9932733c-24.12341037-63.38741333-8.25221891-119.12128031 56.33344936-167.36810103a19.56512849 19.56512849 0 0 1 1.76326352-1.16459096c50.24391229-29.61427487 98.89015134-35.30439361 144.14269951-16.8037741l1.56491912 0.66600048v-0.33300025C255.96454339 212.83295402 300.08616452 154.0383964 396.1812975 134.67252215l3.36093679-0.66509063c87.24424154-14.30809201 148.03589074 19.79804667 178.8147566 98.29147879z m-37.36699344 239.24065145c47.08222976 7.85189075 82.85245977 31.942547 112.26657059 63.81958577 43.18994833 46.84931156 65.38359504 99.88824222 65.21709493 158.75012778-0.06641807 20.43038317-4.724782 39.79625743-17.96836505 56.56545772-19.43138249 24.68932879-48.34690277 33.37462997-82.08637727 32.04353888-29.38135669-1.19825495-56.00044913-9.4168099-76.69741448-29.94727512-5.62279082-5.55637274-12.54391865-10.21473667-19.29763649-14.80668251a53.07168478 53.07168478 0 0 0-46.75104918-7.51980037c-8.48513709 2.49568208-17.3023646 4.858528-24.88858305 8.71805531-25.48816543 12.91058283-52.77325833 11.9780002-80.25669566 4.32536368-36.73465692-10.31481871-63.68674961-30.44586562-70.54145933-64.65117651-2.8951004-14.37541992-2.8951004-30.31302947 1.26467303-44.08795716 24.12341037-79.72535103 80.09019553-134.66038137 171.2612923-160.28138295a149.20048173 149.20048173 0 0 1 68.47794966-2.92785452z m262.49880713 6.58721774a63.55300361 63.55300361 0 1 1 63.52024949 110.03838049 63.55300361 63.55300361 0 0 1-63.55391343-110.03747065z m-582.29549052-93.2000326a84.68214138 84.68214138 0 1 1 0 169.3651926 84.68214138 84.68214138 0 0 1 0-169.3651926z m385.27945065-68.54436776a84.68214138 84.68214138 0 1 1 161.11388355 52.37384004 84.68214138 84.68214138 0 0 1-161.11388355-52.34017608z m-254.0800881-42.32469363a84.68214138 84.68214138 0 1 1 161.07930974 52.34017607 84.68214138 84.68214138 0 0 1-161.07930974-52.34017607z"></path></svg>
-                <span class="tag-action-count" aria-hidden="true"></span>
-              </button>
-            </div>
-          </div>
-          <p id="mine-status" class="status"></p>
-          <div id="my-pets-list" class="pet-table"></div>
-          <div id="mine-pagination" class="pagination"></div>
-        </section>
-
-        <section id="editor-view" class="view">
-          <div class="panel-head" style="display: none !important;">
-            <div>
-              <p id="editor-pet-name" class="path-text"></p>
-            </div>
-            <div class="row-actions">
-              <button class="ghost-button" type="button">返回列表</button>
-              <button class="primary-button" type="button">保存 WebP</button>
-            </div>
-          </div>
-          <p id="editor-status" class="status"></p>
-          <div class="sprite-editor-shell">
-            <section class="sprite-editor-main" aria-label="桌宠帧编辑">
-              <div class="editor-main-header">
-  <h3 id="editor-frame-title">帧编辑</h3>
-  <span class="workspace-badge">工作区</span>
-</div>
-              <div class="frame-stage-wrap">
-                <canvas id="editor-frame-canvas" width="192" height="208" tabindex="0" aria-label="当前帧预览，未启用橡皮擦时可拖动调整位置"></canvas>
-                <div class="editor-eraser-toolbar" aria-label="橡皮擦工具">
-                  <button id="editor-eraser-btn" class="secondary-button" type="button" aria-pressed="false">橡皮擦</button>
-                  <label class="eraser-size-label" for="editor-eraser-size">大小 <span id="editor-eraser-size-value">14</span></label>
-                  <input id="editor-eraser-size" type="range" min="2" max="48" value="14" />
-                  <button id="editor-eraser-undo-btn" class="secondary-button" type="button" disabled>撤销擦除</button>
-                </div>
-                <div id="editor-eraser-cursor" aria-hidden="true"></div>
+            <div class="frame-stage-wrap">
+              <canvas id="editor-frame-canvas" width="192" height="208" tabindex="0"
+                aria-label="当前帧预览，未启用橡皮擦时可拖动调整位置"></canvas>
+              <div class="editor-eraser-toolbar" aria-label="橡皮擦工具">
+                <button id="editor-eraser-btn" class="secondary-button" type="button" aria-pressed="false">橡皮擦</button>
+                <label class="eraser-size-label" for="editor-eraser-size">大小 <span
+                    id="editor-eraser-size-value">14</span></label>
+                <input id="editor-eraser-size" type="range" min="2" max="48" value="14" />
+                <button id="editor-eraser-undo-btn" class="secondary-button" type="button" disabled>撤销擦除</button>
               </div>
-              <div id="editor-grid" class="sprite-grid"></div>
-            </section>
-            <aside class="sprite-editor-side">
-              <div class="editor-card">
-                <h3>帧操作</h3>
-                <input id="editor-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
-                <div class="editor-buttons-grid">
-                  <button id="editor-replace-btn" class="secondary-button" type="button">替换帧</button>
-                  <button id="editor-copy-btn" class="secondary-button" type="button">复制帧</button>
-                  <button id="editor-paste-btn" class="secondary-button" type="button" disabled>粘贴帧</button>
-                  <button id="editor-clear-btn" class="secondary-button" type="button">删除帧</button>
+              <div id="editor-eraser-cursor" aria-hidden="true"></div>
+            </div>
+            <div id="editor-grid" class="sprite-grid"></div>
+          </section>
+          <aside class="sprite-editor-side">
+            <div class="editor-card">
+              <h3>帧操作</h3>
+              <input id="editor-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              <div class="editor-buttons-grid">
+                <button id="editor-replace-btn" class="secondary-button" type="button">替换帧</button>
+                <button id="editor-copy-btn" class="secondary-button" type="button">复制帧</button>
+                <button id="editor-paste-btn" class="secondary-button" type="button" disabled>粘贴帧</button>
+                <button id="editor-clear-btn" class="secondary-button" type="button">删除帧</button>
+              </div>
+              <div class="frame-position-tools" aria-label="当前帧位置微调" style="display: none !important;">
+                <strong>位置微调</strong>
+                <div class="frame-nudge-grid">
+                  <button class="secondary-button frame-nudge-up" data-frame-nudge="up" type="button"
+                    aria-label="向上移动一像素">↑</button>
+                  <button class="secondary-button frame-nudge-left" data-frame-nudge="left" type="button"
+                    aria-label="向左移动一像素">←</button>
+                  <button class="secondary-button frame-nudge-down" data-frame-nudge="down" type="button"
+                    aria-label="向下移动一像素">↓</button>
+                  <button class="secondary-button frame-nudge-right" data-frame-nudge="right" type="button"
+                    aria-label="向右移动一像素">→</button>
                 </div>
-                <div class="frame-position-tools" aria-label="当前帧位置微调" style="display: none !important;">
-                  <strong>位置微调</strong>
-                  <div class="frame-nudge-grid">
-                    <button class="secondary-button frame-nudge-up" data-frame-nudge="up" type="button" aria-label="向上移动一像素">↑</button>
-                    <button class="secondary-button frame-nudge-left" data-frame-nudge="left" type="button" aria-label="向左移动一像素">←</button>
-                    <button class="secondary-button frame-nudge-down" data-frame-nudge="down" type="button" aria-label="向下移动一像素">↓</button>
-                    <button class="secondary-button frame-nudge-right" data-frame-nudge="right" type="button" aria-label="向右移动一像素">→</button>
-                  </div>
-                  <button id="editor-move-undo-btn" class="secondary-button" type="button" disabled>撤销位移</button>
-                  <small>也可在大图中拖动当前帧，或使用键盘方向键。横版图会保留原图取景，保存时才生成最终分帧。</small>
+                <button id="editor-move-undo-btn" class="secondary-button" type="button" disabled>撤销位移</button>
+                <small>也可在大图中拖动当前帧，或使用键盘方向键。横版图会保留原图取景，保存时才生成最终分帧。</small>
+              </div>
+              <div class="frame-zoom-tools" aria-label="动作画面缩放">
+                <strong>画面缩放</strong>
+                <div class="zoom-slider-row">
+                  <input id="editor-zoom-slider" type="range" min="50" max="150" value="100" aria-label="画面缩放比例" />
+                  <label class="zoom-number-field">
+                    <input id="editor-zoom-input" type="number" min="50" max="150" value="100" />
+                    <span>%</span>
+                  </label>
                 </div>
-                <div class="frame-zoom-tools" aria-label="动作画面缩放">
-                  <strong>画面缩放</strong>
-                  <div class="zoom-slider-row">
-                    <input id="editor-zoom-slider" type="range" min="50" max="150" value="100" aria-label="画面缩放比例" />
-                    <label class="zoom-number-field">
-                      <input id="editor-zoom-input" type="number" min="50" max="150" value="100" />
-                      <span>%</span>
-                    </label>
-                  </div>
-                  <small>拖动滑块或输入数值直接实时缩放。Ctrl+Z 可完美撤销。</small>
+                <small>拖动滑块或输入数值直接实时缩放。Ctrl+Z 可完美撤销。</small>
+              </div>
+              <div class="preview-background-tools" aria-label="纯色背景板预览">
+                <strong>预览背景板</strong>
+                <div class="preview-background-options" role="radiogroup" aria-label="切换预览背景板">
+                  <label class="preview-background-option">
+                    <input type="radio" name="editor-preview-background" value="checker" checked />
+                    <span class="preview-background-swatch preview-background-checker"></span>
+                    <span>透明棋盘</span>
+                  </label>
+                  <label class="preview-background-option">
+                    <input type="radio" name="editor-preview-background" value="paper" />
+                    <span class="preview-background-swatch preview-background-paper"></span>
+                    <span>米白</span>
+                  </label>
+                  <label class="preview-background-option">
+                    <input type="radio" name="editor-preview-background" value="gray" />
+                    <span class="preview-background-swatch preview-background-gray"></span>
+                    <span>浅灰</span>
+                  </label>
+                  <label class="preview-background-option">
+                    <input type="radio" name="editor-preview-background" value="ink" />
+                    <span class="preview-background-swatch preview-background-ink"></span>
+                    <span>墨黑</span>
+                  </label>
+                  <label class="preview-background-option">
+                    <input type="radio" name="editor-preview-background" value="mint" />
+                    <span class="preview-background-swatch preview-background-mint"></span>
+                    <span>薄荷绿</span>
+                  </label>
+                  <label class="preview-background-option">
+                    <input type="radio" name="editor-preview-background" value="sky" />
+                    <span class="preview-background-swatch preview-background-sky"></span>
+                    <span>天空蓝</span>
+                  </label>
                 </div>
-                <div class="preview-background-tools" aria-label="纯色背景板预览">
-                  <strong>预览背景板</strong>
-                  <div class="preview-background-options" role="radiogroup" aria-label="切换预览背景板">
-                    <label class="preview-background-option">
-                      <input type="radio" name="editor-preview-background" value="checker" checked />
-                      <span class="preview-background-swatch preview-background-checker"></span>
-                      <span>透明棋盘</span>
-                    </label>
-                    <label class="preview-background-option">
-                      <input type="radio" name="editor-preview-background" value="paper" />
-                      <span class="preview-background-swatch preview-background-paper"></span>
-                      <span>米白</span>
-                    </label>
-                    <label class="preview-background-option">
-                      <input type="radio" name="editor-preview-background" value="gray" />
-                      <span class="preview-background-swatch preview-background-gray"></span>
-                      <span>浅灰</span>
-                    </label>
-                    <label class="preview-background-option">
-                      <input type="radio" name="editor-preview-background" value="ink" />
-                      <span class="preview-background-swatch preview-background-ink"></span>
-                      <span>墨黑</span>
-                    </label>
-                    <label class="preview-background-option">
-                      <input type="radio" name="editor-preview-background" value="mint" />
-                      <span class="preview-background-swatch preview-background-mint"></span>
-                      <span>薄荷绿</span>
-                    </label>
-                    <label class="preview-background-option">
-                      <input type="radio" name="editor-preview-background" value="sky" />
-                      <span class="preview-background-swatch preview-background-sky"></span>
-                      <span>天空蓝</span>
-                    </label>
-                  </div>
-                  <small>仅用于预览，背景色仅限制在中间原始正方形帧内。</small>
+                <small>仅用于预览，背景色仅限制在中间原始正方形帧内。</small>
+              </div>
+            </div>
+            <div class="editor-card">
+              <h3>模式关联与分享</h3>
+              <div class="mode-action-buttons">
+                <button class="secondary-button mode-action-preset" data-action-key="merit" type="button">功德模式</button>
+                <button class="secondary-button mode-action-preset" data-action-key="focus" type="button">专注模式</button>
+                <button class="secondary-button mode-action-preset" data-action-key="music" type="button">音乐律动</button>
+              </div>
+              <input id="action-strip-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              <button id="action-strip-share-btn" class="primary-button" type="button"
+                style="background-color: #8b5cf6 !important; border-color: #8b5cf6 !important; color: white !important; font-weight: 800; font-size: 14px; padding: 12px; margin-top: 8px;">分享当前动作到社区</button>
+
+              <!-- 隐藏的后向兼容辅助元素 -->
+              <button id="editor-align-action-btn" type="button" style="display: none !important;"></button>
+              <button id="action-strip-import-btn" type="button" style="display: none !important;"></button>
+              <button id="prompt-copy-btn" type="button" style="display: none !important;"></button>
+              <textarea id="image-prompt-output" style="display: none !important;"></textarea>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="recall-view" class="view">
+        <div class="panel-head">
+          <div>
+            <p class="path-text">管理当前桌面上已经存在的宠物实例。</p>
+          </div>
+          <div class="row-actions">
+            <button id="recall-selected-pets" class="danger-button" type="button">一键召回</button>
+            <button id="refresh-active-pets" class="ghost-button" type="button">刷新</button>
+          </div>
+        </div>
+        <p id="active-pets-status" class="status"></p>
+        <div id="active-pets-list" class="pet-table compact"></div>
+      </section>
+
+      <section id="market-view" class="view">
+        <div class="toolbar">
+          <input id="search-input" type="search" placeholder="搜索宠物名称" />
+          <div class="segmented">
+            <button class="sort active" data-sort="hot" type="button">热门</button>
+            <button class="sort" data-sort="latest" type="button">最新</button>
+            <button class="sort" data-sort="downloads" type="button">下载</button>
+          </div>
+        </div>
+        <div class="market-meta">
+          <p id="market-status" class="status"></p>
+          <a id="market-home-link" class="market-home-link" href="https://codexpet.1024588.xyz/?style=cartoon"
+            target="_blank" rel="noreferrer">前往官网</a>
+        </div>
+        <div id="market-grid" class="pet-table"></div>
+        <div id="market-pagination" class="pagination"></div>
+      </section>
+
+      <section id="workshop-view" class="view">
+        <div class="toolbar">
+          <input id="workshop-search-input" type="search" placeholder="搜索动作名称或作者" />
+          <select id="workshop-action-filter">
+            <option value="all">全部模式</option>
+            <option value="focus">专注模式</option>
+            <option value="music">音乐律动</option>
+            <option value="merit">功德模式</option>
+          </select>
+        </div>
+        <div class="tags-section">
+          <div id="workshop-tags-list" class="tags-tabs">
+            <button class="tag-tab active" data-tag="all" type="button">全部动作</button>
+            <button class="tag-tab" data-tag="downloaded" type="button">已下载桌宠的扩展包</button>
+          </div>
+        </div>
+        <div class="market-meta">
+          <p id="workshop-status" class="status"></p>
+          <span class="path-text"
+            style="color: rgba(44, 30, 21, 0.7); font-size: 13px;">社区精选扩展动作补丁，点击“一键套用”直接无缝集成到你的桌宠上。</span>
+        </div>
+        <div id="workshop-grid" class="pet-table"></div>
+      </section>
+
+      <section id="settings-view" class="view">
+        <div class="settings-panel">
+          <div class="setting-group behavior-settings">
+            <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="7" cy="8" r="2.4"></circle>
+                <circle cx="17" cy="8" r="2.4"></circle>
+                <circle cx="12" cy="5" r="2.4"></circle>
+                <path
+                  d="M12 11c-3.4 0-5.7 2.6-5.7 5 0 2 1.7 3 3.3 3 .9 0 1.5-.4 2.4-.4s1.5.4 2.4.4c1.6 0 3.3-1 3.3-3 0-2.4-2.3-5-5.7-5Z">
+                </path>
+              </svg>
+              <h3>桌宠行为</h3>
+            </div>
+            <label class="setting-row setting-toggle-row">
+              <span>
+                <strong>开机自启动</strong>
+                <small>登录系统后自动启动 灵动宠物。</small>
+              </span>
+              <span class="switch-control"><input id="autostart-toggle" type="checkbox" /><span
+                  aria-hidden="true"></span></span>
+            </label>
+            <label class="setting-row setting-toggle-row">
+              <span>
+                <strong>窗口置顶</strong>
+                <small>让桌宠保持在其他窗口上方。</small>
+              </span>
+              <span class="switch-control"><input id="always-top-toggle" type="checkbox" /><span
+                  aria-hidden="true"></span></span>
+            </label>
+            <div class="setting-row">
+              <span>
+                <strong>桌宠模式</strong>
+                <small>选择桌面上同时活动的宠物数量。</small>
+              </span>
+              <div class="pet-mode-options" role="radiogroup" aria-label="桌宠模式">
+                <label class="pet-mode-option">
+                  <input type="radio" name="pet-instance-mode" value="single" />
+                  <span>单宠模式</span>
+                </label>
+                <div class="pet-mode-choice">
+                  <label class="pet-mode-option">
+                    <input type="radio" name="pet-instance-mode" value="party" />
+                    <span>派对模式</span>
+                  </label>
+                  <button class="pet-mode-help" type="button" aria-label="多宠狂欢：允许同时召唤多个桌宠。">
+                    ?
+                    <span class="pet-mode-tooltip" role="tooltip">多宠狂欢：允许同时召唤多个桌宠。</span>
+                  </button>
                 </div>
               </div>
-              <div class="editor-card">
-                <h3>模式关联与分享</h3>
-                <div class="mode-action-buttons">
-                  <button class="secondary-button mode-action-preset" data-action-key="merit" type="button">功德模式</button>
-                  <button class="secondary-button mode-action-preset" data-action-key="focus" type="button">专注模式</button>
-                  <button class="secondary-button mode-action-preset" data-action-key="music" type="button">音乐律动</button>
-                </div>
-                <input id="action-strip-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
-                <button id="action-strip-share-btn" class="primary-button" type="button" style="background-color: #8b5cf6 !important; border-color: #8b5cf6 !important; color: white !important; font-weight: 800; font-size: 14px; padding: 12px; margin-top: 8px;">分享当前动作到社区</button>
-                
-                <!-- 隐藏的后向兼容辅助元素 -->
-                <button id="editor-align-action-btn" type="button" style="display: none !important;"></button>
-                <button id="action-strip-import-btn" type="button" style="display: none !important;"></button>
-                <button id="prompt-copy-btn" type="button" style="display: none !important;"></button>
-                <textarea id="image-prompt-output" style="display: none !important;"></textarea>
+            </div>
+            <div class="setting-row">
+              <span>
+                <strong>桌宠活跃度</strong>
+                <small>控制桌宠在桌面上的行动活跃级别。</small>
+              </span>
+              <div class="pet-mode-options" role="radiogroup" aria-label="桌宠活跃度">
+                <label class="pet-mode-option">
+                  <input type="radio" name="pet-activity-level" value="quiet" />
+                  <span>乖乖宠</span>
+                </label>
+                <label class="pet-mode-option">
+                  <input type="radio" name="pet-activity-level" value="middle" />
+                  <span>中规中矩</span>
+                </label>
+                <label class="pet-mode-option">
+                  <input type="radio" name="pet-activity-level" value="active" />
+                  <span>满屏乱串</span>
+                </label>
               </div>
-            </aside>
-          </div>
-        </section>
-
-        <section id="recall-view" class="view">
-          <div class="panel-head">
-            <div>
-              <p class="path-text">管理当前桌面上已经存在的宠物实例。</p>
             </div>
-            <div class="row-actions">
-              <button id="recall-selected-pets" class="danger-button" type="button">一键召回</button>
-              <button id="refresh-active-pets" class="ghost-button" type="button">刷新</button>
+            <div class="setting-row speech-bubble-setting-row">
+              <span>
+                <strong>气泡皮肤样式</strong>
+                <small>为桌宠选择对话与专注模式下的特色气泡。</small>
+              </span>
+              <div class="bubble-style-grid" role="radiogroup" aria-label="选择气泡皮肤">
+                <label class="bubble-style-card" data-style="1">
+                  <input type="radio" name="speech-bubble-style" value="1" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">暖黄双边</span>
+                  </div>
+                  <span class="bubble-style-name">暖黄双边</span>
+                </label>
+                <label class="bubble-style-card" data-style="2">
+                  <input type="radio" name="speech-bubble-style" value="2" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">星河物语</span>
+                  </div>
+                  <span class="bubble-style-name">星河物语</span>
+                </label>
+                <label class="bubble-style-card" data-style="3">
+                  <input type="radio" name="speech-bubble-style" value="3" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">云雾缭绕</span>
+                  </div>
+                  <span class="bubble-style-name">云雾缭绕</span>
+                </label>
+                <label class="bubble-style-card" data-style="5">
+                  <input type="radio" name="speech-bubble-style" value="5" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">烈焰红唇</span>
+                  </div>
+                  <span class="bubble-style-name">烈焰红唇</span>
+                </label>
+                <label class="bubble-style-card" data-style="6">
+                  <input type="radio" name="speech-bubble-style" value="6" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">森林私语</span>
+                  </div>
+                  <span class="bubble-style-name">森林私语</span>
+                </label>
+                <label class="bubble-style-card" data-style="7">
+                  <input type="radio" name="speech-bubble-style" value="7" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">落日余晖</span>
+                  </div>
+                  <span class="bubble-style-name">落日余晖</span>
+                </label>
+                <label class="bubble-style-card" data-style="8">
+                  <input type="radio" name="speech-bubble-style" value="8" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">深海探秘</span>
+                  </div>
+                  <span class="bubble-style-name">深海探秘</span>
+                </label>
+                <label class="bubble-style-card" data-style="9">
+                  <input type="radio" name="speech-bubble-style" value="9" />
+                  <div class="bubble-style-preview">
+                    <span class="preview-inner-text">极光幻境</span>
+                  </div>
+                  <span class="bubble-style-name">极光幻境</span>
+                </label>
+              </div>
             </div>
           </div>
-          <p id="active-pets-status" class="status"></p>
-          <div id="active-pets-list" class="pet-table compact"></div>
-        </section>
 
-        <section id="market-view" class="view">
-          <div class="toolbar">
-            <input id="search-input" type="search" placeholder="搜索宠物名称" />
-            <div class="segmented">
-              <button class="sort active" data-sort="hot" type="button">热门</button>
-              <button class="sort" data-sort="latest" type="button">最新</button>
-              <button class="sort" data-sort="downloads" type="button">下载</button>
+          <div class="setting-group size-settings">
+            <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 17 17 4l3 3L7 20H4v-3Z"></path>
+                <path d="m12 9 3 3M9 12l3 3M6 15l3 3"></path>
+              </svg>
+              <h3>尺寸调整</h3>
             </div>
-          </div>
-          <div class="market-meta">
-            <p id="market-status" class="status"></p>
-            <a id="market-home-link" class="market-home-link" href="https://codexpet.1024588.xyz/?style=cartoon" target="_blank" rel="noreferrer">前往官网</a>
-          </div>
-          <div id="market-grid" class="pet-table"></div>
-          <div id="market-pagination" class="pagination"></div>
-        </section>
-
-        <section id="workshop-view" class="view">
-          <div class="toolbar">
-            <input id="workshop-search-input" type="search" placeholder="搜索动作名称或作者" />
-            <select id="workshop-action-filter">
-              <option value="all">全部模式</option>
-              <option value="focus">专注模式</option>
-              <option value="music">音乐律动</option>
-              <option value="merit">功德模式</option>
-            </select>
-          </div>
-          <div class="tags-section">
-            <div id="workshop-tags-list" class="tags-tabs">
-              <button class="tag-tab active" data-tag="all" type="button">全部动作</button>
-              <button class="tag-tab" data-tag="downloaded" type="button">已下载桌宠的扩展包</button>
+            <div class="size-presets" aria-label="桌宠尺寸预设">
+              <button type="button" data-size-percent="35">迷你</button>
+              <button type="button" data-size-percent="60">小巧</button>
+              <button type="button" data-size-percent="85">标准</button>
+              <button type="button" data-size-percent="110">醒目</button>
+              <button type="button" data-size-percent="140">超大</button>
             </div>
-          </div>
-          <div class="market-meta">
-            <p id="workshop-status" class="status"></p>
-            <span class="path-text" style="color: rgba(44, 30, 21, 0.7); font-size: 13px;">社区精选扩展动作补丁，点击“一键套用”直接无缝集成到你的桌宠上。</span>
-          </div>
-          <div id="workshop-grid" class="pet-table"></div>
-        </section>
-
-        <section id="settings-view" class="view">
-          <div class="settings-panel">
-            <div class="setting-group behavior-settings">
-              <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="8" r="2.4"></circle><circle cx="17" cy="8" r="2.4"></circle><circle cx="12" cy="5" r="2.4"></circle><path d="M12 11c-3.4 0-5.7 2.6-5.7 5 0 2 1.7 3 3.3 3 .9 0 1.5-.4 2.4-.4s1.5.4 2.4.4c1.6 0 3.3-1 3.3-3 0-2.4-2.3-5-5.7-5Z"></path></svg><h3>桌宠行为</h3></div>
-              <label class="setting-row setting-toggle-row">
-                <span>
-                  <strong>开机自启动</strong>
-                  <small>登录系统后自动启动 VibePet。</small>
-                </span>
-                <span class="switch-control"><input id="autostart-toggle" type="checkbox" /><span aria-hidden="true"></span></span>
+            <div class="size-setting">
+              <input id="manager-size-slider" type="range" min="35" max="140" value="60" aria-label="调整桌宠尺寸" />
+              <label class="number-field">
+                <input id="manager-size-input" type="number" min="67" max="269" value="115" name="pet-width"
+                  aria-label="桌宠宽度（像素）" />
+                <span>px</span>
               </label>
-              <label class="setting-row setting-toggle-row">
-                <span>
-                  <strong>窗口置顶</strong>
-                  <small>让桌宠保持在其他窗口上方。</small>
-                </span>
-                <span class="switch-control"><input id="always-top-toggle" type="checkbox" /><span aria-hidden="true"></span></span>
-              </label>
-              <div class="setting-row">
-                <span>
-                  <strong>桌宠模式</strong>
-                  <small>选择桌面上同时活动的宠物数量。</small>
-                </span>
-                <div class="pet-mode-options" role="radiogroup" aria-label="桌宠模式">
-                  <label class="pet-mode-option">
-                    <input type="radio" name="pet-instance-mode" value="single" />
-                    <span>单宠模式</span>
-                  </label>
-                  <div class="pet-mode-choice">
-                    <label class="pet-mode-option">
-                      <input type="radio" name="pet-instance-mode" value="party" />
-                      <span>派对模式</span>
-                    </label>
-                    <button class="pet-mode-help" type="button" aria-label="多宠狂欢：允许同时召唤多个桌宠。">
-                      ?
-                      <span class="pet-mode-tooltip" role="tooltip">多宠狂欢：允许同时召唤多个桌宠。</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div class="setting-row">
-                <span>
-                  <strong>桌宠活跃度</strong>
-                  <small>控制桌宠在桌面上的行动活跃级别。</small>
-                </span>
-                <div class="pet-mode-options" role="radiogroup" aria-label="桌宠活跃度">
-                  <label class="pet-mode-option">
-                    <input type="radio" name="pet-activity-level" value="quiet" />
-                    <span>乖乖宠</span>
-                  </label>
-                  <label class="pet-mode-option">
-                    <input type="radio" name="pet-activity-level" value="middle" />
-                    <span>中规中矩</span>
-                  </label>
-                  <label class="pet-mode-option">
-                    <input type="radio" name="pet-activity-level" value="active" />
-                    <span>满屏乱串</span>
-                  </label>
-                </div>
-              </div>
-              <div class="setting-row speech-bubble-setting-row">
-                <span>
-                  <strong>气泡皮肤样式</strong>
-                  <small>为桌宠选择对话与专注模式下的特色气泡。</small>
-                </span>
-                <div class="bubble-style-grid" role="radiogroup" aria-label="选择气泡皮肤">
-                  <label class="bubble-style-card" data-style="1">
-                    <input type="radio" name="speech-bubble-style" value="1" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">暖黄双边</span>
-                    </div>
-                    <span class="bubble-style-name">暖黄双边</span>
-                  </label>
-                  <label class="bubble-style-card" data-style="2">
-                    <input type="radio" name="speech-bubble-style" value="2" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">星河物语</span>
-                    </div>
-                    <span class="bubble-style-name">星河物语</span>
-                  </label>
-                  <label class="bubble-style-card" data-style="3">
-                    <input type="radio" name="speech-bubble-style" value="3" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">云雾缭绕</span>
-                    </div>
-                    <span class="bubble-style-name">云雾缭绕</span>
-                  </label>
-                  <label class="bubble-style-card" data-style="5">
-                    <input type="radio" name="speech-bubble-style" value="5" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">烈焰红唇</span>
-                    </div>
-                    <span class="bubble-style-name">烈焰红唇</span>
-                  </label>
-                  <label class="bubble-style-card" data-style="6">
-                    <input type="radio" name="speech-bubble-style" value="6" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">森林私语</span>
-                    </div>
-                    <span class="bubble-style-name">森林私语</span>
-                  </label>
-                  <label class="bubble-style-card" data-style="7">
-                    <input type="radio" name="speech-bubble-style" value="7" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">落日余晖</span>
-                    </div>
-                    <span class="bubble-style-name">落日余晖</span>
-                  </label>
-                  <label class="bubble-style-card" data-style="8">
-                    <input type="radio" name="speech-bubble-style" value="8" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">深海探秘</span>
-                    </div>
-                    <span class="bubble-style-name">深海探秘</span>
-                  </label>
-                  <label class="bubble-style-card" data-style="9">
-                    <input type="radio" name="speech-bubble-style" value="9" />
-                    <div class="bubble-style-preview">
-                      <span class="preview-inner-text">极光幻境</span>
-                    </div>
-                    <span class="bubble-style-name">极光幻境</span>
-                  </label>
-                </div>
-              </div>
+              <span id="manager-size-text" class="size-readout">小巧 · 115 x 125 px</span>
             </div>
-
-            <div class="setting-group size-settings">
-              <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 17 4l3 3L7 20H4v-3Z"></path><path d="m12 9 3 3M9 12l3 3M6 15l3 3"></path></svg><h3>尺寸调整</h3></div>
-              <div class="size-presets" aria-label="桌宠尺寸预设">
-                <button type="button" data-size-percent="35">迷你</button>
-                <button type="button" data-size-percent="60">小巧</button>
-                <button type="button" data-size-percent="85">标准</button>
-                <button type="button" data-size-percent="110">醒目</button>
-                <button type="button" data-size-percent="140">超大</button>
-              </div>
-              <div class="size-setting">
-                <input id="manager-size-slider" type="range" min="35" max="140" value="60" aria-label="调整桌宠尺寸" />
-                <label class="number-field">
-                  <input id="manager-size-input" type="number" min="67" max="269" value="115" name="pet-width" aria-label="桌宠宽度（像素）" />
-                  <span>px</span>
-                </label>
-                <span id="manager-size-text" class="size-readout">小巧 · 115 x 125 px</span>
-              </div>
-              <div class="range-scale" aria-hidden="true"><span>35%</span><span>60%</span><span>85%</span><span>110%</span><span>140%</span></div>
-            </div>
-
-            <div class="setting-group volume-settings">
-              <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6h4l5 4V5L9 9H5Z"></path><path d="M18 9a5 5 0 0 1 0 6"></path></svg><h3>音量调整</h3></div>
-              <div class="size-setting volume-setting">
-                <input id="manager-volume-slider" type="range" min="0" max="100" value="60" aria-label="调整桌宠音量" />
-                <label class="number-field">
-                  <input id="manager-volume-input" type="number" min="0" max="100" value="60" name="pet-volume" aria-label="桌宠音量百分比" />
-                  <span>%</span>
-                </label>
-                <span id="manager-volume-text" class="size-readout">60%</span>
-              </div>
-            </div>
-
-            <div class="setting-group">
-              <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l10-2v12"></path><circle cx="6" cy="18" r="3"></circle><circle cx="16" cy="16" r="3"></circle></svg><h3>音乐律动</h3></div>
-              <div class="setting-row">
-                <span>
-                  <strong>律动模式选择</strong>
-                  <small>控制多只桌宠在音乐律动时是否保持舞步一致。</small>
-                </span>
-                <div class="pet-mode-options" role="radiogroup" aria-label="音乐律动同步方式">
-                  <label class="pet-mode-option">
-                    <input type="radio" name="music-rhythm-sync" value="independent" />
-                    <span>不齐舞团</span>
-                  </label>
-                  <label class="pet-mode-option">
-                    <input type="radio" name="music-rhythm-sync" value="aligned" />
-                    <span>整齐划一</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div class="setting-group">
-              <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5Z"></path><path d="M8 9h8M8 12h5"></path></svg><h3>对话模式</h3></div>
-              <div class="form-grid">
-                <label>
-                  <span>模式</span>
-                  <select id="chat-mode-select" name="chat-mode">
-                    <option value="basic">基础闲聊</option>
-                    <option value="awaken">全面觉醒</option>
-                  </select>
-                </label>
-                <label id="persona-setting-field">
-                  <span>性格</span>
-                  <select id="persona-select" name="persona-mode">
-                    <option value="sunny">阳光开朗型</option>
-                    <option value="gentle">温柔体贴型</option>
-                    <option value="ice">高冷冰山型</option>
-                    <option value="tsundere">傲娇粘人型</option>
-                    <option value="toxic">犀利毒舌型</option>
-                    <option value="joker">腹黑沙雕型</option>
-                    <option value="custom">自定义</option>
-                  </select>
-                </label>
-              </div>
-              <label id="custom-persona-field" class="full-field persona-editor" for="custom-persona-input">
-                <span>自定义性格设定</span>
-                <textarea id="custom-persona-input" name="custom-persona" rows="4" placeholder="例如：温柔、爱吐槽，但会认真提醒日程…" autocomplete="off"></textarea>
-              </label>
-              <div id="api-config-fields" class="api-config-fields">
-                <label class="full-field">
-                  <span>大模型地址</span>
-                  <input id="api-endpoint-input" name="api-endpoint" type="url" placeholder="例如：https://api.example.com/v1/chat/completions" spellcheck="false" autocomplete="off" />
-                </label>
-                <label class="full-field">
-                  <span>API Key</span>
-                  <div class="inline-control api-key-control">
-                    <input id="api-key-input" name="api-key" type="password" placeholder="例如：sk-…" spellcheck="false" autocomplete="off" />
-                    <button id="toggle-api-key-visibility" class="inline-button icon-inline-button" type="button" aria-label="显示密钥" aria-pressed="false">
-                      <svg class="eye-icon eye-show" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                      </svg>
-                      <svg class="eye-icon eye-hide" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3 3l18 18"></path>
-                        <path d="M10.7 5.2A9.9 9.9 0 0 1 12 5c6 0 9.5 7 9.5 7a17.5 17.5 0 0 1-3.2 4.1"></path>
-                        <path d="M6.6 6.9A17.8 17.8 0 0 0 2.5 12s3.5 7 9.5 7a9.3 9.3 0 0 0 4.1-.9"></path>
-                        <path d="M9.9 9.9A3 3 0 0 0 14.1 14.1"></path>
-                      </svg>
-                    </button>
-                    <button id="test-api-btn" class="inline-button" type="button">测试</button>
-                  </div>
-                </label>
-                <label class="full-field">
-                  <span>模型名称</span>
-                  <div class="model-control">
-                    <input id="api-model-input" name="api-model" type="text" placeholder="例如：gpt-3.5-turbo" spellcheck="false" autocomplete="off" />
-                    <select id="api-model-select" aria-label="选择模型" hidden></select>
-                    <button id="fetch-models-btn" class="inline-button" type="button">自动获取</button>
-                  </div>
-                </label>
-                <p id="api-config-status" class="api-config-status" aria-live="polite"></p>
-              </div>
-            </div>
-
-            <div class="setting-group storage-settings">
-              <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3V7Z"></path></svg><h3>存储位置</h3></div>
-              <p id="settings-pets-path" class="path-text"></p>
-              <button id="settings-open-pets-dir" class="primary-button" type="button">打开目录</button>
+            <div class="range-scale" aria-hidden="true">
+              <span>35%</span><span>60%</span><span>85%</span><span>110%</span><span>140%</span>
             </div>
           </div>
-        </section>
-      </main>
-    </div>
-    <script type="module" src="./config.ts"></script>
-  </body>
+
+          <div class="setting-group volume-settings">
+            <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 9v6h4l5 4V5L9 9H5Z"></path>
+                <path d="M18 9a5 5 0 0 1 0 6"></path>
+              </svg>
+              <h3>音量调整</h3>
+            </div>
+            <div class="size-setting volume-setting">
+              <input id="manager-volume-slider" type="range" min="0" max="100" value="60" aria-label="调整桌宠音量" />
+              <label class="number-field">
+                <input id="manager-volume-input" type="number" min="0" max="100" value="60" name="pet-volume"
+                  aria-label="桌宠音量百分比" />
+                <span>%</span>
+              </label>
+              <span id="manager-volume-text" class="size-readout">60%</span>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 18V6l10-2v12"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="16" cy="16" r="3"></circle>
+              </svg>
+              <h3>音乐律动</h3>
+            </div>
+            <div class="setting-row">
+              <span>
+                <strong>律动模式选择</strong>
+                <small>控制多只桌宠在音乐律动时是否保持舞步一致。</small>
+              </span>
+              <div class="pet-mode-options" role="radiogroup" aria-label="音乐律动同步方式">
+                <label class="pet-mode-option">
+                  <input type="radio" name="music-rhythm-sync" value="independent" />
+                  <span>不齐舞团</span>
+                </label>
+                <label class="pet-mode-option">
+                  <input type="radio" name="music-rhythm-sync" value="aligned" />
+                  <span>整齐划一</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5h16v11H9l-5 4V5Z"></path>
+                <path d="M8 9h8M8 12h5"></path>
+              </svg>
+              <h3>对话模式</h3>
+            </div>
+            <div class="form-grid">
+              <label>
+                <span>模式</span>
+                <select id="chat-mode-select" name="chat-mode">
+                  <option value="basic">基础闲聊</option>
+                  <option value="awaken">全面觉醒</option>
+                </select>
+              </label>
+              <label id="persona-setting-field">
+                <span>性格</span>
+                <select id="persona-select" name="persona-mode">
+                  <option value="sunny">阳光开朗型</option>
+                  <option value="gentle">温柔体贴型</option>
+                  <option value="ice">高冷冰山型</option>
+                  <option value="tsundere">傲娇粘人型</option>
+                  <option value="toxic">犀利毒舌型</option>
+                  <option value="joker">腹黑沙雕型</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </label>
+            </div>
+            <label id="custom-persona-field" class="full-field persona-editor" for="custom-persona-input">
+              <span>自定义性格设定</span>
+              <textarea id="custom-persona-input" name="custom-persona" rows="4" placeholder="例如：温柔、爱吐槽，但会认真提醒日程…"
+                autocomplete="off"></textarea>
+            </label>
+            <div id="api-config-fields" class="api-config-fields">
+              <label class="full-field">
+                <span>大模型地址</span>
+                <input id="api-endpoint-input" name="api-endpoint" type="url"
+                  placeholder="例如：https://api.example.com/v1/chat/completions" spellcheck="false" autocomplete="off" />
+              </label>
+              <label class="full-field">
+                <span>API Key</span>
+                <div class="inline-control api-key-control">
+                  <input id="api-key-input" name="api-key" type="password" placeholder="例如：sk-…" spellcheck="false"
+                    autocomplete="off" />
+                  <button id="toggle-api-key-visibility" class="inline-button icon-inline-button" type="button"
+                    aria-label="显示密钥" aria-pressed="false">
+                    <svg class="eye-icon eye-show" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="eye-icon eye-hide" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 3l18 18"></path>
+                      <path d="M10.7 5.2A9.9 9.9 0 0 1 12 5c6 0 9.5 7 9.5 7a17.5 17.5 0 0 1-3.2 4.1"></path>
+                      <path d="M6.6 6.9A17.8 17.8 0 0 0 2.5 12s3.5 7 9.5 7a9.3 9.3 0 0 0 4.1-.9"></path>
+                      <path d="M9.9 9.9A3 3 0 0 0 14.1 14.1"></path>
+                    </svg>
+                  </button>
+                  <button id="test-api-btn" class="inline-button" type="button">测试</button>
+                </div>
+              </label>
+              <label class="full-field">
+                <span>模型名称</span>
+                <div class="model-control">
+                  <input id="api-model-input" name="api-model" type="text" placeholder="例如：gpt-3.5-turbo"
+                    spellcheck="false" autocomplete="off" />
+                  <select id="api-model-select" aria-label="选择模型" hidden></select>
+                  <button id="fetch-models-btn" class="inline-button" type="button">自动获取</button>
+                </div>
+              </label>
+              <p id="api-config-status" class="api-config-status" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="setting-group storage-settings">
+            <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 7h7l2 2h9v10H3V7Z"></path>
+              </svg>
+              <h3>存储位置</h3>
+            </div>
+            <p id="settings-pets-path" class="path-text"></p>
+            <button id="settings-open-pets-dir" class="primary-button" type="button">打开目录</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="./config.ts"></script>
+</body>
+
 </html>

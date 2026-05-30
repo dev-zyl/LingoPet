@@ -1,4 +1,4 @@
-# VibePet
+# LingoPet 灵动宠物
 
 [English](README_en.md)
 

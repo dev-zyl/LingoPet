@@ -1,6 +1,6 @@
 [package]
-name = "vibe-pet"
-version = "0.1.9"
+name = "lingo-pet"
+version = "0.2.0"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
