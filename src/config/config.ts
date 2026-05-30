@@ -1,4 +1,12 @@
 import "./style.css";
+import style1Ornaments from "../assets/ui/speech-bubble-style-1-ornaments.png";
+import style2Ornaments from "../assets/ui/speech-bubble-style-2-ornaments.png";
+import style3Ornaments from "../assets/ui/speech-bubble-style-3-ornaments.png";
+import style5Ornaments from "../assets/ui/speech-bubble-style-5-ornaments.png";
+import style6Ornaments from "../assets/ui/speech-bubble-style-6-ornaments.png";
+import style7Ornaments from "../assets/ui/speech-bubble-style-7-ornaments.png";
+import style8Ornaments from "../assets/ui/speech-bubble-style-8-ornaments.png";
+import style9Ornaments from "../assets/ui/speech-bubble-style-9-ornaments.png";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -2352,6 +2360,30 @@ void loadProjectPets();
 void fetchMarketPets();
 void loadSettings();
 void loadActivePets();
+
+// 动态设置气泡卡片背景，彻底修复 Tauri 打包生产环境下 CSS 相对路径丢失的问题
+function initBubblePreviewImages(): void {
+  const ornamentsMap: Record<string, string> = {
+    "1": style1Ornaments,
+    "2": style2Ornaments,
+    "3": style3Ornaments,
+    "5": style5Ornaments,
+    "6": style6Ornaments,
+    "7": style7Ornaments,
+    "8": style8Ornaments,
+    "9": style9Ornaments
+  };
+
+  Object.entries(ornamentsMap).forEach(([styleId, imgSrc]) => {
+    const card = document.querySelector(`.bubble-style-card[data-style="${styleId}"]`);
+    const preview = card?.querySelector(".bubble-style-preview") as HTMLElement | null;
+    if (preview) {
+      preview.style.backgroundImage = `url("${imgSrc}")`;
+    }
+  });
+}
+
+initBubblePreviewImages();
 
 
 // ==========================================
