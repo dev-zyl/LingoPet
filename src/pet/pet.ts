@@ -538,8 +538,6 @@ let isFocusMode = false;
 let focusEndTime = 0;
 let focusDurationMs = 0;
 let focusIntervalId: ReturnType<typeof setInterval> | null = null;
-let isMeritMode = false;
-let meritIntervalId: ReturnType<typeof setInterval> | null = null;
 let lastPetInteractionTime = 0;
 let isPetHovered = false;
 let isPetMenuOpen = false;
@@ -568,13 +566,6 @@ const LS_SUMMONED_PET_IDS = "pet_summoned_pet_ids";
 const LS_PET_ASSETS_VERSION = "pet_assets_version";
 const LS_PET_EXTERNAL_SPEECH = "pet_external_speech";
 const LS_PET_WINDOW_STATE_VERSION = "pet_window_state_version";
-const LS_MERIT_TEXT = "pet_merit_text";
-const LS_MERIT_COUNT = "pet_merit_count";
-const LS_MERIT_TODAY_DATE = "pet_merit_today_date";
-const LS_MERIT_TODAY_COUNT = "pet_merit_today_count";
-const LS_MERIT_ENABLED = "pet_merit_enabled";
-const MERIT_DEFAULT_TEXT = "功德";
-const MERIT_HIT_INTERVAL_MS = 1600;
 let apiKeyMigrationWarned = false;
 
 function isTauriRuntime(): boolean {
@@ -698,7 +689,7 @@ async function updateSpeechBubbleWindowState(show: boolean): Promise<void> {
 
 function getPetPixelSize(scale = getPetSizeScale()): { width: number; height: number } {
   return {
-    width: Math.round(Math.max(PET_BASE_WIDTH + PET_CONTEXT_MENU_SPACE, PET_BASE_WIDTH * scale + PET_CONTEXT_MENU_SPACE)),
+    width: Math.round(Math.max(PET_BASE_WIDTH + PET_CONTEXT_MENU_SPACE * 2, PET_BASE_WIDTH * scale + PET_CONTEXT_MENU_SPACE * 2)),
     height: Math.round(PET_WINDOW_TOP_PADDING + Math.max(PET_BASE_HEIGHT, PET_BASE_HEIGHT * scale)),
   };
 }
@@ -963,6 +954,69 @@ function positionFocusPanel(panel: HTMLElement): void {
   panel.style.visibility = "";
 }
 
+// ── Merit State & Helpers ──
+
+const LS_MERIT_TEXT = "pet_merit_text";
+const LS_MERIT_COUNT = "pet_merit_count"; // 累计功德数
+const LS_MERIT_TODAY_DATE = "pet_merit_today_date";
+const LS_MERIT_TODAY_COUNT = "pet_merit_today_count";
+const LS_MERIT_ENABLED = "pet_merit_enabled";
+const LS_MERIT_SIGN = "pet_merit_sign";       // 变动符号
+const LS_MERIT_VALUE = "pet_merit_value";     // 变动数值
+const LS_MERIT_FREQ = "pet_merit_freq";       // 自动敲击频率
+const LS_MERIT_STREAK = "pet_merit_streak";   // 连续天数
+const LS_MERIT_LAST_HIT_DATE = "pet_merit_last_hit_date"; // 上次敲击日期
+const LS_MERIT_HISTORY = "pet_merit_history"; // 历史记录
+
+const MERIT_DEFAULT_TEXT = "功德";
+let isMeritMode = false;
+let meritIntervalId: ReturnType<typeof setInterval> | null = null;
+let isMeritPanelOpen = false; // 是否开启了功德大面板
+
+function getMeritSign(): string {
+  return localStorage.getItem(LS_MERIT_SIGN) || "+";
+}
+
+function setMeritSign(sign: string): void {
+  localStorage.setItem(LS_MERIT_SIGN, sign);
+}
+
+function getMeritValue(): number {
+  const val = Number(localStorage.getItem(LS_MERIT_VALUE) || "1");
+  return Number.isFinite(val) ? val : 1;
+}
+
+function setMeritValue(value: number): void {
+  localStorage.setItem(LS_MERIT_VALUE, String(value));
+}
+
+function getMeritFreq(): number {
+  const freq = Number(localStorage.getItem(LS_MERIT_FREQ) || "1.0");
+  return Number.isFinite(freq) && freq >= 0.3 && freq <= 5.0 ? freq : 1.0;
+}
+
+function setMeritFreq(freq: number): void {
+  localStorage.setItem(LS_MERIT_FREQ, String(Math.max(0.3, Math.min(5.0, freq))));
+}
+
+function getMeritStreak(): number {
+  const streak = Number(localStorage.getItem(LS_MERIT_STREAK) || "0");
+  return Number.isFinite(streak) ? Math.max(0, Math.floor(streak)) : 0;
+}
+
+function getMeritHistory(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(LS_MERIT_HISTORY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveMeritHistory(history: Record<string, number>): void {
+  localStorage.setItem(LS_MERIT_HISTORY, JSON.stringify(history));
+}
+
 function normalizeMeritText(value: string | null): string {
   const text = (value || "").trim();
   return text.length > 0 ? text.slice(0, 12) : MERIT_DEFAULT_TEXT;
@@ -1007,15 +1061,203 @@ function setMeritTodayCount(count: number): void {
   localStorage.setItem(LS_MERIT_TODAY_COUNT, String(Math.max(0, Math.floor(count))));
 }
 
+// 格式化数据，过万后用w表示，保留一位小数
+function formatMeritNumber(count: number): string {
+  if (count >= 10000) {
+    return `${(count / 10000).toFixed(1)}w`;
+  }
+  return count.toLocaleString();
+}
+
+function updateMeritBadgesState(): void {
+  const today = getMeritTodayCount();
+  const b1 = document.getElementById("badge-level1");
+  const b2 = document.getElementById("badge-level2");
+  const b3 = document.getElementById("badge-level3");
+
+  if (b1) {
+    if (today >= 500) b1.classList.add("unlocked");
+    else b1.classList.remove("unlocked");
+  }
+  if (b2) {
+    if (today >= 2000) b2.classList.add("unlocked");
+    else b2.classList.remove("unlocked");
+  }
+  if (b3) {
+    if (today >= 10000) b3.classList.add("unlocked");
+    else b3.classList.remove("unlocked");
+  }
+}
+
 function updateMeritPanelState(): void {
-  const label = document.getElementById("merit-state-label");
-  const totalCount = document.getElementById("merit-total-count-text");
-  const todayCount = document.getElementById("merit-today-count-text");
-  const input = document.getElementById("merit-text-input") as HTMLInputElement | null;
-  if (label) label.textContent = isMeritMode ? "木鱼敲击中" : "准备敲木鱼";
-  if (totalCount) totalCount.textContent = String(getMeritCount());
-  if (todayCount) todayCount.textContent = String(getMeritTodayCount());
-  if (input && document.activeElement !== input) input.value = getMeritText();
+  const textInput = document.getElementById("merit-text-input") as HTMLInputElement | null;
+  const bigNum = document.getElementById("merit-big-number");
+  const totalText = document.getElementById("merit-total-count-text");
+  const todayText = document.getElementById("merit-today-count-text");
+  const streakText = document.getElementById("merit-streak-count-text");
+  const freqText = document.getElementById("merit-freq-text");
+  const freqSlider = document.getElementById("merit-freq-slider") as HTMLInputElement | null;
+
+  const statusDot = document.getElementById("merit-status-dot");
+  const statusLabel = document.getElementById("merit-status-label-text");
+  const actionBtn = document.getElementById("merit-action-btn");
+
+  // 自定义词汇
+  if (textInput && document.activeElement !== textInput) {
+    textInput.value = getMeritText();
+  }
+
+  // 变动数值与符号
+  const sign = getMeritSign();
+  const val = getMeritValue();
+  if (bigNum) {
+    bigNum.textContent = `${sign}${val}`;
+    if (sign === "-") {
+      bigNum.classList.add("minus-style");
+    } else {
+      bigNum.classList.remove("minus-style");
+    }
+  }
+
+  // 纵向列表选中状态同步
+  const valList = document.getElementById("merit-value-list");
+  if (valList) {
+    const combinedVal = String(val * (sign === "-" ? -1 : 1));
+    const buttons = valList.querySelectorAll(".merit-list-item");
+    buttons.forEach(btn => {
+      if ((btn as HTMLElement).dataset.val === combinedVal) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+  }
+
+  // 累计、今日、天数
+  if (totalText) totalText.textContent = formatMeritNumber(getMeritCount());
+  if (todayText) todayText.textContent = formatMeritNumber(getMeritTodayCount());
+  if (streakText) streakText.textContent = `${getMeritStreak()} 天`;
+
+  // 频率
+  const freq = getMeritFreq();
+  if (freqText) freqText.textContent = `${freq.toFixed(1)} 次/秒`;
+  if (freqSlider) freqSlider.value = String(freq);
+
+  // 状态指示灯
+  if (statusDot) {
+    if (isMeritMode) statusDot.classList.add("active");
+    else statusDot.classList.remove("active");
+  }
+  if (statusLabel) {
+    statusLabel.textContent = isMeritMode ? "敲击中" : "未开始";
+  }
+
+  // 大动作按钮
+  if (actionBtn) {
+    const textSpan = document.getElementById("merit-action-text-span");
+    const sub = document.getElementById("merit-action-sub-text-span");
+    const primary = actionBtn.querySelector(".btn-primary-text");
+    if (isMeritMode) {
+      actionBtn.classList.add("running");
+      if (textSpan) textSpan.textContent = "结束敲击";
+      if (sub) sub.textContent = "停止积累功德";
+      if (primary) {
+        const svg = primary.querySelector("svg");
+        if (svg) svg.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+      }
+    } else {
+      actionBtn.classList.remove("running");
+      if (textSpan) textSpan.textContent = "开始敲击";
+      if (sub) sub.textContent = "开始积累功德";
+      if (primary) {
+        const svg = primary.querySelector("svg");
+        if (svg) svg.innerHTML = '<path d="M5 3l14 9-14 9V3z"/>';
+      }
+    }
+  }
+
+  // 成就状态
+  updateMeritBadgesState();
+}
+
+function updateStreak(): void {
+  const today = getMeritDateKey();
+  
+  // 计算昨日的日期字符串 YYYY-MM-DD
+  const now = new Date();
+  const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const yYear = yesterdayDate.getFullYear();
+  const yMonth = String(yesterdayDate.getMonth() + 1).padStart(2, "0");
+  const yDay = String(yesterdayDate.getDate()).padStart(2, "0");
+  const yesterday = `${yYear}-${yMonth}-${yDay}`;
+  
+  const lastHitDate = localStorage.getItem(LS_MERIT_LAST_HIT_DATE) || "";
+  let streak = getMeritStreak();
+  
+  if (lastHitDate !== today) {
+    if (lastHitDate === yesterday) {
+      streak += 1;
+    } else {
+      streak = 1;
+    }
+    localStorage.setItem(LS_MERIT_STREAK, String(streak));
+    localStorage.setItem(LS_MERIT_LAST_HIT_DATE, today);
+  }
+}
+
+function updateHistoryRecord(): void {
+  const today = getMeritDateKey();
+  const history = getMeritHistory();
+  
+  // 记录今日总敲击数
+  history[today] = getMeritTodayCount();
+  
+  // 只保留最近 14 天记录
+  const keys = Object.keys(history).sort((a, b) => b.localeCompare(a));
+  const newHistory: Record<string, number> = {};
+  keys.slice(0, 14).forEach((k) => {
+    newHistory[k] = history[k];
+  });
+  
+  saveMeritHistory(newHistory);
+}
+
+function renderHistoryList(): void {
+  const listEl = document.getElementById("merit-history-list");
+  if (!listEl) return;
+  
+  listEl.innerHTML = "";
+  const history = getMeritHistory();
+  const keys = Object.keys(history).sort((a, b) => b.localeCompare(a));
+  
+  if (keys.length === 0) {
+    const tip = document.createElement("div");
+    tip.style.textAlign = "center";
+    tip.style.fontSize = "11px";
+    tip.style.color = "rgba(255, 255, 255, 0.35)";
+    tip.style.marginTop = "30px";
+    tip.textContent = "暂无修行记录";
+    listEl.appendChild(tip);
+    return;
+  }
+  
+  keys.forEach((date) => {
+    const count = history[date];
+    const item = document.createElement("div");
+    item.className = "history-item";
+    
+    const dateSpan = document.createElement("span");
+    dateSpan.className = "history-date";
+    dateSpan.textContent = date;
+    
+    const countSpan = document.createElement("strong");
+    countSpan.className = "history-count";
+    countSpan.textContent = `+${count.toLocaleString()}`;
+    
+    item.appendChild(dateSpan);
+    item.appendChild(countSpan);
+    listEl.appendChild(item);
+  });
 }
 
 function triggerFallbackMeritHit(container: HTMLElement | null): void {
@@ -1033,21 +1275,72 @@ function getMeritSoundFrame(engine: PetEngine): number {
 function triggerMeritHit(engine: PetEngine): void {
   const container = document.getElementById("pet-container");
   const text = getMeritText();
-  setMeritCount(getMeritCount() + 1);
-  setMeritTodayCount(getMeritTodayCount() + 1);
+  const sign = getMeritSign();
+  const val = getMeritValue();
+  
+  // 累加累计和今日功德
+  setMeritCount(getMeritCount() + val);
+  setMeritTodayCount(getMeritTodayCount() + val);
+  
+  // 更新连续打卡与历史日历记录
+  updateStreak();
+  updateHistoryRecord();
   updateMeritPanelState();
 
+  // 1. 面板内大数字跳动动画
+  const bigNum = document.getElementById("merit-big-number");
+  if (bigNum) {
+    bigNum.classList.remove("bounce");
+    void bigNum.offsetWidth;
+    bigNum.classList.add("bounce");
+    window.setTimeout(() => bigNum.classList.remove("bounce"), 100);
+  }
+
+  // 2. 面板内静态切片敲击动效
+  const imgBox = document.querySelector(".merit-pet-image-box");
+  if (imgBox) {
+    imgBox.classList.remove("hitting");
+    void (imgBox as HTMLElement).offsetWidth;
+    imgBox.classList.add("hitting");
+    window.setTimeout(() => imgBox.classList.remove("hitting"), 150);
+  }
+
+  // 3. 面板内部飘字气泡
+  const panelFloatContainer = document.getElementById("merit-panel-floating-container");
+  if (panelFloatContainer) {
+    const floatEl = document.createElement("span");
+    floatEl.className = "panel-float-text";
+    const randomOffset = Math.round((Math.random() - 0.5) * 45);
+    floatEl.style.left = `calc(50% + ${randomOffset}px - 20px)`;
+    floatEl.style.top = "15px";
+    floatEl.textContent = `${text} ${sign}${val}`;
+    panelFloatContainer.appendChild(floatEl);
+    window.setTimeout(() => {
+      floatEl.remove();
+    }, 1200);
+  }
+
+  // 4. 播放动画与木鱼声音
+  const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
   if (engine.hasState("merit")) {
     engine.playOnce("merit", isMeritMode ? "merit" : "idle", {
       [getMeritSoundFrame(engine)]: () => playSound("woodfish"),
     });
+    if (meritEngine && meritEngine.hasState("merit")) {
+      meritEngine.playOnce("merit", "merit");
+    }
   } else {
     triggerFallbackMeritHit(container);
     if (engine.currentState !== "review") engine.applyState("review");
     playSound("woodfish");
+    // Fallback animation for merit panel pet
+    if (meritEngine && meritEngine.hasState("review") && meritEngine.currentState !== "review") {
+      meritEngine.applyState("review");
+    }
   }
 
-  showSpeech(`${text} +1`, 900, false);
+  // 5. 飘出主桌宠头顶气泡
+  showSpeech(`${text} ${sign}${val}`, 900, false);
 }
 
 function clearMeritTimer(): void {
@@ -1076,13 +1369,23 @@ function startMeritMode(engine: PetEngine): void {
   lastActivityTime = Date.now();
   container?.classList.toggle("merit-active", !engine.hasState("merit"));
   engine.applyState(engine.hasState("merit") ? "merit" : "review");
+  
+  const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+  if (meritEngine) {
+    meritEngine.applyState(meritEngine.hasState("merit") ? "merit" : "idle");
+  }
+  
   updateMeritPanelState();
   showSpeech(`${text}模式开始`, 1800);
   triggerMeritHit(engine);
+  
+  // 定时自动敲击
+  const freq = getMeritFreq();
+  const intervalMs = Math.round(1000 / freq);
   meritIntervalId = setInterval(() => {
     if (!isMeritMode) return;
     triggerMeritHit(engine);
-  }, MERIT_HIT_INTERVAL_MS);
+  }, intervalMs);
 }
 
 function endMeritMode(engine: PetEngine, announce = true): void {
@@ -1096,72 +1399,362 @@ function endMeritMode(engine: PetEngine, announce = true): void {
   lastActivityTime = Date.now();
   if (!wasMeritMode) return;
   engine.applyState("idle");
-  if (announce) showSpeech("功德模式已停止", 1800);
+  const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+  if (meritEngine) {
+    meritEngine.applyState("idle");
+  }
+  if (announce) {
+    showSpeech("敲击结束，功德圆满", 1800);
+  }
 }
 
-function showMeritPanel(): void {
+let meritOrigWindowPos: { x: number; y: number } | null = null;
+
+async function showMeritPanel(): Promise<void> {
   const panel = document.getElementById("merit-panel") as HTMLElement | null;
-  const input = document.getElementById("merit-text-input") as HTMLInputElement | null;
-  if (!panel || !input) return;
-  input.value = getMeritText();
+  const pet = document.getElementById("pet-container");
+  if (!panel) return;
+
+  // 记录打开大面板前的原窗口绝对物理坐标，用以在关闭面板时令桌宠零距离闪现回归原地，摆脱被跟着拖走的位移漂移感
+  try {
+    const currentPos = await getCurrentWindow().outerPosition();
+    meritOrigWindowPos = { x: currentPos.x, y: currentPos.y };
+  } catch (err) {
+    console.error("Failed to record original window position:", err);
+  }
+  
   updateMeritPanelState();
-  positionFocusPanel(panel);
+  
+  // 1. 隐藏原本的桌宠自身防视觉重合
+  if (pet) {
+    pet.style.opacity = "0";
+    pet.style.pointerEvents = "none";
+  }
+
+  // 2. 显示大面板并归位
+  panel.style.display = "block";
+  panel.style.left = "15px";
+  panel.style.top = "15px";
+
+  // 读取原窗口位置和显示器尺寸，进行高精度防出屏与防遮挡定位
+  const appWindow = getCurrentWindow();
+  try {
+    const currentPos = await appWindow.outerPosition();
+    const currentSize = await appWindow.outerSize();
+    const monitor = await currentMonitor();
+
+    if (monitor) {
+      const scaleFactor = monitor.scaleFactor;
+      
+      // 原窗口中心点 (逻辑像素)
+      const origWidth = currentSize.width / scaleFactor;
+      const origHeight = currentSize.height / scaleFactor;
+      const origX = currentPos.x / scaleFactor;
+      const origY = currentPos.y / scaleFactor;
+      const origCenterX = origX + origWidth / 2;
+      const origCenterY = origY + origHeight / 2;
+
+      // 面板计划尺寸 (逻辑像素)
+      const panelWidth = 650;
+      const panelHeight = 750;
+
+      // 屏幕工作区大小 (逻辑像素)
+      const monitorSize = monitor.size;
+      const workWidth = monitorSize.width / scaleFactor;
+      const workHeight = monitorSize.height / scaleFactor;
+
+      // 以原本宠物的中心做中心对称膨胀，最大程度承接用户的视觉关注点
+      let nextX = origCenterX - panelWidth / 2;
+      let nextY = origCenterY - panelHeight / 2;
+
+      // 留出 16px 呼吸安全边距，进行边界碰撞纠偏
+      const minGap = 16;
+      if (nextX < minGap) nextX = minGap;
+      if (nextY < minGap) nextY = minGap;
+      if (nextX + panelWidth > workWidth - minGap) {
+        nextX = workWidth - panelWidth - minGap;
+      }
+      if (nextY + panelHeight > workHeight - minGap) {
+        nextY = workHeight - panelHeight - minGap;
+      }
+
+      // 将计算出的完美坐标热生效设定到窗口
+      const physX = Math.round(nextX * scaleFactor);
+      const physY = Math.round(nextY * scaleFactor);
+      await appWindow.setPosition(new PhysicalPosition(physX, physY));
+    }
+  } catch (err) {
+    console.error("Failed to position merit window:", err);
+  }
+
+  // 3. 一次性改变物理窗口尺寸为 650 x 750
+  await appWindow.setSize(new LogicalSize(650, 750));
+
   isPetPanelOpen = true;
+  isMeritPanelOpen = true;
   lastPetInteractionTime = Date.now();
+}
+
+async function hideMeritPanel(): Promise<void> {
+  const panel = document.getElementById("merit-panel") as HTMLElement | null;
+  const pet = document.getElementById("pet-container");
+  if (!panel) return;
+
+  panel.style.display = "none";
+
+  // 关闭打开的侧滑抽屉
+  document.getElementById("merit-history-drawer")?.classList.remove("open");
+  document.getElementById("merit-achievements-drawer")?.classList.remove("open");
+
+  // 1. 恢复显示桌宠身体
+  if (pet) {
+    pet.style.opacity = "1";
+    pet.style.pointerEvents = "auto";
+  }
+
+  isPetPanelOpen = false;
+  isMeritPanelOpen = false;
+
+  // 恢复打开大面板前宠物的物理出生坐标点，避免因为用户在面板展示期间拖拽了面板而导致关闭时宠物本体位置发生偏移漂移
+  const appWindow = getCurrentWindow();
+  if (meritOrigWindowPos) {
+    try {
+      await appWindow.setPosition(new PhysicalPosition(meritOrigWindowPos.x, meritOrigWindowPos.y));
+    } catch (err) {
+      console.error("Failed to restore original window position:", err);
+    }
+    meritOrigWindowPos = null;
+  }
+
+  // 2. 调用 applyPetSizeScale 精准还原窗口大小及缩放位置
+  await applyPetSizeScale();
 }
 
 function setupMeritPanel(engine: PetEngine): void {
   const panel = document.getElementById("merit-panel") as HTMLElement | null;
   const input = document.getElementById("merit-text-input") as HTMLInputElement | null;
-  const startBtn = document.getElementById("merit-start") as HTMLButtonElement | null;
-  const stopBtn = document.getElementById("merit-stop") as HTMLButtonElement | null;
-  if (!panel || !input || !startBtn || !stopBtn) return;
+  const valList = document.getElementById("merit-value-list");
 
-  input.value = getMeritText();
+  const actionBtn = document.getElementById("merit-action-btn");
+  const closeBtn = document.getElementById("merit-close-btn");
+
+  const historyBtn = document.getElementById("merit-history-btn");
+  const histDrawer = document.getElementById("merit-history-drawer");
+  const closeHistBtn = document.getElementById("close-history-drawer-btn");
+  const clearHistBtn = document.getElementById("clear-merit-history-btn");
+
+  const moreAchBtn = document.getElementById("merit-more-achievements-btn");
+  const achDrawer = document.getElementById("merit-achievements-drawer");
+  const closeAchBtn = document.getElementById("close-achievements-drawer-btn");
+
+  const freqSlider = document.getElementById("merit-freq-slider") as HTMLInputElement | null;
+  const freqDec = document.getElementById("merit-freq-dec");
+  const freqInc = document.getElementById("merit-freq-inc");
+
+  if (!panel) return;
+
   updateMeritPanelState();
 
-  input.addEventListener("input", () => {
-    const text = normalizeMeritText(input.value);
-    localStorage.setItem(LS_MERIT_TEXT, text);
-    lastPetInteractionTime = Date.now();
+  // 支持在面板的任何非交互性空白背景上按住鼠标左键直接拖动大窗口
+  panel.addEventListener("mousedown", (e: MouseEvent) => {
+    if (e.button === 0) {
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        // 避开所有的按钮、输入框、频率控制区、选项列表以及侧滑抽屉交互节点
+        const isInteractive = target.closest("button, input, textarea, a, .merit-list-item, #merit-freq-slider, .freq-preset-btn, .freq-adjust-btn, .merit-action-glow-btn, .merit-close-x, .merit-side-drawer, .drawer-close-btn");
+        if (!isInteractive) {
+          void getCurrentWindow().startDragging();
+        }
+      }
+    }
   });
 
-  input.addEventListener("change", () => {
+  // 自定义飘字词汇修改
+  if (input) {
     input.value = getMeritText();
+    input.addEventListener("input", () => {
+      const text = normalizeMeritText(input.value);
+      localStorage.setItem(LS_MERIT_TEXT, text);
+      lastPetInteractionTime = Date.now();
+    });
+    input.addEventListener("change", () => {
+      input.value = getMeritText();
+    });
+  }
+
+  // 渲染纵向列表并绑定事件
+  if (valList) {
+    const standardValues = [10, 5, 2, 1, -1, -2, -5, -10];
+    valList.innerHTML = "";
+    for (const v of standardValues) {
+      const btn = document.createElement("button");
+      btn.className = "merit-list-item";
+      btn.type = "button";
+      btn.dataset.val = String(v);
+      btn.textContent = v > 0 ? `+${v}` : String(v);
+      
+      btn.addEventListener("click", () => {
+        if (v < 0) {
+          setMeritSign("-");
+          setMeritValue(Math.abs(v));
+        } else {
+          setMeritSign("+");
+          setMeritValue(v);
+        }
+        updateMeritPanelState();
+        lastPetInteractionTime = Date.now();
+      });
+      
+      valList.appendChild(btn);
+    }
+  }
+
+  // 频率滑动逻辑
+  const onFreqChange = (newFreq: number): void => {
+    const freq = Math.max(0.3, Math.min(5.0, Math.round(newFreq * 10) / 10));
+    setMeritFreq(freq);
+    updateMeritPanelState();
+
+    // 更新预设按钮激活状态
+    document.querySelectorAll(".freq-preset-btn").forEach((btn) => {
+      const bVal = Number(btn.getAttribute("data-val") || "0");
+      if (Math.abs(bVal - freq) < 0.05) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+
+    // 如果处于运行中，则热重启定时器
+    if (isMeritMode) {
+      clearMeritTimer();
+      const intervalMs = Math.round(1000 / freq);
+      meritIntervalId = setInterval(() => {
+        if (!isMeritMode) return;
+        triggerMeritHit(engine);
+      }, intervalMs);
+    }
+    lastPetInteractionTime = Date.now();
+  };
+
+  if (freqSlider) {
+    freqSlider.addEventListener("input", () => {
+      onFreqChange(Number(freqSlider.value));
+    });
+  }
+
+  if (freqDec) {
+    freqDec.addEventListener("click", () => {
+      const cur = getMeritFreq();
+      onFreqChange(cur - 0.1);
+    });
+  }
+
+  if (freqInc) {
+    freqInc.addEventListener("click", () => {
+      const cur = getMeritFreq();
+      onFreqChange(cur + 0.1);
+    });
+  }
+
+  // 快速频率预设
+  document.querySelectorAll(".freq-preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = Number(btn.getAttribute("data-val") || "1.0");
+      onFreqChange(val);
+    });
   });
 
-  startBtn.addEventListener("click", () => {
-    input.value = normalizeMeritText(input.value);
-    localStorage.setItem(LS_MERIT_TEXT, input.value);
-    startMeritMode(engine);
-    panel.style.display = "none";
-    isPetPanelOpen = false;
-  });
+  // 开始/结束敲击大操作按钮
+  if (actionBtn) {
+    actionBtn.addEventListener("click", () => {
+      if (isMeritMode) {
+        endMeritMode(engine);
+      } else {
+        if (input) {
+          input.value = normalizeMeritText(input.value);
+          localStorage.setItem(LS_MERIT_TEXT, input.value);
+        }
+        startMeritMode(engine);
+      }
+      updateMeritPanelState();
+      lastPetInteractionTime = Date.now();
+    });
+  }
 
-  stopBtn.addEventListener("click", () => {
-    endMeritMode(engine);
-    panel.style.display = "none";
-    isPetPanelOpen = false;
-  });
+  // 关闭按钮
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      void hideMeritPanel();
+    });
+  }
+
+  // 历史抽屉
+  if (historyBtn && histDrawer) {
+    historyBtn.addEventListener("click", () => {
+      renderHistoryList();
+      histDrawer.classList.toggle("open");
+      achDrawer?.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  if (closeHistBtn && histDrawer) {
+    closeHistBtn.addEventListener("click", () => {
+      histDrawer.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  if (clearHistBtn) {
+    clearHistBtn.addEventListener("click", () => {
+      if (window.confirm("确定要清空最近 14 天的修行打卡记录吗？")) {
+        localStorage.removeItem(LS_MERIT_HISTORY);
+        renderHistoryList();
+        updateMeritPanelState();
+      }
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  // 更多成就抽屉
+  if (moreAchBtn && achDrawer) {
+    moreAchBtn.addEventListener("click", () => {
+      achDrawer.classList.toggle("open");
+      histDrawer?.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  if (closeAchBtn && achDrawer) {
+    closeAchBtn.addEventListener("click", () => {
+      achDrawer.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
 
   panel.addEventListener("mouseenter", () => {
     isPetPanelOpen = true;
     lastPetInteractionTime = Date.now();
   });
 
+  // 点击面板外自动关闭大面板
   window.addEventListener("pointerdown", (event) => {
-    if (panel.style.display === "none") return;
+    if (panel.style.display === "none" || !isMeritPanelOpen) return;
     const target = event.target as Node | null;
     const hitbox = document.getElementById("pet-hitbox");
-    if (target && (panel.contains(target) || hitbox?.contains(target))) return;
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+    if (target && (
+      panel.contains(target) ||
+      hitbox?.contains(target) ||
+      histDrawer?.contains(target) ||
+      achDrawer?.contains(target)
+    )) return;
+    void hideMeritPanel();
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || panel.style.display === "none") return;
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+    if (event.key !== "Escape" || panel.style.display === "none" || !isMeritPanelOpen) return;
+    void hideMeritPanel();
   });
 }
 
@@ -1266,9 +1859,23 @@ function setupManagerSettingsSync(): void {
       lastPrimaryPetId = nextPrimaryPetId;
       lastPetAssetsVersion = nextPetAssetsVersion;
       void loadPetAssets().then(({ spritesheetUrl, manifest }) => {
+        const atlas = atlasFromManifest(manifest);
+        const fullUrl = `${spritesheetUrl}${spritesheetUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
+        
         const engine = (window as any).__petEngine as PetEngine | undefined;
-        engine?.setAtlas(atlasFromManifest(manifest));
-        engine?.setSpritesheet(`${spritesheetUrl}${spritesheetUrl.includes("?") ? "&" : "?"}v=${Date.now()}`);
+        engine?.setAtlas(atlas);
+        engine?.setSpritesheet(fullUrl);
+        
+        const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+        if (meritEngine) {
+          meritEngine.setAtlas(atlas);
+          meritEngine.setSpritesheet(fullUrl);
+          if (meritEngine.hasState("merit")) {
+            meritEngine.applyState("merit");
+          } else {
+            meritEngine.applyState("idle");
+          }
+        }
       });
     }
   }, 600);
@@ -2243,17 +2850,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function clampWindowPositionToBounds(x: number, y: number, width: number, height: number, bounds: RoamBounds): { x: number; y: number } {
-  const minX = bounds.left;
-  const maxX = bounds.right - width;
-  const minY = bounds.top;
-  const maxY = bounds.bottom - height;
-  return {
-    x: Math.round(clamp(x, Math.min(minX, maxX), Math.max(minX, maxX))),
-    y: Math.round(clamp(y, Math.min(minY, maxY), Math.max(minY, maxY))),
-  };
-}
-
 function clampPetVisualWindowPositionToBounds(x: number, y: number, width: number, height: number, bounds: RoamBounds): { x: number; y: number } {
   const visualRect = getPetVisualRectInWindow(width, height);
   const desiredVisualLeft = x + visualRect.left;
@@ -2401,7 +2997,7 @@ async function clampCurrentWindowToRoamBounds(): Promise<void> {
     appWindow.outerSize(),
     getRoamBounds(),
   ]);
-  const nextPosition = clampWindowPositionToBounds(position.x, position.y, size.width, size.height, bounds);
+  const nextPosition = clampPetVisualWindowPositionToBounds(position.x, position.y, size.width, size.height, bounds);
   if (nextPosition.x === position.x && nextPosition.y === position.y) return;
   await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
 }
@@ -2571,7 +3167,7 @@ function refreshGroundingAfterDrag(engine: PetEngine, state: RoamState): void {
 }
 
 async function applyRoamWindowPosition(state: RoamState): Promise<void> {
-  const position = clampWindowPositionToBounds(
+  const position = clampPetVisualWindowPositionToBounds(
     state.x - state.width / 2 - petWindowOffsetX,
     state.y - state.height + petWindowOffsetBottom,
     state.width,
@@ -3019,7 +3615,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     }, 160);
   };
 
-  const positionMenu = (): void => {
+  const positionMenu = async (): Promise<void> => {
     menu.style.visibility = "hidden";
     menu.classList.add("show");
     const menuRect = menu.getBoundingClientRect();
@@ -3028,16 +3624,54 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     const margin = 8;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+
+    const [winPos, monitor, scaleFactor] = await Promise.all([
+      appWindow.outerPosition(),
+      currentMonitor(),
+      appWindow.scaleFactor(),
+    ]);
+
+    let rightEdgeFitsOnScreen = true;
+    let leftEdgeFitsOnScreen = true;
+
+    if (monitor && petRect) {
+      const winLogicalX = winPos.x / scaleFactor;
+      const monitorLogicalRight = (monitor.position.x + monitor.size.width) / scaleFactor;
+      const monitorLogicalLeft = monitor.position.x / scaleFactor;
+
+      const rightMenuScreenX = winLogicalX + petRect.right + gap + menuRect.width + margin;
+      const leftMenuScreenX = winLogicalX + petRect.left - gap - menuRect.width - margin;
+
+      rightEdgeFitsOnScreen = rightMenuScreenX <= monitorLogicalRight;
+      leftEdgeFitsOnScreen = leftMenuScreenX >= monitorLogicalLeft;
+    }
+
     const baseTop = petRect
       ? petRect.top + Math.max(8, petRect.height * 0.08)
       : margin;
 
     let left = petRect ? petRect.right + gap : margin;
-    if (left + menuRect.width + margin > viewportWidth && petRect) {
-      left = petRect.left - menuRect.width - gap;
+
+    if (petRect) {
+      const fitsWindowRight = left + menuRect.width + margin <= viewportWidth;
+      const rightOk = fitsWindowRight && rightEdgeFitsOnScreen;
+
+      if (!rightOk) {
+        left = petRect.left - menuRect.width - gap;
+        const fitsWindowLeft = left >= margin;
+        const leftOk = fitsWindowLeft && leftEdgeFitsOnScreen;
+
+        if (!leftOk && rightEdgeFitsOnScreen) {
+          left = petRect.right + gap;
+        }
+      }
+    }
+
+    if (left + menuRect.width + margin > viewportWidth) {
+      left = Math.max(margin, viewportWidth - menuRect.width - margin);
     }
     if (left < margin) {
-      left = Math.min(viewportWidth - menuRect.width - margin, margin);
+      left = margin;
     }
 
     const top = Math.min(
@@ -3066,7 +3700,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     lastActivityTime = Date.now();
     lastPetInteractionTime = Date.now();
     await updateRecallVisibility();
-    positionMenu();
+    await positionMenu();
     menu.setAttribute("aria-hidden", "false");
   };
 
@@ -3428,6 +4062,18 @@ async function main(): Promise<void> {
   const { spritesheetUrl, manifest } = await loadPetAssets();
   const engine = new PetEngine(spriteEl, atlasFromManifest(manifest), spritesheetUrl);
   (window as any).__petEngine = engine;
+  
+  const meritVisualEl = document.getElementById("merit-panel-pet-visual");
+  if (meritVisualEl) {
+    const meritEngine = new PetEngine(meritVisualEl, atlasFromManifest(manifest), spritesheetUrl);
+    (window as any).__meritPanelEngine = meritEngine;
+    if (meritEngine.hasState("merit")) {
+      meritEngine.applyState("merit");
+    } else {
+      meritEngine.applyState("idle");
+    }
+  }
+
   await applyPetSizeScale();
 
   // Boot ceremony: wave then idle, with speech bubble
