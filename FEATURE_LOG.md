@@ -1047,3 +1047,85 @@
 ### 2026-06-03 Docs qiyi pet preview insertion
 - Added the qiyi transparent GIF set to the docs homepage community pet preview assets and placed qiyi as the first preview card.
 - Verification: checked 12 pet slugs, 108 per-action GIF references, and `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs community pet action trim
+- Limited the docs homepage community pet random preview loop to idle, running-right, running-left, waving, and failed actions.
+- Removed unused community-pet GIF files for jumping, review, running, waiting, and full-preview from each role folder.
+- Verification: checked 12 pet slugs, 60 remaining allowed GIF references, zero deleted-action GIFs remaining, and `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs Windows download auto-resolution
+- Replaced hard-coded Windows installer download filenames with a latest-release API lookup that finds the current x64 setup `.exe` asset and updates all Windows download buttons.
+- Kept the latest release page as a no-JavaScript fallback so future versioned asset names do not require code changes.
+- Verification: confirmed the old `LingoPet-windows-x64-setup.exe` string is gone, GitHub API resolves the current asset as `LingoPet_0.2.0_x64-setup.exe`, and `git diff --check` passes for the touched docs file.
+
+### 2026-06-03 Docs Windows and macOS download channels
+- Added separate Windows and macOS download buttons to the docs homepage hero and download sections.
+- Extended latest-release asset resolution to update Windows buttons to the current x64 setup `.exe` and macOS buttons to the current x64 `.dmg`.
+- Verification: checked download markers, confirmed GitHub API resolves Windows as `LingoPet_0.2.0_x64-setup.exe` and macOS as `LingoPet_0.2.0_x64.dmg`, and ran `git diff --check` for the touched docs file.
+
+### 2026-06-03 Docs feature matrix layout update
+- Moved timer task and todo reminder into compact one-sentence cards alongside focus mode and rhythm mode.
+- Replaced the left-side feature space with control-panel and settings descriptions covering pet management, multi-pet recall, behavior frequency, bubble skins, and sizing.
+- Verification: checked the new feature labels are present, old input-example blocks are gone from the feature matrix, and `git diff --check` passes for the touched docs file.
+
+### 2026-06-03 Docs feature matrix image cards
+- Removed the file-drag recycle-bin card from the docs feature matrix.
+- Split the left feature area into two half-width image cards for pet recall/multi-pet online and behavior/appearance settings.
+- Verification: confirmed the recycle-bin card is gone, both new image assets resolve, and `git diff --check` passes for the touched docs files.
+
+### 2026-06-03 Docs feature matrix card pruning
+- Removed the standalone GitHub commit interaction and autostart feature cards from the docs feature matrix.
+- Expanded pet recall/multi-pet online and behavior/appearance settings into two half-width image cards across the feature grid.
+- Verification: confirmed the removed card titles are gone, the two feature image references resolve, and `git diff --check` passes for the touched docs file.
+
+### 2026-06-03 Docs feature matrix layout refinement
+- Reworked the docs feature matrix into a two-card top row, a 2x2 middle grid for timer task, todo reminder, focus mode, and rhythm mode, and a right-aligned merit mode block below behavior setup.
+- Switched the recall and settings screenshots from `object-cover` to contained image rendering so the lower content of each card stays fully visible.
+- Verification: reviewed the updated `#features` section structure in `docs/index.html` and confirmed the new layout and image sizing classes are present.
+
+### 2026-06-03 Docs feature matrix lower placement
+- Split the lower feature matrix into left and right groups so timer task and todo reminder stay on the left, focus mode and rhythm mode sit on the right, and merit mode follows directly below the right group.
+- Fixed the feature matrix heading closing tag while adjusting the same section.
+- Verification: reviewed the updated `#features` layout structure in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs feature matrix height alignment
+- Made the lower feature matrix columns stretch to equal height so the left four-card grid aligns with the right merit mode card.
+- Split the left four-card grid into two equal rows on large screens, keeping each module evenly distributed within the shared height.
+- Verification: checked the updated layout classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs feature matrix height alignment restore
+- Restored the lower feature matrix height alignment after the local layout code was overwritten.
+- Reapplied the equal-height column stretch and two-row left grid classes without changing the card content.
+- Verification: checked the restored layout classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs FAQ width alignment
+- Removed the inner `max-w-3xl` constraint from the FAQ section so the question cards align with the page shell width used by the sections above.
+- Left-aligned the FAQ heading with the same section rhythm as the surrounding homepage blocks.
+- Verification: checked the FAQ container classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs feature mode English labels
+- Added English eyebrow labels to the focus mode and rhythm mode cards so they match the timer task and todo reminder card style.
+- Verification: checked the new `Focus Mode` and `Rhythm Mode` labels in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs FAQ visual hierarchy
+- Strengthened FAQ title rows with a custom mint caret, open-state divider, and clearer open-card border/background treatment.
+- Styled FAQ body links with mint color, heavier weight, underline, and hover feedback so `LingoPet Sprite Studio` reads as an obvious hyperlink.
+- Verification: checked the scoped FAQ CSS in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs hero title wrapping
+- Reduced the desktop hero title size slightly and kept the gradient phrase on one line so the final character no longer wraps by itself.
+- Verification: checked the updated hero title classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-04 Docs footer copyright centering
+- Reworked the docs footer into a three-column layout so the copyright text stays centered while the GitHub and back-to-top links remain right-aligned.
+- Verification: checked the footer layout classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-04 Docs merit preview saturation tuning
+- Reduced the saturation, brightness, and contrast of the merit mode preview artwork in the docs feature matrix.
+- Softened the gold reward bubble, glow, border, and reward-pill colors so the merit block better matches the surrounding dark glass UI.
+- Verification: checked the updated merit preview CSS in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-04 GitHub account rename and docs SEO
+- Updated active GitHub repository and workshop endpoints from `ZhangYiLong416` to `dev-zyl`.
+- Added docs homepage SEO metadata including keywords, robots, author, canonical URL, Open Graph fields, and Twitter card fields.
+- Verification: checked active code paths for old account references and ran `git diff --check` for the touched files.

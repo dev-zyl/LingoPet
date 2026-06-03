@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="LingoPet 灵动宠物是一款基于 Tauri v2 与 Rust 的轻量桌面宠物应用，支持 AI 对话、专注空间、待办提醒、功德模式、宠物导入与动作编辑。" />
+  <meta name="keywords" content="LingoPet,灵动宠物,AI桌宠,AI桌面宠物,桌面宠物,桌宠软件,Tauri桌宠,Rust桌宠,Codex宠物,Codex Pets,codex pet,桌面助手,宠物助手,专注计时,待办提醒,功德模式,律动模式,宠物社区,桌宠下载,创意工坊" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="dev-zyl" />
+  <link rel="canonical" href="https://github.com/dev-zyl/DesktopPet" />
+  <meta property="og:title" content="LingoPet 灵动宠物 - 会陪你工作的 AI 桌宠" />
+  <meta property="og:description" content="LingoPet 灵动宠物是一款轻量 AI 桌面宠物应用，支持聊天、提醒、专注计时、功德模式、律动模式、宠物导入和创意工坊动作。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://github.com/dev-zyl/DesktopPet" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/dev-zyl/DesktopPet/main/docs/app-icon.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="LingoPet 灵动宠物 - AI 桌宠" />
+  <meta name="twitter:description" content="轻量 AI 桌面宠物应用，支持聊天、提醒、专注计时、功德模式、律动模式和桌宠创意工坊。" />
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/dev-zyl/DesktopPet/main/docs/app-icon.png" />
   <title>LingoPet 灵动宠物 - 会陪你工作的 AI 桌宠</title>
   <link rel="icon" type="image/png" href="./app-icon.png" />
   <link rel="apple-touch-icon" href="./app-icon.png" />
@@ -383,6 +396,73 @@
       box-shadow: 0 0 14px var(--mint);
     }
 
+    #faq details {
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    #faq details[open] {
+      border-color: rgba(57, 245, 199, 0.24);
+      background:
+        linear-gradient(145deg, rgba(21, 36, 66, 0.9), rgba(11, 17, 32, 0.68)),
+        rgba(255, 255, 255, 0.04);
+    }
+
+    #faq summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      list-style: none;
+      color: #ffffff;
+      letter-spacing: 0;
+    }
+
+    #faq summary::-webkit-details-marker {
+      display: none;
+    }
+
+    #faq summary::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      flex: 0 0 auto;
+      border-right: 2px solid var(--mint);
+      border-bottom: 2px solid var(--mint);
+      transform: rotate(-45deg);
+      transition: transform 180ms ease;
+      filter: drop-shadow(0 0 10px rgba(57, 245, 199, 0.5));
+    }
+
+    #faq details[open] summary {
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(57, 245, 199, 0.16);
+    }
+
+    #faq details[open] summary::before {
+      transform: rotate(45deg);
+    }
+
+    #faq details > p {
+      color: #b8c6d9;
+      font-size: 17px;
+    }
+
+    #faq a {
+      color: var(--mint);
+      font-weight: 900;
+      text-decoration-line: underline;
+      text-decoration-color: rgba(57, 245, 199, 0.65);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 5px;
+      transition: color 180ms ease, text-decoration-color 180ms ease, background-color 180ms ease;
+    }
+
+    #faq a:hover {
+      color: #ffffff;
+      background: rgba(57, 245, 199, 0.12);
+      text-decoration-color: #ffffff;
+    }
+
     .media-frame {
       overflow: hidden;
       border-radius: 20px;
@@ -451,6 +531,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      filter: saturate(0.68) brightness(0.9) contrast(0.96);
     }
 
     .merit-preview-pet {
@@ -492,10 +573,10 @@
       min-height: 34px;
       padding: 6px 14px;
       border-radius: 999px;
-      border: 1px solid rgba(248, 193, 74, 0.58);
-      color: #ffe8a3;
-      background: linear-gradient(135deg, rgba(24, 14, 5, 0.86), rgba(88, 54, 12, 0.72));
-      box-shadow: 0 0 18px rgba(248, 193, 74, 0.34), inset 0 1px 0 rgba(255,255,255,0.16);
+      border: 1px solid rgba(222, 178, 91, 0.42);
+      color: #f3d796;
+      background: linear-gradient(135deg, rgba(22, 16, 12, 0.84), rgba(66, 48, 30, 0.66));
+      box-shadow: 0 0 12px rgba(222, 178, 91, 0.2), inset 0 1px 0 rgba(255,255,255,0.12);
       font-size: 15px;
       font-weight: 900;
       text-shadow: 0 2px 8px rgba(0,0,0,0.7);
@@ -519,7 +600,7 @@
       height: 48px;
       z-index: 1;
       border-radius: 999px;
-      background: radial-gradient(ellipse, rgba(248, 193, 74, 0.22), transparent 70%);
+      background: radial-gradient(ellipse, rgba(222, 178, 91, 0.14), transparent 70%);
       filter: blur(6px);
     }
 
@@ -528,10 +609,10 @@
       flex-wrap: wrap;
       gap: 8px;
       border-radius: 18px;
-      border: 1px solid rgba(248, 193, 74, 0.22);
+      border: 1px solid rgba(222, 178, 91, 0.16);
       background:
-        radial-gradient(circle at 12% 20%, rgba(248, 193, 74, 0.12), transparent 38%),
-        rgba(255, 255, 255, 0.045);
+        radial-gradient(circle at 12% 20%, rgba(222, 178, 91, 0.08), transparent 38%),
+        rgba(255, 255, 255, 0.035);
       padding: 12px;
     }
 
@@ -541,9 +622,9 @@
       align-items: center;
       justify-content: center;
       border-radius: 999px;
-      border: 1px solid rgba(248, 193, 74, 0.28);
-      background: rgba(248, 193, 74, 0.08);
-      color: #ffe3a3;
+      border: 1px solid rgba(222, 178, 91, 0.22);
+      background: rgba(222, 178, 91, 0.055);
+      color: #efd59b;
       padding: 5px 10px;
       font-size: 13px;
       font-weight: 900;
@@ -624,18 +705,18 @@
         <span class="hidden sm:block text-lg">LingoPet 灵动宠物</span>
       </a>
       <div class="hidden items-center rounded-full border border-white/10 bg-white/5 px-2 md:flex">
-        <a class="nav-link" href="#features">能力矩阵</a>
+        <a class="nav-link" href="#features">功能展示</a>
         <a class="nav-link" href="#modes">模式演示</a>
-        <a class="nav-link" href="#pets">宠物生态</a>
-        <a class="nav-link" href="#download">下载</a>
-        <a class="nav-link" href="#faq">FAQ</a>
+        <a class="nav-link" href="#pets">桌宠生态</a>
+        <a class="nav-link" href="#download">软件下载</a>
+        <a class="nav-link" href="#faq">常见问题</a>
       </div>
       <div class="flex items-center gap-3">
         <span class="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-slate-200 sm:inline-flex">
           <span class="h-2 w-2 rounded-full bg-mint shadow-[0_0_18px_#39f5c7]"></span>
           下载量 <span id="nav-download-count">读取中</span>
         </span>
-        <a href="https://github.com/ZhangYiLong416/DesktopPet" target="_blank" rel="noopener" class="cta cta-secondary !min-h-[44px] !px-4" aria-label="打开 GitHub 仓库">
+        <a href="https://github.com/dev-zyl/DesktopPet" target="_blank" rel="noopener" class="cta cta-secondary !min-h-[44px] !px-4" aria-label="打开 GitHub 仓库">
           <svg class="h-5 w-5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.63 7.63 0 014 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/>
           </svg>
@@ -649,28 +730,25 @@
     <section class="shell grid min-h-[calc(100dvh-76px)] items-center gap-10 py-14 lg:grid-cols-[0.95fr_1.05fr] lg:py-20">
       <div class="reveal">
         <p class="section-kicker">AI Desktop Pet Companion</p>
-        <h1 class="hero-title mt-5 text-[56px] leading-[1.06] text-white sm:text-7xl lg:text-8xl">
-          把桌面变成<br />
-          <span class="gradient-text">会回应你的宠物宇宙</span>
-        </h1>
+        <h3 class="hero-title mt-5 text-[56px] leading-[1.06] text-white sm:text-7xl lg:text-[82px]">
+          个人专属<br />
+          <span class="gradient-text whitespace-nowrap">桌面宠物宇宙</span>
+        </h3>
         <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
           LingoPet 是一只真正住在桌面上的轻量 AI 桌宠，灵感源于codex的桌面宠物，适配codexpet社区桌宠文件。本项目旨在打造一个可以互动的轻量级桌面宠物应用。它能聊天、提醒、专注计时、敲功德木鱼、感知音乐、回收文件，还能下载海量宠物资源和创意工坊个性动作。
         </p>
         <div class="mt-8 flex flex-wrap gap-3">
-          <a id="cta-download" class="cta cta-primary" href="https://github.com/ZhangYiLong416/DesktopPet/releases/latest/download/LingoPet-windows-x64-setup.exe">
+          <a id="cta-download" class="cta cta-primary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-windows-download>
             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
             </svg>
             下载 Windows
           </a>
-          <a class="cta cta-secondary" href="https://github.com/ZhangYiLong416/DesktopPet" target="_blank" rel="noopener">
-            查看源码
-          </a>
-          <a class="cta cta-star" href="https://github.com/ZhangYiLong416/DesktopPet/stargazers" target="_blank" rel="noopener" aria-label="给 LingoPet GitHub 项目 Star">
-            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m12 2.5 2.95 6.02 6.63.96-4.8 4.68 1.13 6.6L12 17.64 6.09 20.76l1.13-6.6-4.8-4.68 6.63-.96L12 2.5Z"/>
+          <a class="cta cta-secondary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-mac-download>
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
             </svg>
-            Star
+            下载 macOS
           </a>
         </div>
         <div class="mt-8 flex flex-wrap gap-2">
@@ -712,15 +790,15 @@
             <div class="grid grid-cols-3 gap-3 text-center">
               <div>
                 <strong class="text-xl text-mint">25:00</strong>
-                <small class="block">专注空间</small>
+                <small class="block">专注模式</small>
               </div>
               <div>
                 <strong class="text-xl text-honey">+1</strong>
                 <small class="block">功德模式</small>
               </div>
               <div>
-                <strong class="text-xl text-cyan">Todo</strong>
-                <small class="block">提醒任务</small>
+                <strong class="text-xl text-cyan">🎵</strong>
+                <small class="block">律动模式</small>
               </div>
             </div>
           </div>
@@ -730,16 +808,16 @@
 
     <section class="shell grid gap-4 pb-20 sm:grid-cols-2 lg:grid-cols-4">
       <div class="glass rounded-3xl p-5">
-        <strong class="text-3xl text-mint">5MB</strong>
-        <p class="mt-1 text-sm text-slate-400">轻量安装，常驻桌面也克制</p>
+        <strong class="text-3xl text-mint">8MB+</strong>
+        <p class="mt-1 text-sm text-slate-400">轻量安装，多宠模式也克制</p>
       </div>
       <div class="glass rounded-3xl p-5">
-        <strong class="text-3xl text-cyan">3</strong>
-        <p class="mt-1 text-sm text-slate-400">Doro 内置专注、功德、律动动作</p>
+        <strong class="text-3xl text-cyan">4000+</strong>
+        <p class="mt-1 text-sm text-slate-400">完善的社区宠物包，桌面不再单调</p>
       </div>
       <div class="glass rounded-3xl p-5">
-        <strong class="text-3xl text-honey">∞</strong>
-        <p class="mt-1 text-sm text-slate-400">支持社区宠物包与本地导入</p>
+        <strong class="text-3xl text-honey">创意工坊</strong>
+        <p class="mt-1 text-sm text-slate-400">自定义你的专属桌宠</p>
       </div>
       <div class="glass rounded-3xl p-5">
         <strong class="text-3xl text-rose">AI</strong>
@@ -750,116 +828,119 @@
     <section id="features" class="shell py-20">
       <div class="max-w-3xl">
         <p class="section-kicker">Feature Matrix</p>
-        <h2 class="hero-title mt-4 text-4xl leading-tight text-white sm:text-6xl">不是摆件，是一整套桌面陪伴系统。</h2>
+        <h3 class="hero-title mt-4 text-4xl leading-tight text-white sm:text-6xl">功能展示</h3>
       </div>
       <div class="mt-10 grid gap-5 lg:grid-cols-4">
-        <article class="feature-card p-6 lg:col-span-2">
-          <div class="relative z-10">
-            <span class="text-sm font-black uppercase tracking-[0.18em] text-mint">Timer Task</span>
-            <strong class="mt-3 block text-2xl text-white">定时任务</strong>
-            <p class="mt-3 leading-7 text-slate-300">适合喝水、开会、休息、起身活动这类有明确时间点的提醒。到点后桌宠会用气泡和弹窗提醒你。</p>
-            <div class="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-              <span class="text-sm text-slate-400">输入示例</span>
-              <strong class="mt-1 block text-lg text-mint">“30 分钟后提醒我喝水”</strong>
+        <article class="feature-card overflow-hidden lg:col-span-2">
+          <div class="relative z-10 flex h-full flex-col">
+            <div class="p-6">
+              <span class="text-sm font-black uppercase tracking-[0.18em] text-mint">Recall Hub</span>
+              <h3 class="mt-3 text-2xl font-black text-white">宠物控制面板</h3>
+              <p class="mt-3 leading-7 text-slate-300">单宠、多宠双模式自由切换。支持桌宠自定义动作编辑、宠物收藏、自定义标签、自定义搜索、海量桌宠一键下载、创意工坊个性化动作套用等众多功能。</p>
             </div>
-            <p class="mt-3 text-sm font-bold text-mint">设置后弹窗不关闭，可连续录入多个提醒。</p>
-          </div>
-        </article>
-        <article class="feature-card p-6">
-          <div class="relative z-10">
-            <h3 class="text-2xl font-black text-white">专注模式</h3>
-            <p class="mt-3 leading-7 text-slate-300">开启后，桌宠会进入专注状态，开启番茄钟与你共同工作！</p>
-          </div>
-        </article>
-        <article class="feature-card p-6">
-          <div class="relative z-10">
-            <h3 class="text-2xl font-black text-white">律动模式</h3>
-            <p class="mt-3 leading-7 text-slate-300">检测系统音频播放，桌宠会随之律动（添加律动模式自定义动作，效果更佳！）</p>
-          </div>
-        </article>
-        <article class="feature-card p-6 lg:col-span-2">
-          <div class="relative z-10">
-            <span class="text-sm font-black uppercase tracking-[0.18em] text-honey">Todo Reminder</span>
-            <strong class="mt-3 block text-2xl text-white">待办提醒</strong>
-            <p class="mt-3 leading-7 text-slate-300">适合记录还没完成的小事，比如更新博客、整理资料、提交代码。新增内容会按录入顺序追加到列表末尾。</p>
-            <div class="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-              <span class="text-sm text-slate-400">输入示例</span>
-              <strong class="mt-1 block text-lg text-honey">“记得更新博客”</strong>
-            </div>
-            <p class="mt-3 text-sm font-bold text-honey">支持复制、完成和持续添加，适合临时收纳脑内任务。</p>
+            <img src="./assets/feature-pet-recall.png" alt="桌宠管理面板与多宠在线预览" class="mt-auto h-80 w-full border-t border-white/10 bg-black/20 object-contain object-center p-4 opacity-90 sm:h-[22rem]" loading="lazy" />
           </div>
         </article>
         <article class="feature-card overflow-hidden lg:col-span-2">
-          <div class="relative z-10 grid gap-0 md:grid-cols-[0.85fr_1fr]">
-            <div class="flex flex-col gap-5 p-6">
-              <h3 class="text-2xl font-black text-white">功德模式</h3>
-              <p class="mt-3 leading-7 text-slate-300">敲击木鱼、自定义词汇，玩出无限花样！</p>
-              <div class="merit-info-panel">
-                <div class="merit-info-item">
-                  <i class="merit-info-dot" aria-hidden="true"></i>
-                  <div>
-                    <strong>自定义词汇</strong>
-                    <span>把功德改成余额、运气、经验值，反馈更有梗。</span>
-                  </div>
-                </div>
-                <div class="merit-info-item">
-                  <i class="merit-info-dot" aria-hidden="true"></i>
-                  <div>
-                    <strong>今日统计</strong>
-                    <span>记录今日功德、累计功德和连续天数。</span>
-                  </div>
-                </div>
-                <div class="merit-info-item">
-                  <i class="merit-info-dot" aria-hidden="true"></i>
-                  <div>
-                    <strong>历史记录</strong>
-                    <span>回看每次敲击收益，保留你的桌面仪式感。</span>
-                  </div>
-                </div>
-              </div>
+          <div class="relative z-10 flex h-full flex-col">
+            <div class="p-6">
+              <span class="text-sm font-black uppercase tracking-[0.18em] text-honey">Behavior Setup</span>
+              <h3 class="mt-3 text-2xl font-black text-white">行为与外观设置</h3>
+              <p class="mt-3 leading-7 text-slate-300">开机自启、窗口置顶、重力模式、桌宠数量、行为频率、气泡皮肤、宠物尺寸、声音大小都能在设置页集中调整。</p>
             </div>
-            <div class="flex flex-col gap-3 p-5">
-              <div class="media-frame merit-preview bg-black/20" aria-label="Doro 在功德模式中敲击木鱼的动态预览">
-                <img src="./assets/gongde-banner-4.png" alt="功德模式视觉背景" class="merit-preview-bg" loading="lazy" />
-                <div class="merit-pop-feed" aria-hidden="true">
-                  <span class="merit-pop">功德 +1</span>
-                  <span class="merit-pop">体重 -1</span>
-                  <span class="merit-pop">脂肪 -1</span>
-                  <span class="merit-pop">幸运值 +1</span>
-                  <span class="merit-pop">余额 +10</span>
-                  <span class="merit-pop">经验值 +10</span>
-                  <span class="merit-pop">声望 +1</span>
-                  <span class="merit-pop">魅力 +5</span>
+            <img src="./assets/feature-pet-settings.png" alt="桌宠设置页行为与外观预览" class="mt-auto h-80 w-full border-t border-white/10 bg-black/20 object-contain object-center p-4 opacity-90 sm:h-[22rem]" loading="lazy" />
+          </div>
+        </article>
+        <div class="grid gap-5 lg:col-span-4 lg:grid-cols-2 lg:items-stretch">
+          <div class="grid gap-5 sm:grid-cols-2 lg:h-full lg:grid-rows-2">
+            <article class="feature-card p-6">
+              <div class="relative z-10">
+                <span class="text-sm font-black uppercase tracking-[0.18em] text-mint">Timer Task</span>
+                <h3 class="mt-3 text-2xl font-black text-white">定时任务</h3>
+                <p class="mt-3 leading-7 text-slate-300">单次提醒、循环提醒，提醒你按时喝水、拒绝久坐。</p>
+              </div>
+            </article>
+            <article class="feature-card p-6">
+              <div class="relative z-10">
+                <span class="text-sm font-black uppercase tracking-[0.18em] text-honey">Todo Reminder</span>
+                <h3 class="mt-3 text-2xl font-black text-white">待办提醒</h3>
+                <p class="mt-3 leading-7 text-slate-300">把工作内容录入到待办提醒里，可以进行快捷查看、一键复制。TODO一目了然。</p>
+              </div>
+            </article>
+              <article class="feature-card p-6">
+                <div class="relative z-10">
+                  <span class="text-sm font-black uppercase tracking-[0.18em] text-mint">Focus Mode</span>
+                  <h3 class="mt-3 text-2xl font-black text-white">专注模式</h3>
+                  <p class="mt-3 leading-7 text-slate-300">开启番茄钟后，桌宠进入专注状态，陪你一起保持工作节奏。</p>
                 </div>
-                <div class="merit-preview-pet" aria-hidden="true"></div>
+              </article>
+              <article class="feature-card p-6">
+                <div class="relative z-10">
+                  <span class="text-sm font-black uppercase tracking-[0.18em] text-honey">Rhythm Mode</span>
+                  <h3 class="mt-3 text-2xl font-black text-white">律动模式</h3>
+                  <p class="mt-3 leading-7 text-slate-300">检测系统音频播放后，桌宠会跟随音乐切换律动动作，桌面更有现场感。</p>
+                </div>
+              </article>
+
+          </div>
+          <div class="grid gap-5 lg:h-full">
+            <article class="feature-card overflow-hidden lg:h-full">
+              <div class="relative z-10 grid h-full gap-0 md:grid-cols-[0.85fr_1fr]">
+                <div class="flex flex-col gap-5 p-6">
+                  <h3 class="text-2xl font-black text-white">功德模式</h3>
+                  <p class="mt-3 leading-7 text-slate-300">桌宠敲击木鱼，可以设置自定义词汇，玩出无限花样！</p>
+                  <div class="merit-info-panel">
+                    <div class="merit-info-item">
+                      <i class="merit-info-dot" aria-hidden="true"></i>
+                      <div>
+                        <strong>自定义词汇</strong>
+                        <span>把功德改成余额、运气、经验值，反馈更有梗。</span>
+                      </div>
+                    </div>
+                    <div class="merit-info-item">
+                      <i class="merit-info-dot" aria-hidden="true"></i>
+                      <div>
+                        <strong>每日统计</strong>
+                        <span>记录今日功德、累计功德和连续天数。</span>
+                      </div>
+                    </div>
+                    <div class="merit-info-item">
+                      <i class="merit-info-dot" aria-hidden="true"></i>
+                      <div>
+                        <strong>历史记录</strong>
+                        <span>支持查看历史功德记录，保留你的桌面仪式感。</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex flex-col gap-3 p-5">
+                  <div class="media-frame merit-preview bg-black/20" aria-label="Doro 在功德模式中敲击木鱼的动态预览">
+                    <img src="./assets/gongde-banner-4.png" alt="功德模式视觉背景" class="merit-preview-bg" loading="lazy" />
+                    <div class="merit-pop-feed" aria-hidden="true">
+                      <span class="merit-pop">功德 +1</span>
+                      <span class="merit-pop">体重 -1</span>
+                      <span class="merit-pop">脂肪 -1</span>
+                      <span class="merit-pop">幸运值 +1</span>
+                      <span class="merit-pop">余额 +10</span>
+                      <span class="merit-pop">经验值 +10</span>
+                      <span class="merit-pop">声望 +1</span>
+                      <span class="merit-pop">魅力 +5</span>
+                    </div>
+                    <div class="merit-preview-pet" aria-hidden="true"></div>
+                  </div>
+                  <div class="merit-reward-strip" aria-label="功德模式收益示例">
+                    <span class="merit-reward-pill">经验 +10</span>
+                    <span class="merit-reward-pill">运气 +1</span>
+                    <span class="merit-reward-pill">余额 +10</span>
+                    <span class="merit-reward-pill">体重 -1</span>
+                    <span class="merit-reward-pill">魅力值 +5</span>
+                    <span class="merit-reward-pill">勇气值 +1</span>
+                  </div>
+                </div>
               </div>
-              <div class="merit-reward-strip" aria-label="功德模式收益示例">
-                <span class="merit-reward-pill">功德 +1</span>
-                <span class="merit-reward-pill">经验 +10</span>
-                <span class="merit-reward-pill">运气 +1</span>
-                <span class="merit-reward-pill">余额 +10</span>
-              </div>
-            </div>
+            </article>
           </div>
-        </article>
-        <article class="feature-card p-6 lg:col-span-2">
-          <div class="relative z-10">
-            <h3 class="text-2xl font-black text-white">文件拖入回收站</h3>
-            <p class="mt-3 leading-7 text-slate-300">把文件拖到桌宠身上即可进入回收站。桌宠不只陪伴，也真的参与桌面工作流。</p>
-          </div>
-        </article>
-        <article class="feature-card p-6">
-          <div class="relative z-10">
-            <h3 class="text-2xl font-black text-white">GitHub 提交互动</h3>
-            <p class="mt-3 leading-7 text-slate-300">绑定账号后，检测到新 commit 时桌宠会冒出鼓励语。</p>
-          </div>
-        </article>
-        <article class="feature-card p-6">
-          <div class="relative z-10">
-            <h3 class="text-2xl font-black text-white">开机自启</h3>
-            <p class="mt-3 leading-7 text-slate-300">Tauri autostart 集成，桌宠可以像桌面常驻小伙伴一样出现。</p>
-          </div>
-        </article>
+        </div>
       </div>
     </section>
 
@@ -867,7 +948,7 @@
       <div class="flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <div>
           <p class="section-kicker">Doro Action Set</p>
-          <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">三种自定义动作</h2>
+          <h3 class="hero-title mt-4 text-4xl text-white sm:text-6xl">自定义动作</h3>
         </div>
         <a class="cta cta-secondary" href="#download">立即安装体验</a>
       </div>
@@ -897,7 +978,7 @@
           <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">社区资源丰富</h2>
           <p class="mt-5 leading-8 text-slate-300">完美支持codex社区4000+款宠物，拒绝单调桌面。支持在管理面板中查看、收藏、召唤、编辑和召回桌宠。开启多宠狂欢模式，让你的桌面成为萌宠的舞台！</p>
           <div class="mt-6 flex flex-wrap gap-3">
-            <a class="cta cta-secondary" href="https://codexpet.1024588.xyz" target="_blank" rel="noopener">访问codex宠物画廊</a>
+            <a class="cta cta-secondary" href="https://codex.lingopet.xyz" target="_blank" rel="noopener">访问codex宠物画廊</a>
             <a class="cta cta-secondary" href="https://codex-pet.org/zh" target="_blank" rel="noopener">访问Codex Pets社区</a>
           </div>
         </div>
@@ -925,11 +1006,12 @@
         <div class="grid gap-8 lg:grid-cols-[1fr_0.78fr] lg:items-center">
           <div>
             <p class="section-kicker">Download</p>
-            <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">下载你的桌面陪伴核心。</h2>
-            <p class="mt-5 max-w-2xl leading-8 text-slate-300">点击按钮会直接下载 Windows 安装包，不会跳转到 GitHub 页面。当前仓库：<a class="text-mint underline decoration-mint/50 underline-offset-4" href="https://github.com/ZhangYiLong416/DesktopPet" target="_blank" rel="noopener">ZhangYiLong416/DesktopPet</a></p>
+            <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">软件下载</h2>
+            <p class="mt-5 max-w-2xl leading-8 text-slate-300">软件完全免费开源，点击下方平台可以直接下载。如果您有Github账号，贡献一颗免费的小星星⭐，我将不胜感激！</p>
             <div class="mt-7 flex flex-wrap gap-3">
-              <a class="cta cta-primary" href="https://github.com/ZhangYiLong416/DesktopPet/releases/latest/download/LingoPet-windows-x64-setup.exe">下载 Windows</a>
-              <a class="cta cta-secondary" href="https://github.com/ZhangYiLong416/DesktopPet/stargazers" target="_blank" rel="noopener">给项目一个 Star</a>
+              <a class="cta cta-secondary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-windows-download>下载 Windows</a>
+              <a class="cta cta-secondary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-mac-download>下载 macOS</a>
+              <a class="cta cta-primary" href="https://github.com/dev-zyl/DesktopPet/stargazers" target="_blank" rel="noopener">⭐GitHub Star</a>
             </div>
           </div>
           <div class="rounded-3xl border border-white/10 bg-black/20 p-5">
@@ -957,9 +1039,9 @@
     </section>
 
     <section id="faq" class="shell py-20">
-      <div class="mx-auto max-w-3xl">
-        <p class="section-kicker text-center">FAQ</p>
-        <h2 class="hero-title mt-4 text-center text-4xl text-white sm:text-6xl">常见问题</h2>
+      <div>
+        <p class="section-kicker">FAQ</p>
+        <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">常见问题</h2>
         <div class="mt-10 space-y-4">
           <details class="glass rounded-3xl p-6" open>
             <summary class="cursor-pointer text-lg font-black text-white">软件收费吗？</summary>
@@ -979,12 +1061,12 @@
           <details class="glass rounded-3xl p-6">
             <summary class="cursor-pointer text-lg font-black text-white">如何下载并更换喜欢的桌宠？</summary>
             <p class="mt-4 leading-8 text-slate-300">在桌宠管理-->宠物市场-->下载喜欢的宠物，即可召唤宠物（这里的宠物市场是codex宠物社区，兼容所有基础动作）</p>
-            <p class="mt-4 leading-8 text-slate-300">安装个性动作，可以在创意工坊中搜索。也可以桌宠管理-->我的桌宠-->编辑-->手动添加功德模式、专注模式、律动模式动作，创作的个性化动作也可以分享到创意工坊，共别的朋友使用。</p>
+            <p class="mt-4 leading-8 text-slate-300">安装个性动作，可以在创意工坊中搜索。也可以桌宠管理-->我的桌宠-->编辑-->手动添加功德模式、专注模式、律动模式动作，创作的个性化动作也可以分享到创意工坊，供别的朋友使用。</p>
           </details>
           <details class="glass rounded-3xl p-6">
-            <summary class="cursor-pointer text-lg font-black text-white">如何下载并更换喜欢的桌宠？</summary>
-            <p class="mt-4 leading-8 text-slate-300">在桌宠管理-->宠物市场-->下载喜欢的宠物，即可召唤宠物（这里的宠物市场是codex宠物社区，兼容所有基础动作）</p>
-            <p class="mt-4 leading-8 text-slate-300">安装个性动作，可以在创意工坊中搜索。也可以桌宠管理-->我的桌宠-->编辑-->手动添加功德模式、专注模式、律动模式动作，创作的个性化动作也可以分享到创意工坊，共别的朋友使用。</p>
+            <summary class="cursor-pointer text-lg font-black text-white">如何制作桌宠个性化动作？</summary>
+            <p class="mt-4 leading-8 text-slate-300">在桌宠管理-->我的桌宠-->编辑，打开编辑界面，复制待机动作的第一帧画面，去生图模型，编写提示词生成横版动作精灵表。</p>
+            <p class="mt-4 leading-8 text-slate-300">如果不是标准透明背景，可以在<a href="https://studio.lingopet.xyz" target="_blank" rel="noopener noreferrer ">LingoPet Sprite Studio</a>去除背景后，导入到软件编辑器中预览。</p>
           </details>
           <details class="glass rounded-3xl p-6">
             <summary class="cursor-pointer text-lg font-black text-white">为什么说它很轻量？</summary>
@@ -996,10 +1078,11 @@
   </main>
 
   <footer class="border-t border-white/10 py-10">
-    <div class="shell flex flex-col items-center justify-between gap-4 text-sm text-slate-400 sm:flex-row">
-      <span>LingoPet 灵动宠物 - MIT License</span>
-      <div class="flex items-center gap-5">
-        <a class="hover:text-white" href="https://github.com/ZhangYiLong416/DesktopPet" target="_blank" rel="noopener">GitHub</a>
+    <div class="shell grid gap-4 text-sm text-slate-400 sm:grid-cols-3 sm:items-center">
+      <span class="hidden sm:block" aria-hidden="true"></span>
+      <span class="text-center">LingoPet © 2026. All Rights Reserved.</span>
+      <div class="flex items-center justify-center gap-5 sm:justify-end">
+        <a class="hover:text-white" href="https://github.com/dev-zyl/DesktopPet" target="_blank" rel="noopener">GitHub</a>
         <a class="hover:text-white" href="#hero">回到顶部</a>
       </div>
     </div>
@@ -1007,15 +1090,79 @@
 
   <script>
     (function () {
-      var REPO = 'ZhangYiLong416/DesktopPet';
-      var releaseUrl = 'https://github.com/' + REPO + '/releases/latest/download/LingoPet-windows-x64-setup.exe';
+      var REPO = 'dev-zyl/DesktopPet';
+      var releaseUrl = 'https://github.com/' + REPO + '/releases/latest';
       var countTargets = [
         document.getElementById('nav-download-count'),
         document.getElementById('download-count')
       ].filter(Boolean);
 
-      var cta = document.getElementById('cta-download');
-      if (cta) cta.href = releaseUrl;
+      var windowsDownloadLinks = Array.prototype.slice.call(document.querySelectorAll('[data-windows-download]'));
+      windowsDownloadLinks.forEach(function (link) {
+        link.href = releaseUrl;
+      });
+      var macDownloadLinks = Array.prototype.slice.call(document.querySelectorAll('[data-mac-download]'));
+      macDownloadLinks.forEach(function (link) {
+        link.href = releaseUrl;
+      });
+
+      function findWindowsInstallerAsset(release) {
+        var assets = release && Array.isArray(release.assets) ? release.assets : [];
+        return assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /(?:x64|windows|win).*setup\.exe$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /\.exe$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || null;
+      }
+
+      function findMacInstallerAsset(release) {
+        var assets = release && Array.isArray(release.assets) ? release.assets : [];
+        return assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /x64.*\.dmg$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /\.dmg$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || null;
+      }
+
+      fetch('https://api.github.com/repos/' + REPO + '/releases/latest')
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (release) {
+          var windowsInstaller = findWindowsInstallerAsset(release);
+          if (windowsInstaller) {
+            windowsDownloadLinks.forEach(function (link) {
+              link.href = windowsInstaller.browser_download_url;
+              link.setAttribute('download', windowsInstaller.name);
+            });
+          }
+
+          var macInstaller = findMacInstallerAsset(release);
+          if (macInstaller) {
+            macDownloadLinks.forEach(function (link) {
+              link.href = macInstaller.browser_download_url;
+              link.setAttribute('download', macInstaller.name);
+            });
+          }
+        })
+        .catch(function () {
+          windowsDownloadLinks.forEach(function (link) {
+            link.href = releaseUrl;
+          });
+          macDownloadLinks.forEach(function (link) {
+            link.href = releaseUrl;
+          });
+        });
 
       document.querySelectorAll('.copy-command').forEach(function (button) {
         button.addEventListener('click', function () {
@@ -1059,11 +1206,7 @@
         'running-right': 8,
         'running-left': 8,
         waving: 4,
-        jumping: 5,
-        failed: 7,
-        waiting: 6,
-        running: 6,
-        review: 6
+        failed: 7
       };
       var petRandomActions = Object.keys(petActionFrames).filter(function (action) {
         return action !== 'idle';

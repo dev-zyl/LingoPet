@@ -4107,9 +4107,9 @@ async function fetchWorkshopItems(): Promise<void> {
 
   // 动作索引是静态内容，按可用性在三个公共分发源之间回退。
   const endpoints = [
-    "https://raw.gitmirror.com/ZhangYiLong416/LingoPet-workshop/main/patches/index.json",
-    "https://raw.githubusercontent.com/ZhangYiLong416/LingoPet-workshop/main/patches/index.json",
-    "https://fastly.jsdelivr.net/gh/ZhangYiLong416/LingoPet-workshop@main/patches/index.json"
+    "https://raw.gitmirror.com/dev-zyl/LingoPet-workshop/main/patches/index.json",
+    "https://raw.githubusercontent.com/dev-zyl/LingoPet-workshop/main/patches/index.json",
+    "https://fastly.jsdelivr.net/gh/dev-zyl/LingoPet-workshop@main/patches/index.json"
   ];
 
   let lastError: Error | null = null;
