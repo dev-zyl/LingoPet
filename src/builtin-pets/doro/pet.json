@@ -1,0 +1,44 @@
+{
+  "id": "doro",
+  "displayName": "Doro",
+  "description": "A tiny white chibi pet with pink hair, purple eyes, and a side rose ribbon.",
+  "spritesheetPath": "spritesheet_edited.webp",
+  "kind": "creature",
+  "version": null,
+  "animations": {
+    "focus": {
+      "row": 11,
+      "frames": 4,
+      "frameDurations": [
+        300,
+        300,
+        300,
+        300
+      ]
+    },
+    "merit": {
+      "row": 9,
+      "frames": 4,
+      "frameDurations": [
+        150,
+        150,
+        150,
+        300
+      ]
+    },
+    "music": {
+      "row": 10,
+      "frames": 8,
+      "frameDurations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ]
+    }
+  }
+}

@@ -77,7 +77,7 @@
 
 **安装**
 
-前往 [Releases](https://github.com/ZhangYiLong416/DesktopPet/releases) 页面下载最新安装包（`.msi`、`setup.exe` 或 macOS 构建产物），安装后启动即可。
+前往 [Releases](https://github.com/dev-zyl/DesktopPet/releases) 页面下载最新安装包（`.msi`、`setup.exe` 或 macOS 构建产物），安装后启动即可。
 
 **配置 API（可选）**
 

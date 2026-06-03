@@ -77,7 +77,7 @@ Right-click the pet to open a feature menu with everything at a glance.
 
 **Install**
 
-Download the latest installer (`.msi`, `setup.exe`, or macOS build artifact) from the [Releases](https://github.com/ZhangYiLong416/DesktopPet/releases) page. Launch after installation.
+Download the latest installer (`.msi`, `setup.exe`, or macOS build artifact) from the [Releases](https://github.com/dev-zyl/DesktopPet/releases) page. Launch after installation.
 
 **Configure API (Optional)**
 

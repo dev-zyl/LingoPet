@@ -64,6 +64,7 @@ const MODE_ANIMATION_PRESETS: Record<string, FrameAnimation> = {
 
 const LS_PET_VOLUME = "pet-volume";
 const LS_SPEECH_BUBBLE_STYLE = "pet_speech_bubble_style";
+const LS_PET_GRAVITY_ENABLED = "pet_gravity_enabled";
 const SPEECH_BUBBLE_STYLE_IDS = new Set(["1", "2", "3", "5", "6", "7", "8", "9"]);
 
 const sfx = {
@@ -89,10 +90,20 @@ function applyPetVolume(percent: number): void {
 
 applyPetVolume(getPetVolumePercent());
 
+function isPetGravityEnabled(): boolean {
+  return localStorage.getItem(LS_PET_GRAVITY_ENABLED) !== "false";
+}
+
 function playSound(type: keyof typeof sfx): void {
   const audio = sfx[type];
   audio.currentTime = 0;
   audio.play().catch((e) => console.warn("Audio play failed:", e));
+}
+
+function stopSound(type: keyof typeof sfx): void {
+  const audio = sfx[type];
+  audio.pause();
+  audio.currentTime = 0;
 }
 
 // ── PetEngine ──
@@ -267,6 +278,10 @@ class PetEngine {
   }
 
   destroy(): void {
+    this.stop();
+  }
+
+  halt(): void {
     this.stop();
   }
 
@@ -535,16 +550,19 @@ const PET_WINDOW_TOP_PADDING = 100;
 const PET_CONTEXT_MENU_SPACE = 174;
 // ── Focus Mode State ──
 let isFocusMode = false;
+let isFocusPaused = false;
 let focusEndTime = 0;
 let focusDurationMs = 0;
+let focusPausedRemainingMs = 0;
 let focusIntervalId: ReturnType<typeof setInterval> | null = null;
-let isMeritMode = false;
-let meritIntervalId: ReturnType<typeof setInterval> | null = null;
+const FOCUS_PANEL_WINDOW_WIDTH = 344;
+const FOCUS_PANEL_WINDOW_HEIGHT = 640;
 let lastPetInteractionTime = 0;
 let isPetHovered = false;
 let isPetMenuOpen = false;
 let isPetPanelOpen = false;
 let isRecallAnimating = false;
+let isTeleportAnimating = false;
 let lastDragEndTime = 0;
 let isWindowIgnoringCursor = false;
 let lastKnownCursorX = -1;
@@ -563,19 +581,18 @@ const LS_GITHUB_USERNAME = "pet_github_username";
 const LS_GITHUB_LAST_PUSH = "pet_github_last_push_time";
 const LS_TODOS = "pet_todos";
 const LS_PRIMARY_PET_ID = "pet_primary_project_id";
+const DEFAULT_PRIMARY_PET_ID = "doro";
 const LS_FOCUS_MINUTES = "pet_focus_minutes";
 const LS_SUMMONED_PET_IDS = "pet_summoned_pet_ids";
 const LS_PET_ASSETS_VERSION = "pet_assets_version";
 const LS_PET_EXTERNAL_SPEECH = "pet_external_speech";
 const LS_PET_WINDOW_STATE_VERSION = "pet_window_state_version";
-const LS_MERIT_TEXT = "pet_merit_text";
-const LS_MERIT_COUNT = "pet_merit_count";
-const LS_MERIT_TODAY_DATE = "pet_merit_today_date";
-const LS_MERIT_TODAY_COUNT = "pet_merit_today_count";
-const LS_MERIT_ENABLED = "pet_merit_enabled";
-const MERIT_DEFAULT_TEXT = "功德";
-const MERIT_HIT_INTERVAL_MS = 1600;
 let apiKeyMigrationWarned = false;
+
+function getPrimaryPetId(): string {
+  const saved = localStorage.getItem(LS_PRIMARY_PET_ID);
+  return saved && saved !== "ikun-pet" ? saved : DEFAULT_PRIMARY_PET_ID;
+}
 
 function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
@@ -698,7 +715,7 @@ async function updateSpeechBubbleWindowState(show: boolean): Promise<void> {
 
 function getPetPixelSize(scale = getPetSizeScale()): { width: number; height: number } {
   return {
-    width: Math.round(Math.max(PET_BASE_WIDTH + PET_CONTEXT_MENU_SPACE, PET_BASE_WIDTH * scale + PET_CONTEXT_MENU_SPACE)),
+    width: Math.round(Math.max(PET_BASE_WIDTH + PET_CONTEXT_MENU_SPACE * 2, PET_BASE_WIDTH * scale + PET_CONTEXT_MENU_SPACE * 2)),
     height: Math.round(PET_WINDOW_TOP_PADDING + Math.max(PET_BASE_HEIGHT, PET_BASE_HEIGHT * scale)),
   };
 }
@@ -816,12 +833,76 @@ function updateFocusPanelState(remainingMs: number, running: boolean): void {
       : 0;
     bar.style.width = `${Math.round(progress * 100)}%`;
   }
+  const safeRemainingMs = Math.max(0, remainingMs);
+  const progress = running && focusDurationMs > 0
+    ? 1 - clamp(safeRemainingMs / focusDurationMs, 0, 1)
+    : 0;
+  const panel = document.getElementById("focus-panel") as HTMLElement | null;
+  if (panel) {
+    panel.style.setProperty("--focus-progress", `${Math.round(progress * 100)}%`);
+    panel.classList.toggle("focus-running", running && !isFocusPaused);
+    panel.classList.toggle("focus-paused", running && isFocusPaused);
+  }
+  if (label) {
+    label.textContent = running
+      ? (isFocusPaused ? "已暂停，保留当前进度" : "专注进行中")
+      : "准备开始";
+  }
+  const startBtn = document.getElementById("focus-start") as HTMLButtonElement | null;
+  const pauseBtn = document.getElementById("focus-pause") as HTMLButtonElement | null;
+  const resetBtn = document.getElementById("focus-reset") as HTMLButtonElement | null;
+  if (startBtn) startBtn.textContent = running ? (isFocusPaused ? "继续" : "结束") : "开始";
+  if (pauseBtn) {
+    pauseBtn.textContent = isFocusPaused ? "继续" : "暂停";
+    pauseBtn.disabled = !running;
+  }
+  if (resetBtn) resetBtn.disabled = !running && progress === 0;
 }
 
 function syncFocusPresetButtons(minutes: number): void {
   document.querySelectorAll<HTMLButtonElement>(".focus-preset").forEach((button) => {
     button.classList.toggle("active", Number(button.dataset.focusMinutes) === minutes);
   });
+}
+
+function ensureFocusPanelLayout(panel: HTMLElement): void {
+  if (panel.dataset.focusLayoutReady === "true") return;
+  const top = panel.querySelector(".focus-panel-top");
+  const title = panel.querySelector(".focus-panel-title");
+  const label = document.getElementById("focus-state-label");
+  if (top && title && label) {
+    top.innerHTML = "";
+    const copy = document.createElement("div");
+    copy.className = "focus-title-copy";
+    const titleRow = document.createElement("div");
+    titleRow.className = "focus-title-row";
+    const icon = document.createElement("span");
+    icon.className = "focus-title-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l3 2"></path><path d="M6 4 4 6"></path><path d="m18 4 2 2"></path></svg>';
+    title.textContent = "专注空间";
+    label.textContent = "准备开始";
+    titleRow.append(icon, title);
+    copy.append(titleRow, label);
+    const closeBtn = document.createElement("button");
+    closeBtn.id = "focus-close";
+    closeBtn.className = "merit-close-x focus-close-btn";
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "关闭");
+    closeBtn.textContent = "×";
+    top.append(copy, closeBtn);
+  }
+
+  const timerCard = panel.querySelector(".focus-timer-card");
+  if (timerCard) {
+    timerCard.innerHTML = '<div class="focus-ring" aria-hidden="true"><div class="focus-ring-fill"></div><div class="focus-ring-inner"><div id="focus-status-text">25:00</div><div class="focus-ring-caption">分钟专注</div></div></div>';
+  }
+
+  const actionRow = panel.querySelector(".focus-action-row");
+  if (actionRow) {
+    actionRow.innerHTML = '<button id="focus-start" type="button">开始</button><button id="focus-pause" type="button">暂停</button><button id="focus-reset" type="button">重置</button>';
+  }
+  panel.dataset.focusLayoutReady = "true";
 }
 
 function setFocusBubbleText(text: string): void {
@@ -840,6 +921,32 @@ function clearFocusTimer(): void {
   }
 }
 
+function getFocusRemainingMs(): number {
+  if (!isFocusMode) return (Number(localStorage.getItem(LS_FOCUS_MINUTES) || "25") || 25) * 60_000;
+  return isFocusPaused ? focusPausedRemainingMs : Math.max(0, focusEndTime - Date.now());
+}
+
+function tickFocusMode(engine: PetEngine): void {
+  if (!isFocusMode || isFocusPaused) return;
+  const remaining = focusEndTime - Date.now();
+  if (remaining <= 0) {
+    endFocusMode(engine, true);
+    return;
+  }
+  const remainingText = formatFocusRemaining(remaining);
+  updateFocusPanelState(remaining, true);
+  setFocusBubbleText(`专注中 ${remainingText}`);
+  const focusState = engine.hasState("focus") ? "focus" : "review";
+  if (engine.currentState !== focusState) engine.applyState(focusState);
+}
+
+function startFocusTicker(engine: PetEngine): void {
+  clearFocusTimer();
+  focusIntervalId = setInterval(() => {
+    tickFocusMode(engine);
+  }, 1000);
+}
+
 function startFocusMode(minutes: number, engine: PetEngine): void {
   if (isMeritMode) endMeritMode(engine, false);
   const duration = Math.min(240, Math.max(1, Math.round(minutes)));
@@ -847,6 +954,8 @@ function startFocusMode(minutes: number, engine: PetEngine): void {
   clearFocusTimer();
 
   isFocusMode = true;
+  isFocusPaused = false;
+  focusPausedRemainingMs = 0;
   if (manualDragFrame !== null) {
     window.cancelAnimationFrame(manualDragFrame);
     manualDragFrame = null;
@@ -876,15 +985,49 @@ function startFocusMode(minutes: number, engine: PetEngine): void {
     if (engine.currentState !== focusState) engine.applyState(focusState);
   }, 1000);
 
+  startFocusTicker(engine);
   updateFocusPanelState(focusDurationMs, true);
+}
+
+function pauseFocusMode(engine: PetEngine): void {
+  if (!isFocusMode || isFocusPaused) return;
+  focusPausedRemainingMs = Math.max(0, focusEndTime - Date.now());
+  isFocusPaused = true;
+  clearFocusTimer();
+  engine.applyState("idle");
+  updateFocusPanelState(focusPausedRemainingMs, true);
+}
+
+function resumeFocusMode(engine: PetEngine): void {
+  if (!isFocusMode || !isFocusPaused) return;
+  isFocusPaused = false;
+  focusEndTime = Date.now() + Math.max(0, focusPausedRemainingMs);
+  focusPausedRemainingMs = 0;
+  engine.applyState(engine.hasState("focus") ? "focus" : "review");
+  startFocusTicker(engine);
+  updateFocusPanelState(Math.max(0, focusEndTime - Date.now()), true);
+}
+
+function resetFocusMode(engine: PetEngine): void {
+  clearFocusTimer();
+  isFocusMode = false;
+  isFocusPaused = false;
+  focusEndTime = 0;
+  focusDurationMs = 0;
+  focusPausedRemainingMs = 0;
+  const savedMinutes = Number(localStorage.getItem(LS_FOCUS_MINUTES) || "25") || 25;
+  updateFocusPanelState(savedMinutes * 60_000, false);
+  engine.applyState("idle");
 }
 
 function endFocusMode(engine: PetEngine, completed: boolean): void {
   clearFocusTimer();
   const wasFocusMode = isFocusMode;
   isFocusMode = false;
+  isFocusPaused = false;
   focusEndTime = 0;
   focusDurationMs = 0;
+  focusPausedRemainingMs = 0;
   const savedMinutes = Number(localStorage.getItem(LS_FOCUS_MINUTES) || "25");
   updateFocusPanelState(savedMinutes * 60_000, false);
   lastPetInteractionTime = Date.now();
@@ -901,7 +1044,31 @@ function endFocusMode(engine: PetEngine, completed: boolean): void {
   }
 }
 
-function showFocusPanel(): void {
+async function expandFocusPanelWindow(): Promise<void> {
+  const normalSize = getPetPixelSize();
+  await setPetWindowSizePreservingAnchor(
+    Math.max(normalSize.width, FOCUS_PANEL_WINDOW_WIDTH),
+    Math.max(normalSize.height, FOCUS_PANEL_WINDOW_HEIGHT),
+  );
+}
+
+async function restoreFocusPanelWindow(): Promise<void> {
+  const panel = document.getElementById("focus-panel") as HTMLElement | null;
+  if (panel?.style.display === "block") return;
+  const normalSize = getPetPixelSize();
+  await setPetWindowSizePreservingAnchor(normalSize.width, normalSize.height);
+  await clampCurrentWindowToRoamBounds();
+}
+
+function hideFocusPanel(): void {
+  const panel = document.getElementById("focus-panel") as HTMLElement | null;
+  if (!panel) return;
+  panel.style.display = "none";
+  isPetPanelOpen = false;
+  void restoreFocusPanelWindow();
+}
+
+async function showFocusPanel(): Promise<void> {
   const panel = document.getElementById("focus-panel") as HTMLElement | null;
   const input = document.getElementById("focus-minutes-input") as HTMLInputElement | null;
   if (!panel || !input) return;
@@ -910,7 +1077,8 @@ function showFocusPanel(): void {
   const minutes = Math.min(240, Math.max(1, Math.round(Number(input.value) || 25)));
   input.value = String(minutes);
   syncFocusPresetButtons(minutes);
-  updateFocusPanelState(isFocusMode ? focusEndTime - Date.now() : minutes * 60_000, isFocusMode);
+  updateFocusPanelState(isFocusMode ? getFocusRemainingMs() : minutes * 60_000, isFocusMode);
+  await expandFocusPanelWindow();
   positionFocusPanel(panel);
   isPetPanelOpen = true;
   lastPetInteractionTime = Date.now();
@@ -919,6 +1087,7 @@ function showFocusPanel(): void {
 function positionFocusPanel(panel: HTMLElement): void {
   const pet = document.getElementById("pet-container");
   const margin = 8;
+  const bottomSafeMargin = 72;
   const gap = 8;
   panel.style.visibility = "hidden";
   panel.style.display = "block";
@@ -928,6 +1097,7 @@ function positionFocusPanel(panel: HTMLElement): void {
   const petRect = pet?.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
+  const maxPanelTop = Math.max(margin, viewportHeight - panelRect.height - bottomSafeMargin);
   let left = margin;
   let top = margin;
 
@@ -937,7 +1107,7 @@ function positionFocusPanel(panel: HTMLElement): void {
     const sideTop = clamp(
       petRect.top + petRect.height / 2 - panelRect.height / 2,
       margin,
-      viewportHeight - panelRect.height - margin,
+      maxPanelTop,
     );
 
     if (rightLeft + panelRect.width <= viewportWidth - margin) {
@@ -961,6 +1131,70 @@ function positionFocusPanel(panel: HTMLElement): void {
   panel.style.left = `${Math.round(left)}px`;
   panel.style.top = `${Math.round(top)}px`;
   panel.style.visibility = "";
+}
+
+// ── Merit State & Helpers ──
+
+const LS_MERIT_TEXT = "pet_merit_text";
+const LS_MERIT_COUNT = "pet_merit_count"; // 累计功德数
+const LS_MERIT_TODAY_DATE = "pet_merit_today_date";
+const LS_MERIT_TODAY_COUNT = "pet_merit_today_count";
+const LS_MERIT_ENABLED = "pet_merit_enabled";
+const LS_MERIT_SIGN = "pet_merit_sign";       // 变动符号
+const LS_MERIT_VALUE = "pet_merit_value";     // 变动数值
+const LS_MERIT_FREQ = "pet_merit_freq";       // 自动敲击频率
+const LS_MERIT_STREAK = "pet_merit_streak";   // 连续天数
+const LS_MERIT_LAST_HIT_DATE = "pet_merit_last_hit_date"; // 上次敲击日期
+const LS_MERIT_HISTORY = "pet_merit_history"; // 历史记录
+
+const MERIT_DEFAULT_TEXT = "功德";
+const MERIT_BADGE_THRESHOLDS = [100, 500, 1000] as const;
+let isMeritMode = false;
+let meritIntervalId: ReturnType<typeof setInterval> | null = null;
+let isMeritPanelOpen = false; // 是否开启了功德大面板
+
+function getMeritSign(): string {
+  return localStorage.getItem(LS_MERIT_SIGN) || "+";
+}
+
+function setMeritSign(sign: string): void {
+  localStorage.setItem(LS_MERIT_SIGN, sign);
+}
+
+function getMeritValue(): number {
+  const val = Number(localStorage.getItem(LS_MERIT_VALUE) || "1");
+  return Number.isFinite(val) ? val : 1;
+}
+
+function setMeritValue(value: number): void {
+  localStorage.setItem(LS_MERIT_VALUE, String(value));
+}
+
+function getMeritFreq(): number {
+  const freq = Number(localStorage.getItem(LS_MERIT_FREQ) || "1.0");
+  return Number.isFinite(freq) && freq >= 0.3 && freq <= 5.0 ? freq : 1.0;
+}
+
+function setMeritFreq(freq: number): void {
+  localStorage.setItem(LS_MERIT_FREQ, String(Math.max(0.3, Math.min(5.0, freq))));
+}
+
+function getMeritStreak(): number {
+  const streak = Number(localStorage.getItem(LS_MERIT_STREAK) || "0");
+  return Number.isFinite(streak) ? Math.max(0, Math.floor(streak)) : 0;
+}
+
+function getMeritHistory(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(LS_MERIT_HISTORY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveMeritHistory(history: Record<string, number>): void {
+  localStorage.setItem(LS_MERIT_HISTORY, JSON.stringify(history));
 }
 
 function normalizeMeritText(value: string | null): string {
@@ -1007,15 +1241,203 @@ function setMeritTodayCount(count: number): void {
   localStorage.setItem(LS_MERIT_TODAY_COUNT, String(Math.max(0, Math.floor(count))));
 }
 
+// 格式化数据，过万后用w表示，保留一位小数
+function formatMeritNumber(count: number): string {
+  if (count >= 10000) {
+    return `${(count / 10000).toFixed(1)}w`;
+  }
+  return count.toLocaleString();
+}
+
+function updateMeritBadgesState(): void {
+  const today = getMeritTodayCount();
+  const b1 = document.getElementById("badge-level1");
+  const b2 = document.getElementById("badge-level2");
+  const b3 = document.getElementById("badge-level3");
+
+  if (b1) {
+    if (today >= MERIT_BADGE_THRESHOLDS[0]) b1.classList.add("unlocked");
+    else b1.classList.remove("unlocked");
+  }
+  if (b2) {
+    if (today >= MERIT_BADGE_THRESHOLDS[1]) b2.classList.add("unlocked");
+    else b2.classList.remove("unlocked");
+  }
+  if (b3) {
+    if (today >= MERIT_BADGE_THRESHOLDS[2]) b3.classList.add("unlocked");
+    else b3.classList.remove("unlocked");
+  }
+}
+
 function updateMeritPanelState(): void {
-  const label = document.getElementById("merit-state-label");
-  const totalCount = document.getElementById("merit-total-count-text");
-  const todayCount = document.getElementById("merit-today-count-text");
-  const input = document.getElementById("merit-text-input") as HTMLInputElement | null;
-  if (label) label.textContent = isMeritMode ? "木鱼敲击中" : "准备敲木鱼";
-  if (totalCount) totalCount.textContent = String(getMeritCount());
-  if (todayCount) todayCount.textContent = String(getMeritTodayCount());
-  if (input && document.activeElement !== input) input.value = getMeritText();
+  const textInput = document.getElementById("merit-text-input") as HTMLInputElement | null;
+  const bigNum = document.getElementById("merit-big-number");
+  const totalText = document.getElementById("merit-total-count-text");
+  const todayText = document.getElementById("merit-today-count-text");
+  const streakText = document.getElementById("merit-streak-count-text");
+  const freqText = document.getElementById("merit-freq-text");
+  const freqSlider = document.getElementById("merit-freq-slider") as HTMLInputElement | null;
+
+  const statusDot = document.getElementById("merit-status-dot");
+  const statusLabel = document.getElementById("merit-status-label-text");
+  const actionBtn = document.getElementById("merit-action-btn");
+
+  // 自定义词汇
+  if (textInput && document.activeElement !== textInput) {
+    textInput.value = getMeritText();
+  }
+
+  // 变动数值与符号
+  const sign = getMeritSign();
+  const val = getMeritValue();
+  if (bigNum) {
+    bigNum.textContent = `${sign}${val}`;
+    if (sign === "-") {
+      bigNum.classList.add("minus-style");
+    } else {
+      bigNum.classList.remove("minus-style");
+    }
+  }
+
+  // 纵向列表选中状态同步
+  const valList = document.getElementById("merit-value-list");
+  if (valList) {
+    const combinedVal = String(val * (sign === "-" ? -1 : 1));
+    const buttons = valList.querySelectorAll(".merit-list-item");
+    buttons.forEach(btn => {
+      if ((btn as HTMLElement).dataset.val === combinedVal) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+  }
+
+  // 累计、今日、天数
+  if (totalText) totalText.textContent = formatMeritNumber(getMeritCount());
+  if (todayText) todayText.textContent = formatMeritNumber(getMeritTodayCount());
+  if (streakText) streakText.textContent = `${getMeritStreak()} 天`;
+
+  // 频率
+  const freq = getMeritFreq();
+  if (freqText) freqText.textContent = `${freq.toFixed(1)} 次/秒`;
+  if (freqSlider) freqSlider.value = String(freq);
+
+  // 状态指示灯
+  if (statusDot) {
+    if (isMeritMode) statusDot.classList.add("active");
+    else statusDot.classList.remove("active");
+  }
+  if (statusLabel) {
+    statusLabel.textContent = isMeritMode ? "敲击中" : "未开始";
+  }
+
+  // 大动作按钮
+  if (actionBtn) {
+    const textSpan = document.getElementById("merit-action-text-span");
+    const sub = document.getElementById("merit-action-sub-text-span");
+    const primary = actionBtn.querySelector(".btn-primary-text");
+    if (isMeritMode) {
+      actionBtn.classList.add("running");
+      if (textSpan) textSpan.textContent = "结束敲击";
+      if (sub) sub.textContent = "停止积累功德";
+      if (primary) {
+        const svg = primary.querySelector("svg");
+        if (svg) svg.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+      }
+    } else {
+      actionBtn.classList.remove("running");
+      if (textSpan) textSpan.textContent = "开始敲击";
+      if (sub) sub.textContent = "开始积累功德";
+      if (primary) {
+        const svg = primary.querySelector("svg");
+        if (svg) svg.innerHTML = '<path d="M5 3l14 9-14 9V3z"/>';
+      }
+    }
+  }
+
+  // 成就状态
+  updateMeritBadgesState();
+}
+
+function updateStreak(): void {
+  const today = getMeritDateKey();
+  
+  // 计算昨日的日期字符串 YYYY-MM-DD
+  const now = new Date();
+  const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const yYear = yesterdayDate.getFullYear();
+  const yMonth = String(yesterdayDate.getMonth() + 1).padStart(2, "0");
+  const yDay = String(yesterdayDate.getDate()).padStart(2, "0");
+  const yesterday = `${yYear}-${yMonth}-${yDay}`;
+  
+  const lastHitDate = localStorage.getItem(LS_MERIT_LAST_HIT_DATE) || "";
+  let streak = getMeritStreak();
+  
+  if (lastHitDate !== today) {
+    if (lastHitDate === yesterday) {
+      streak += 1;
+    } else {
+      streak = 1;
+    }
+    localStorage.setItem(LS_MERIT_STREAK, String(streak));
+    localStorage.setItem(LS_MERIT_LAST_HIT_DATE, today);
+  }
+}
+
+function updateHistoryRecord(): void {
+  const today = getMeritDateKey();
+  const history = getMeritHistory();
+  
+  // 记录今日总敲击数
+  history[today] = getMeritTodayCount();
+  
+  // 只保留最近 14 天记录
+  const keys = Object.keys(history).sort((a, b) => b.localeCompare(a));
+  const newHistory: Record<string, number> = {};
+  keys.slice(0, 14).forEach((k) => {
+    newHistory[k] = history[k];
+  });
+  
+  saveMeritHistory(newHistory);
+}
+
+function renderHistoryList(): void {
+  const listEl = document.getElementById("merit-history-list");
+  if (!listEl) return;
+  
+  listEl.innerHTML = "";
+  const history = getMeritHistory();
+  const keys = Object.keys(history).sort((a, b) => b.localeCompare(a));
+  
+  if (keys.length === 0) {
+    const tip = document.createElement("div");
+    tip.style.textAlign = "center";
+    tip.style.fontSize = "11px";
+    tip.style.color = "rgba(255, 255, 255, 0.35)";
+    tip.style.marginTop = "30px";
+    tip.textContent = "暂无修行记录";
+    listEl.appendChild(tip);
+    return;
+  }
+  
+  keys.forEach((date) => {
+    const count = history[date];
+    const item = document.createElement("div");
+    item.className = "history-item";
+    
+    const dateSpan = document.createElement("span");
+    dateSpan.className = "history-date";
+    dateSpan.textContent = date;
+    
+    const countSpan = document.createElement("strong");
+    countSpan.className = "history-count";
+    countSpan.textContent = `+${count.toLocaleString()}`;
+    
+    item.appendChild(dateSpan);
+    item.appendChild(countSpan);
+    listEl.appendChild(item);
+  });
 }
 
 function triggerFallbackMeritHit(container: HTMLElement | null): void {
@@ -1026,6 +1448,12 @@ function triggerFallbackMeritHit(container: HTMLElement | null): void {
   window.setTimeout(() => container.classList.remove("merit-hit"), 260);
 }
 
+function showMeritHitSpeech(text: string): void {
+  const intervalMs = Math.round(1000 / getMeritFreq());
+  const durationMs = clamp(Math.round(intervalMs * 0.45), 120, 420);
+  showSpeech(text, durationMs, false);
+}
+
 function getMeritSoundFrame(engine: PetEngine): number {
   return Math.max(0, Math.min(2, engine.frameCount("merit") - 1));
 }
@@ -1033,21 +1461,72 @@ function getMeritSoundFrame(engine: PetEngine): number {
 function triggerMeritHit(engine: PetEngine): void {
   const container = document.getElementById("pet-container");
   const text = getMeritText();
-  setMeritCount(getMeritCount() + 1);
-  setMeritTodayCount(getMeritTodayCount() + 1);
+  const sign = getMeritSign();
+  const val = getMeritValue();
+  
+  // 累加累计和今日功德
+  setMeritCount(getMeritCount() + val);
+  setMeritTodayCount(getMeritTodayCount() + val);
+  
+  // 更新连续打卡与历史日历记录
+  updateStreak();
+  updateHistoryRecord();
   updateMeritPanelState();
 
+  // 1. 面板内大数字跳动动画
+  const bigNum = document.getElementById("merit-big-number");
+  if (bigNum) {
+    bigNum.classList.remove("bounce");
+    void bigNum.offsetWidth;
+    bigNum.classList.add("bounce");
+    window.setTimeout(() => bigNum.classList.remove("bounce"), 100);
+  }
+
+  // 2. 面板内静态切片敲击动效
+  const imgBox = document.querySelector(".merit-pet-image-box");
+  if (imgBox) {
+    imgBox.classList.remove("hitting");
+    void (imgBox as HTMLElement).offsetWidth;
+    imgBox.classList.add("hitting");
+    window.setTimeout(() => imgBox.classList.remove("hitting"), 150);
+  }
+
+  // 3. 面板内部飘字气泡
+  const panelFloatContainer = document.getElementById("merit-panel-floating-container");
+  if (panelFloatContainer) {
+    const floatEl = document.createElement("span");
+    floatEl.className = "panel-float-text";
+    const randomOffset = Math.round((Math.random() - 0.5) * 45);
+    floatEl.style.left = `calc(50% + ${randomOffset}px - 20px)`;
+    floatEl.style.top = "15px";
+    floatEl.textContent = `${text} ${sign}${val}`;
+    panelFloatContainer.appendChild(floatEl);
+    window.setTimeout(() => {
+      floatEl.remove();
+    }, 1200);
+  }
+
+  // 4. 播放动画与木鱼声音
+  const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
   if (engine.hasState("merit")) {
     engine.playOnce("merit", isMeritMode ? "merit" : "idle", {
       [getMeritSoundFrame(engine)]: () => playSound("woodfish"),
     });
+    if (meritEngine && meritEngine.hasState("merit")) {
+      meritEngine.playOnce("merit", "merit");
+    }
   } else {
     triggerFallbackMeritHit(container);
     if (engine.currentState !== "review") engine.applyState("review");
     playSound("woodfish");
+    // Fallback animation for merit panel pet
+    if (meritEngine && meritEngine.hasState("review") && meritEngine.currentState !== "review") {
+      meritEngine.applyState("review");
+    }
   }
 
-  showSpeech(`${text} +1`, 900, false);
+  // 5. 飘出主桌宠头顶气泡
+  showMeritHitSpeech(`${text} ${sign}${val}`);
 }
 
 function clearMeritTimer(): void {
@@ -1076,13 +1555,23 @@ function startMeritMode(engine: PetEngine): void {
   lastActivityTime = Date.now();
   container?.classList.toggle("merit-active", !engine.hasState("merit"));
   engine.applyState(engine.hasState("merit") ? "merit" : "review");
+  
+  const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+  if (meritEngine) {
+    meritEngine.applyState(meritEngine.hasState("merit") ? "merit" : "idle");
+  }
+  
   updateMeritPanelState();
   showSpeech(`${text}模式开始`, 1800);
   triggerMeritHit(engine);
+  
+  // 定时自动敲击
+  const freq = getMeritFreq();
+  const intervalMs = Math.round(1000 / freq);
   meritIntervalId = setInterval(() => {
     if (!isMeritMode) return;
     triggerMeritHit(engine);
-  }, MERIT_HIT_INTERVAL_MS);
+  }, intervalMs);
 }
 
 function endMeritMode(engine: PetEngine, announce = true): void {
@@ -1096,81 +1585,399 @@ function endMeritMode(engine: PetEngine, announce = true): void {
   lastActivityTime = Date.now();
   if (!wasMeritMode) return;
   engine.applyState("idle");
-  if (announce) showSpeech("功德模式已停止", 1800);
+  const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+  if (meritEngine) {
+    meritEngine.applyState("idle");
+  }
+  if (announce) {
+    showSpeech("敲击结束，功德圆满", 1800);
+  }
 }
 
-function showMeritPanel(): void {
-  const panel = document.getElementById("merit-panel") as HTMLElement | null;
-  const input = document.getElementById("merit-text-input") as HTMLInputElement | null;
-  if (!panel || !input) return;
-  input.value = getMeritText();
+function stopCurrentPetActivitiesImmediately(): void {
+  clearMeritTimer();
+  isMeritMode = false;
+  localStorage.setItem(LS_MERIT_ENABLED, "false");
+  document.getElementById("pet-container")?.classList.remove("merit-active", "merit-hit");
+  stopSound("woodfish");
+
+  const engine = (window as any).__petEngine as PetEngine | undefined;
+  const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+
+  engine?.halt();
+  meritEngine?.halt();
+
+  if (engine?.hasState("idle")) {
+    engine.applyState("idle");
+    engine.halt();
+  }
+  if (meritEngine?.hasState("idle")) {
+    meritEngine.applyState("idle");
+    meritEngine.halt();
+  }
+
   updateMeritPanelState();
-  positionFocusPanel(panel);
+}
+
+let meritOrigWindowPos: { x: number; y: number } | null = null;
+
+async function showMeritPanel(): Promise<void> {
+  const panel = document.getElementById("merit-panel") as HTMLElement | null;
+  const pet = document.getElementById("pet-container");
+  if (!panel) return;
+
+  // 记录打开大面板前的原窗口绝对物理坐标，用以在关闭面板时令桌宠零距离闪现回归原地，摆脱被跟着拖走的位移漂移感
+  try {
+    const currentPos = await getCurrentWindow().outerPosition();
+    meritOrigWindowPos = { x: currentPos.x, y: currentPos.y };
+  } catch (err) {
+    console.error("Failed to record original window position:", err);
+  }
+  
+  updateMeritPanelState();
+  
+  // 1. 隐藏原本的桌宠自身防视觉重合
+  if (pet) {
+    pet.style.opacity = "0";
+    pet.style.pointerEvents = "none";
+  }
+
+  // 2. 显示大面板并归位
+  panel.style.display = "block";
+  panel.style.left = "15px";
+  panel.style.top = "15px";
+
+  // 读取原窗口位置和显示器尺寸，进行高精度防出屏与防遮挡定位
+  const appWindow = getCurrentWindow();
+  try {
+    const currentPos = await appWindow.outerPosition();
+    const currentSize = await appWindow.outerSize();
+    const monitor = await currentMonitor();
+
+    if (monitor) {
+      const scaleFactor = monitor.scaleFactor;
+      
+      // 原窗口中心点 (逻辑像素)
+      const origWidth = currentSize.width / scaleFactor;
+      const origHeight = currentSize.height / scaleFactor;
+      const origX = currentPos.x / scaleFactor;
+      const origY = currentPos.y / scaleFactor;
+      const origCenterX = origX + origWidth / 2;
+      const origCenterY = origY + origHeight / 2;
+
+      // 面板计划尺寸 (逻辑像素)
+      const panelWidth = 650;
+      const panelHeight = 750;
+
+      // 屏幕工作区大小 (逻辑像素)
+      const monitorSize = monitor.size;
+      const workWidth = monitorSize.width / scaleFactor;
+      const workHeight = monitorSize.height / scaleFactor;
+
+      // 以原本宠物的中心做中心对称膨胀，最大程度承接用户的视觉关注点
+      let nextX = origCenterX - panelWidth / 2;
+      let nextY = origCenterY - panelHeight / 2;
+
+      // 留出 16px 呼吸安全边距，进行边界碰撞纠偏
+      const minGap = 16;
+      if (nextX < minGap) nextX = minGap;
+      if (nextY < minGap) nextY = minGap;
+      if (nextX + panelWidth > workWidth - minGap) {
+        nextX = workWidth - panelWidth - minGap;
+      }
+      if (nextY + panelHeight > workHeight - minGap) {
+        nextY = workHeight - panelHeight - minGap;
+      }
+
+      // 将计算出的完美坐标热生效设定到窗口
+      const physX = Math.round(nextX * scaleFactor);
+      const physY = Math.round(nextY * scaleFactor);
+      await appWindow.setPosition(new PhysicalPosition(physX, physY));
+    }
+  } catch (err) {
+    console.error("Failed to position merit window:", err);
+  }
+
+  // 3. 一次性改变物理窗口尺寸为 650 x 750
+  await appWindow.setSize(new LogicalSize(650, 750));
+
   isPetPanelOpen = true;
+  isMeritPanelOpen = true;
   lastPetInteractionTime = Date.now();
+}
+
+async function hideMeritPanel(): Promise<void> {
+  const panel = document.getElementById("merit-panel") as HTMLElement | null;
+  const pet = document.getElementById("pet-container");
+  if (!panel) return;
+
+  panel.style.display = "none";
+
+  // 关闭打开的侧滑抽屉
+  document.getElementById("merit-history-drawer")?.classList.remove("open");
+  document.getElementById("merit-achievements-drawer")?.classList.remove("open");
+
+  // 1. 恢复显示桌宠身体
+  if (pet) {
+    pet.style.opacity = "1";
+    pet.style.pointerEvents = "auto";
+  }
+
+  isPetPanelOpen = false;
+  isMeritPanelOpen = false;
+
+  // 恢复打开大面板前宠物的物理出生坐标点，避免因为用户在面板展示期间拖拽了面板而导致关闭时宠物本体位置发生偏移漂移
+  const appWindow = getCurrentWindow();
+  if (meritOrigWindowPos) {
+    try {
+      await appWindow.setPosition(new PhysicalPosition(meritOrigWindowPos.x, meritOrigWindowPos.y));
+    } catch (err) {
+      console.error("Failed to restore original window position:", err);
+    }
+    meritOrigWindowPos = null;
+  }
+
+  // 2. 调用 applyPetSizeScale 精准还原窗口大小及缩放位置
+  await applyPetSizeScale();
 }
 
 function setupMeritPanel(engine: PetEngine): void {
   const panel = document.getElementById("merit-panel") as HTMLElement | null;
   const input = document.getElementById("merit-text-input") as HTMLInputElement | null;
-  const startBtn = document.getElementById("merit-start") as HTMLButtonElement | null;
-  const stopBtn = document.getElementById("merit-stop") as HTMLButtonElement | null;
-  if (!panel || !input || !startBtn || !stopBtn) return;
+  const valList = document.getElementById("merit-value-list");
 
-  input.value = getMeritText();
+  const actionBtn = document.getElementById("merit-action-btn");
+  const closeBtn = document.getElementById("merit-close-btn");
+
+  const historyBtn = document.getElementById("merit-history-btn");
+  const histDrawer = document.getElementById("merit-history-drawer");
+  const closeHistBtn = document.getElementById("close-history-drawer-btn");
+  const clearHistBtn = document.getElementById("clear-merit-history-btn");
+
+  const moreAchBtn = document.getElementById("merit-more-achievements-btn");
+  const achDrawer = document.getElementById("merit-achievements-drawer");
+  const closeAchBtn = document.getElementById("close-achievements-drawer-btn");
+
+  const freqSlider = document.getElementById("merit-freq-slider") as HTMLInputElement | null;
+  const freqDec = document.getElementById("merit-freq-dec");
+  const freqInc = document.getElementById("merit-freq-inc");
+
+  if (!panel) return;
+
   updateMeritPanelState();
 
-  input.addEventListener("input", () => {
-    const text = normalizeMeritText(input.value);
-    localStorage.setItem(LS_MERIT_TEXT, text);
-    lastPetInteractionTime = Date.now();
+  // 支持在面板的任何非交互性空白背景上按住鼠标左键直接拖动大窗口
+  panel.addEventListener("mousedown", (e: MouseEvent) => {
+    if (e.button === 0) {
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        // 避开所有的按钮、输入框、频率控制区、选项列表以及侧滑抽屉交互节点
+        const isInteractive = target.closest("button, input, textarea, a, .merit-list-item, #merit-freq-slider, .freq-preset-btn, .freq-adjust-btn, .merit-action-glow-btn, .merit-close-x, .merit-side-drawer, .drawer-close-btn");
+        if (!isInteractive) {
+          void getCurrentWindow().startDragging();
+        }
+      }
+    }
   });
 
-  input.addEventListener("change", () => {
+  // 自定义飘字词汇修改
+  if (input) {
     input.value = getMeritText();
+    input.addEventListener("input", () => {
+      const text = normalizeMeritText(input.value);
+      localStorage.setItem(LS_MERIT_TEXT, text);
+      lastPetInteractionTime = Date.now();
+    });
+    input.addEventListener("change", () => {
+      input.value = getMeritText();
+    });
+  }
+
+  // 渲染纵向列表并绑定事件
+  if (valList) {
+    const standardValues = [10, 5, 2, 1, -1, -2, -5, -10];
+    valList.innerHTML = "";
+    for (const v of standardValues) {
+      const btn = document.createElement("button");
+      btn.className = "merit-list-item";
+      btn.type = "button";
+      btn.dataset.val = String(v);
+      btn.textContent = v > 0 ? `+${v}` : String(v);
+      
+      btn.addEventListener("click", () => {
+        if (v < 0) {
+          setMeritSign("-");
+          setMeritValue(Math.abs(v));
+        } else {
+          setMeritSign("+");
+          setMeritValue(v);
+        }
+        updateMeritPanelState();
+        lastPetInteractionTime = Date.now();
+      });
+      
+      valList.appendChild(btn);
+    }
+  }
+
+  // 频率滑动逻辑
+  const onFreqChange = (newFreq: number): void => {
+    const freq = Math.max(0.3, Math.min(5.0, Math.round(newFreq * 10) / 10));
+    setMeritFreq(freq);
+    updateMeritPanelState();
+
+    // 更新预设按钮激活状态
+    document.querySelectorAll(".freq-preset-btn").forEach((btn) => {
+      const bVal = Number(btn.getAttribute("data-val") || "0");
+      if (Math.abs(bVal - freq) < 0.05) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+
+    // 如果处于运行中，则热重启定时器
+    if (isMeritMode) {
+      clearMeritTimer();
+      const intervalMs = Math.round(1000 / freq);
+      meritIntervalId = setInterval(() => {
+        if (!isMeritMode) return;
+        triggerMeritHit(engine);
+      }, intervalMs);
+    }
+    lastPetInteractionTime = Date.now();
+  };
+
+  if (freqSlider) {
+    freqSlider.addEventListener("input", () => {
+      onFreqChange(Number(freqSlider.value));
+    });
+  }
+
+  if (freqDec) {
+    freqDec.addEventListener("click", () => {
+      const cur = getMeritFreq();
+      onFreqChange(cur - 0.1);
+    });
+  }
+
+  if (freqInc) {
+    freqInc.addEventListener("click", () => {
+      const cur = getMeritFreq();
+      onFreqChange(cur + 0.1);
+    });
+  }
+
+  // 快速频率预设
+  document.querySelectorAll(".freq-preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = Number(btn.getAttribute("data-val") || "1.0");
+      onFreqChange(val);
+    });
   });
 
-  startBtn.addEventListener("click", () => {
-    input.value = normalizeMeritText(input.value);
-    localStorage.setItem(LS_MERIT_TEXT, input.value);
-    startMeritMode(engine);
-    panel.style.display = "none";
-    isPetPanelOpen = false;
-  });
+  // 开始/结束敲击大操作按钮
+  if (actionBtn) {
+    actionBtn.addEventListener("click", () => {
+      if (isMeritMode) {
+        endMeritMode(engine);
+      } else {
+        if (input) {
+          input.value = normalizeMeritText(input.value);
+          localStorage.setItem(LS_MERIT_TEXT, input.value);
+        }
+        startMeritMode(engine);
+      }
+      updateMeritPanelState();
+      lastPetInteractionTime = Date.now();
+    });
+  }
 
-  stopBtn.addEventListener("click", () => {
-    endMeritMode(engine);
-    panel.style.display = "none";
-    isPetPanelOpen = false;
-  });
+  // 关闭按钮
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      void hideMeritPanel();
+    });
+  }
+
+  // 历史抽屉
+  if (historyBtn && histDrawer) {
+    historyBtn.addEventListener("click", () => {
+      renderHistoryList();
+      histDrawer.classList.toggle("open");
+      achDrawer?.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  if (closeHistBtn && histDrawer) {
+    closeHistBtn.addEventListener("click", () => {
+      histDrawer.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  if (clearHistBtn) {
+    clearHistBtn.addEventListener("click", () => {
+      if (window.confirm("确定要清空最近 14 天的修行打卡记录吗？")) {
+        localStorage.removeItem(LS_MERIT_HISTORY);
+        renderHistoryList();
+        updateMeritPanelState();
+      }
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  // 更多成就抽屉
+  if (moreAchBtn && achDrawer) {
+    moreAchBtn.addEventListener("click", () => {
+      achDrawer.classList.toggle("open");
+      histDrawer?.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
+
+  if (closeAchBtn && achDrawer) {
+    closeAchBtn.addEventListener("click", () => {
+      achDrawer.classList.remove("open");
+      lastPetInteractionTime = Date.now();
+    });
+  }
 
   panel.addEventListener("mouseenter", () => {
     isPetPanelOpen = true;
     lastPetInteractionTime = Date.now();
   });
 
+  // 点击面板外自动关闭大面板
   window.addEventListener("pointerdown", (event) => {
-    if (panel.style.display === "none") return;
+    if (panel.style.display === "none" || !isMeritPanelOpen) return;
     const target = event.target as Node | null;
     const hitbox = document.getElementById("pet-hitbox");
-    if (target && (panel.contains(target) || hitbox?.contains(target))) return;
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+    if (target && (
+      panel.contains(target) ||
+      hitbox?.contains(target) ||
+      histDrawer?.contains(target) ||
+      achDrawer?.contains(target)
+    )) return;
+    void hideMeritPanel();
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || panel.style.display === "none") return;
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+    if (event.key !== "Escape" || panel.style.display === "none" || !isMeritPanelOpen) return;
+    void hideMeritPanel();
   });
 }
 
 function setupFocusPanel(engine: PetEngine): void {
   const panel = document.getElementById("focus-panel") as HTMLElement | null;
+  if (panel) ensureFocusPanelLayout(panel);
   const input = document.getElementById("focus-minutes-input") as HTMLInputElement | null;
   const startBtn = document.getElementById("focus-start") as HTMLButtonElement | null;
-  const stopBtn = document.getElementById("focus-stop") as HTMLButtonElement | null;
-  if (!panel || !input || !startBtn || !stopBtn) return;
+  const pauseBtn = document.getElementById("focus-pause") as HTMLButtonElement | null;
+  const resetBtn = document.getElementById("focus-reset") as HTMLButtonElement | null;
+  const closeBtn = document.getElementById("focus-close") as HTMLButtonElement | null;
+  if (!panel || !input || !startBtn || !pauseBtn || !resetBtn || !closeBtn) return;
 
   input.value = localStorage.getItem(LS_FOCUS_MINUTES) || "25";
   syncFocusPresetButtons(Number(input.value) || 25);
@@ -1198,16 +2005,28 @@ function setupFocusPanel(engine: PetEngine): void {
   });
 
   startBtn.addEventListener("click", () => {
-    const minutes = Number(input.value) || 25;
-    startFocusMode(minutes, engine);
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+    if (isFocusMode && isFocusPaused) {
+      resumeFocusMode(engine);
+    } else if (isFocusMode) {
+      endFocusMode(engine, false);
+    } else {
+      const minutes = Number(input.value) || 25;
+      startFocusMode(minutes, engine);
+    }
   });
 
-  stopBtn.addEventListener("click", () => {
-    endFocusMode(engine, false);
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+  pauseBtn.addEventListener("click", () => {
+    if (!isFocusMode) return;
+    if (isFocusPaused) resumeFocusMode(engine);
+    else pauseFocusMode(engine);
+  });
+
+  resetBtn.addEventListener("click", () => {
+    resetFocusMode(engine);
+  });
+
+  closeBtn.addEventListener("click", () => {
+    hideFocusPanel();
   });
 
   panel.addEventListener("mouseenter", () => {
@@ -1220,21 +2039,19 @@ function setupFocusPanel(engine: PetEngine): void {
     const target = event.target as Node | null;
     const hitbox = document.getElementById("pet-hitbox");
     if (target && (panel.contains(target) || hitbox?.contains(target))) return;
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+    hideFocusPanel();
   });
 
   window.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || panel.style.display === "none") return;
-    panel.style.display = "none";
-    isPetPanelOpen = false;
+    hideFocusPanel();
   });
 }
 
 function setupManagerSettingsSync(): void {
   let lastScale = getPetSizeScale();
   let lastAlwaysOnTop = isAlwaysOnTop;
-  let lastPrimaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
+  let lastPrimaryPetId = getPrimaryPetId();
   let lastPetAssetsVersion = localStorage.getItem(LS_PET_ASSETS_VERSION) || "";
   let lastMusicRhythmSyncMode = getMusicRhythmSyncMode();
   window.setInterval(() => {
@@ -1258,7 +2075,7 @@ function setupManagerSettingsSync(): void {
       engine?.refreshCurrentAnimationTiming();
     }
 
-    const nextPrimaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
+    const nextPrimaryPetId = getPrimaryPetId();
     const nextPetAssetsVersion = localStorage.getItem(LS_PET_ASSETS_VERSION) || "";
     const shouldReloadPrimaryPet = getCurrentWindow().label === "pet" && nextPrimaryPetId !== lastPrimaryPetId;
     const shouldReloadEditedAssets = nextPetAssetsVersion !== lastPetAssetsVersion;
@@ -1266,9 +2083,23 @@ function setupManagerSettingsSync(): void {
       lastPrimaryPetId = nextPrimaryPetId;
       lastPetAssetsVersion = nextPetAssetsVersion;
       void loadPetAssets().then(({ spritesheetUrl, manifest }) => {
+        const atlas = atlasFromManifest(manifest);
+        const fullUrl = `${spritesheetUrl}${spritesheetUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
+        
         const engine = (window as any).__petEngine as PetEngine | undefined;
-        engine?.setAtlas(atlasFromManifest(manifest));
-        engine?.setSpritesheet(`${spritesheetUrl}${spritesheetUrl.includes("?") ? "&" : "?"}v=${Date.now()}`);
+        engine?.setAtlas(atlas);
+        engine?.setSpritesheet(fullUrl);
+        
+        const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+        if (meritEngine) {
+          meritEngine.setAtlas(atlas);
+          meritEngine.setSpritesheet(fullUrl);
+          if (meritEngine.hasState("merit")) {
+            meritEngine.applyState("merit");
+          } else {
+            meritEngine.applyState("idle");
+          }
+        }
       });
     }
   }, 600);
@@ -1278,7 +2109,7 @@ async function restoreSavedSummonedPets(): Promise<void> {
   if (getCurrentWindow().label !== "pet") return;
   const savedPetIds = getSavedSummonedPetIds();
   if (savedPetIds.length === 0) return;
-  const primaryPetId = localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet";
+  const primaryPetId = getPrimaryPetId();
   if (savedPetIds.length === 1 && savedPetIds[0] === primaryPetId) {
     setSavedSummonedPetIds([]);
     return;
@@ -1449,6 +2280,49 @@ function setupGitHubSettingsPanel(): void {
 // ── Todo And Reminder Panels ──
 
 let taskPanelJustOpened = false;
+const TASK_PANEL_WINDOW_WIDTH = 344;
+const TASK_PANEL_WINDOW_HEIGHT = 560;
+
+async function setPetWindowSizePreservingAnchor(width: number, height: number): Promise<void> {
+  const appWindow = getCurrentWindow();
+  const [position, size, scaleFactor] = await Promise.all([
+    appWindow.outerPosition(),
+    appWindow.outerSize(),
+    appWindow.scaleFactor(),
+  ]);
+  const targetWidth = Math.round(width * scaleFactor);
+  const targetHeight = Math.round(height * scaleFactor);
+  const anchorX = position.x + size.width / 2 + petWindowOffsetX * scaleFactor;
+  const anchorY = position.y + size.height - petWindowOffsetBottom * scaleFactor;
+  await appWindow.setSize(new LogicalSize(width, height));
+  await appWindow.setPosition(new PhysicalPosition(
+    Math.round(anchorX - targetWidth / 2 - petWindowOffsetX * scaleFactor),
+    Math.round(anchorY - targetHeight + petWindowOffsetBottom * scaleFactor),
+  ));
+}
+
+async function expandTaskPanelWindow(): Promise<void> {
+  const normalSize = getPetPixelSize();
+  await setPetWindowSizePreservingAnchor(
+    Math.max(normalSize.width, TASK_PANEL_WINDOW_WIDTH),
+    Math.max(normalSize.height, TASK_PANEL_WINDOW_HEIGHT),
+  );
+}
+
+async function restoreTaskPanelWindow(): Promise<void> {
+  const todoPanel = document.getElementById("todo-panel") as HTMLElement | null;
+  const reminderPanel = document.getElementById("reminder-panel") as HTMLElement | null;
+  if (todoPanel?.style.display === "block" || reminderPanel?.style.display === "block") return;
+  const normalSize = getPetPixelSize();
+  await setPetWindowSizePreservingAnchor(normalSize.width, normalSize.height);
+  await clampCurrentWindowToRoamBounds();
+}
+
+function hideTaskPanel(panel: HTMLElement): void {
+  panel.style.display = "none";
+  isPetPanelOpen = false;
+  void restoreTaskPanelWindow();
+}
 
 function positionTaskPanel(panel: HTMLElement): void {
   const pet = document.getElementById("pet-container");
@@ -1494,7 +2368,7 @@ function positionTaskPanel(panel: HTMLElement): void {
   panel.style.visibility = "";
 }
 
-function showTaskPanel(panelId: "todo-panel" | "reminder-panel"): void {
+async function showTaskPanel(panelId: "todo-panel" | "reminder-panel"): Promise<void> {
   const panel = document.getElementById(panelId);
   if (!panel) return;
   const engine = (window as any).__petEngine as PetEngine | undefined;
@@ -1503,18 +2377,20 @@ function showTaskPanel(panelId: "todo-panel" | "reminder-panel"): void {
   if (otherPanel) otherPanel.style.display = "none";
 
   taskPanelJustOpened = true;
+  await expandTaskPanelWindow();
   positionTaskPanel(panel);
+  isPetPanelOpen = true;
   lastPetInteractionTime = Date.now();
   engine?.applyState("idle");
   requestAnimationFrame(() => { taskPanelJustOpened = false; });
 }
 
 function showTodoPanel(): void {
-  showTaskPanel("todo-panel");
+  void showTaskPanel("todo-panel");
 }
 
 function showReminderPanel(): void {
-  showTaskPanel("reminder-panel");
+  void showTaskPanel("reminder-panel");
 }
 
 function readTodoItems(): TodoItem[] {
@@ -1585,13 +2461,62 @@ function setupTodoPanel(): void {
   const reminderSubmit = reminderSubmitEl;
   const reminderList = reminderListEl;
 
+  panel.classList.add("task-panel");
+  reminderPanel.classList.add("task-panel");
+  list.classList.add("task-list");
+  reminderList.classList.add("task-list");
+  panel.querySelector(".todo-panel-title")!.textContent = "待办任务";
+  reminderPanel.querySelector(".todo-panel-title")!.textContent = "定时提醒";
+
+  const ensurePanelHeader = (panelRoot: HTMLElement, subtitleText: string, iconSvg: string): void => {
+    const title = panelRoot.querySelector(".todo-panel-title");
+    if (!title || title.closest(".task-panel-header")) return;
+    const header = document.createElement("div");
+    header.className = "task-panel-header";
+    const copy = document.createElement("div");
+    copy.className = "task-panel-copy";
+    const titleRow = document.createElement("div");
+    titleRow.className = "task-panel-title-row";
+    const subtitle = document.createElement("div");
+    const mark = document.createElement("span");
+    const closeBtn = document.createElement("button");
+    subtitle.className = "task-panel-subtitle";
+    subtitle.textContent = subtitleText;
+    mark.className = "task-panel-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.innerHTML = iconSvg;
+    closeBtn.className = "merit-close-x task-panel-close";
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "关闭");
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", () => {
+      hideTaskPanel(panelRoot);
+    });
+    title.replaceWith(header);
+    titleRow.append(mark, title);
+    copy.append(titleRow, subtitle);
+    header.append(copy, closeBtn);
+    panelRoot.prepend(header);
+  };
+
+  ensurePanelHeader(
+    panel,
+    "记录要顺手完成的小事",
+    '<svg viewBox="0 0 24 24"><path d="M9 5h6M9 3h6v4H9z"/><path d="M7 5H5v16h14V5h-2"/><path d="m8 13 2.2 2.2L16 9.5"/></svg>',
+  );
+  ensurePanelHeader(
+    reminderPanel,
+    "到点后用气泡提醒你",
+    '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><path d="M12 9v4l3 2M9 3h6M12 3v3"/></svg>',
+  );
+
   document.addEventListener("mousedown", (e) => {
     if (taskPanelJustOpened) return;
     if (panel.style.display === "block" && !panel.contains(e.target as Node)) {
-      panel.style.display = "none";
+      hideTaskPanel(panel);
     }
     if (reminderPanel.style.display === "block" && !reminderPanel.contains(e.target as Node)) {
-      reminderPanel.style.display = "none";
+      hideTaskPanel(reminderPanel);
     }
   });
 
@@ -1609,6 +2534,9 @@ function setupTodoPanel(): void {
 
     const copyBtn = document.createElement("button");
     copyBtn.className = "todo-copy-btn";
+    copyBtn.type = "button";
+    copyBtn.setAttribute("aria-label", "复制待办内容");
+    copyBtn.title = "复制";
     copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     copyBtn.addEventListener("click", () => {
       navigator.clipboard.writeText(item.taskText).then(() => {
@@ -1618,7 +2546,8 @@ function setupTodoPanel(): void {
 
     const doneBtn = document.createElement("button");
     doneBtn.className = "todo-done-btn";
-    doneBtn.textContent = "DONE";
+    doneBtn.type = "button";
+    doneBtn.textContent = "完成";
     doneBtn.addEventListener("click", () => {
       removeTodoItem(item.id, false);
       el.style.opacity = "0";
@@ -1628,9 +2557,9 @@ function setupTodoPanel(): void {
 
     actions.appendChild(copyBtn);
     actions.appendChild(doneBtn);
-    el.appendChild(actions);
     el.appendChild(text);
-    list.prepend(el);
+    el.appendChild(actions);
+    list.appendChild(el);
   }
 
   function renderReminderItem(item: TodoItem): void {
@@ -1645,6 +2574,7 @@ function setupTodoPanel(): void {
 
     const cancelBtn = document.createElement("button");
     cancelBtn.className = "todo-done-btn";
+    cancelBtn.type = "button";
     cancelBtn.textContent = "取消";
     cancelBtn.addEventListener("click", () => removeTodoItem(item.id));
     actions.appendChild(cancelBtn);
@@ -1677,11 +2607,11 @@ function setupTodoPanel(): void {
     const intervalId = setInterval(tick, 1000);
     todoTimers.set(`${item.id}_tick`, intervalId as unknown as ReturnType<typeof setTimeout>);
 
-    el.appendChild(actions);
-    el.appendChild(countdown);
-    el.appendChild(badge);
     el.appendChild(text);
-    reminderList.prepend(el);
+    el.appendChild(badge);
+    el.appendChild(countdown);
+    el.appendChild(actions);
+    reminderList.appendChild(el);
   }
 
   async function alertReminder(item: TodoItem): Promise<void> {
@@ -1742,14 +2672,11 @@ function setupTodoPanel(): void {
   function handleTodoSubmit(): void {
     const raw = input.value.trim();
     if (!raw) {
-      panel.style.display = "none";
       return;
     }
 
     // 立即清空输入并收起面板，给用户即时反馈
     input.value = "";
-    panel.style.display = "none";
-
     const item: TodoItem = {
       id: `todo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       type: "note",
@@ -1781,7 +2708,6 @@ function setupTodoPanel(): void {
       nextTriggerAt: Date.now() + delayMinutes * 60000,
     };
     reminderInput.value = "";
-    reminderPanel.style.display = "none";
     upsertTodoItem(item);
     renderReminderItem(item);
     scheduleReminder(item);
@@ -2181,6 +3107,7 @@ interface RoamPlatform {
   top: number;
   right: number;
   bottom: number;
+  kind: "platform" | "wall";
 }
 
 interface RoamBounds {
@@ -2207,6 +3134,7 @@ interface RoamState {
   lastWindowSyncAt: number;
   lastAppliedWindowX: number;
   lastAppliedWindowY: number;
+  nextTeleportAt: number;
   platforms: RoamPlatform[];
   bounds: RoamBounds;
 }
@@ -2234,6 +3162,16 @@ const ROAM_DECISIONS = [
 ] as const;
 const ROAM_GRAVITY = 1800;
 const ROAM_IDLE_DELAY_MS = 1800;
+const ROAM_VISUAL_SIDE_OVERHANG = 20;
+const ROAM_VISUAL_TOP_OVERHANG = 8;
+const ROAM_PLATFORM_TOP_TOLERANCE = 10;
+const ROAM_PLATFORM_EDGE_PADDING = 8;
+const ROAM_PLATFORM_MIN_WIDTH = 84;
+const ROAM_PLATFORM_FOOT_SPREAD_MIN = 18;
+const ROAM_PLATFORM_FOOT_SPREAD_MAX = 36;
+const ROAM_ACTIVE_TELEPORT_MIN_DELAY_MS = 12000;
+const ROAM_ACTIVE_TELEPORT_MAX_DELAY_MS = 22000;
+const ROAM_ACTIVE_TELEPORT_CHANCE = 0.34;
 
 function randomBetween(min: number, max: number): number {
   return min + Math.random() * (max - min);
@@ -2243,23 +3181,20 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function clampWindowPositionToBounds(x: number, y: number, width: number, height: number, bounds: RoamBounds): { x: number; y: number } {
-  const minX = bounds.left;
-  const maxX = bounds.right - width;
-  const minY = bounds.top;
-  const maxY = bounds.bottom - height;
-  return {
-    x: Math.round(clamp(x, Math.min(minX, maxX), Math.max(minX, maxX))),
-    y: Math.round(clamp(y, Math.min(minY, maxY), Math.max(minY, maxY))),
-  };
-}
-
 function clampPetVisualWindowPositionToBounds(x: number, y: number, width: number, height: number, bounds: RoamBounds): { x: number; y: number } {
   const visualRect = getPetVisualRectInWindow(width, height);
   const desiredVisualLeft = x + visualRect.left;
   const desiredVisualTop = y + visualRect.top;
-  const clampedVisualLeft = clamp(desiredVisualLeft, bounds.left, bounds.right - visualRect.width);
-  const clampedVisualTop = clamp(desiredVisualTop, bounds.top, bounds.bottom - visualRect.height);
+  const clampedVisualLeft = clamp(
+    desiredVisualLeft,
+    bounds.left - ROAM_VISUAL_SIDE_OVERHANG,
+    bounds.right - visualRect.width + ROAM_VISUAL_SIDE_OVERHANG,
+  );
+  const clampedVisualTop = clamp(
+    desiredVisualTop,
+    bounds.top - ROAM_VISUAL_TOP_OVERHANG,
+    bounds.bottom - visualRect.height,
+  );
   setPetWindowOffset(0, 0);
   return {
     x: Math.round(clampedVisualLeft - visualRect.left),
@@ -2279,6 +3214,7 @@ function weightedRoamDecision(): (typeof ROAM_DECISIONS)[number]["action"] {
 function canAutoRoam(): boolean {
   return !isExiting
     && !isRecallAnimating
+    && !isTeleportAnimating
     && !isMouseDown
     && !hasStartedDragging
     && !isDraggingInProgress
@@ -2299,6 +3235,7 @@ function shouldFreezeRoamPhysics(state: RoamState): boolean {
   const recentlyDragged = Date.now() - lastDragEndTime < 900;
   return isExiting
     || isRecallAnimating
+    || isTeleportAnimating
     || isFocusMode
     || isMeritMode
     || isManualPetControlActive()
@@ -2340,7 +3277,7 @@ async function syncRoamStateFromWindow(engine: PetEngine, state: RoamState, make
   clampRoamToBounds(state);
   await applyRoamWindowPosition(state);
 
-  if (makeFall && moved) {
+  if (makeFall && moved && isPetGravityEnabled()) {
     state.grounded = false;
     state.platformId = "";
     state.vy = Math.max(state.vy, 140);
@@ -2349,9 +3286,11 @@ async function syncRoamStateFromWindow(engine: PetEngine, state: RoamState, make
 }
 
 function clampRoamToBounds(state: RoamState): void {
-  const minX = state.bounds.left + state.width / 2;
-  const maxX = state.bounds.right - state.width / 2;
-  const minY = state.bounds.top + state.height;
+  const visualRect = getPetVisualRectInWindow(state.width, state.height);
+  const halfVisualWidth = visualRect.width / 2;
+  const minX = state.bounds.left + halfVisualWidth - ROAM_VISUAL_SIDE_OVERHANG;
+  const maxX = state.bounds.right - halfVisualWidth + ROAM_VISUAL_SIDE_OVERHANG;
+  const minY = state.bounds.top + visualRect.height - ROAM_VISUAL_TOP_OVERHANG;
   const maxY = state.bounds.bottom;
   const nextX = clamp(state.x, Math.min(minX, maxX), Math.max(minX, maxX));
   const nextY = clamp(state.y, Math.min(minY, maxY), Math.max(minY, maxY));
@@ -2367,6 +3306,58 @@ function clampRoamToBounds(state: RoamState): void {
 
   state.x = nextX;
   state.y = nextY;
+}
+
+function getRoamFootSensors(state: RoamState): { left: number; right: number } {
+  const visualRect = getPetVisualRectInWindow(state.width, state.height);
+  const footSpread = clamp(
+    Math.round(visualRect.width * 0.18),
+    ROAM_PLATFORM_FOOT_SPREAD_MIN,
+    ROAM_PLATFORM_FOOT_SPREAD_MAX,
+  );
+  return {
+    left: state.x - footSpread,
+    right: state.x + footSpread,
+  };
+}
+
+function randomRoamTeleportDelay(): number {
+  return randomBetween(ROAM_ACTIVE_TELEPORT_MIN_DELAY_MS, ROAM_ACTIVE_TELEPORT_MAX_DELAY_MS);
+}
+
+function isStandableRoamPlatform(platform: RoamPlatform): boolean {
+  return platform.kind !== "wall";
+}
+
+function getRoamPlatformSupport(state: RoamState, platform: RoamPlatform): { support: number; distance: number } | null {
+  if (!isStandableRoamPlatform(platform)) return null;
+
+  const distance = Math.abs(state.y - platform.top);
+  if (distance > ROAM_PLATFORM_TOP_TOLERANCE) return null;
+
+  const platformWidth = platform.right - platform.left;
+  if (platformWidth < ROAM_PLATFORM_MIN_WIDTH) return null;
+
+  const feet = getRoamFootSensors(state);
+  const support = [
+    feet.left,
+    feet.right,
+  ].reduce((count, footX) => (
+    footX > platform.left + ROAM_PLATFORM_EDGE_PADDING && footX < platform.right - ROAM_PLATFORM_EDGE_PADDING
+      ? count + 1
+      : count
+  ), 0);
+
+  if (support === 0) return null;
+
+  if (support === 1) {
+    const centerMargin = Math.max(32, platformWidth * 0.12);
+    if (Math.abs(state.x - (platform.left + platform.right) / 2) > centerMargin) {
+      return null;
+    }
+  }
+
+  return { support, distance };
 }
 
 async function getRoamBounds(): Promise<RoamBounds> {
@@ -2401,7 +3392,7 @@ async function clampCurrentWindowToRoamBounds(): Promise<void> {
     appWindow.outerSize(),
     getRoamBounds(),
   ]);
-  const nextPosition = clampWindowPositionToBounds(position.x, position.y, size.width, size.height, bounds);
+  const nextPosition = clampPetVisualWindowPositionToBounds(position.x, position.y, size.width, size.height, bounds);
   if (nextPosition.x === position.x && nextPosition.y === position.y) return;
   await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
 }
@@ -2423,6 +3414,7 @@ async function scanRoamPlatforms(bounds: RoamBounds): Promise<RoamPlatform[]> {
 
 function chooseLeapTarget(state: RoamState): RoamPlatform | null {
   const candidates = state.platforms.filter((platform) => {
+    if (!isStandableRoamPlatform(platform)) return false;
     const center = (platform.left + platform.right) / 2;
     return platform.top < state.y - 80
       && Math.abs(center - state.x) < 760
@@ -2446,6 +3438,9 @@ function chooseNextRoamAction(engine: PetEngine, state: RoamState, now: number):
     if (decision === "jump") {
       decision = "idle";
     }
+  }
+  if (!isPetGravityEnabled() && decision === "jump") {
+    decision = "idle";
   }
 
   let duration = randomBetween(1000, 2400);
@@ -2521,17 +3516,17 @@ function settleRoamOnPlatform(engine: PetEngine, state: RoamState, platform: Roa
 }
 
 function updateRoamPlatformAttachment(state: RoamState): void {
+  if (!isPetGravityEnabled()) return;
   if (!state.grounded || !state.platformId || state.platformId === "__ground__") return;
   const platform = state.platforms.find((item) => item.id === state.platformId);
-  if (!platform) {
+  if (!platform || !isStandableRoamPlatform(platform)) {
     state.grounded = false;
     state.platformId = "";
     return;
   }
 
-  const left = state.x - state.width / 2;
-  const right = state.x + state.width / 2;
-  if (right <= platform.left + 4 || left >= platform.right - 4) {
+  const support = getRoamPlatformSupport(state, platform);
+  if (!support) {
     state.grounded = false;
     state.platformId = "";
   } else {
@@ -2539,17 +3534,115 @@ function updateRoamPlatformAttachment(state: RoamState): void {
   }
 }
 
+function chooseTeleportTarget(state: RoamState): { x: number; y: number; grounded: boolean; platformId: string } | null {
+  const visualRect = getPetVisualRectInWindow(state.width, state.height);
+  const halfVisualWidth = visualRect.width / 2;
+  const standablePlatforms = state.platforms.filter((platform) => {
+    if (!isStandableRoamPlatform(platform)) return false;
+    if (platform.right - platform.left < ROAM_PLATFORM_MIN_WIDTH) return false;
+    const center = (platform.left + platform.right) / 2;
+    return Math.abs(center - state.x) > 180 || Math.abs(platform.top - state.y) > 96;
+  });
+
+  const useGround = standablePlatforms.length === 0 || Math.random() < 0.28;
+  if (useGround) {
+    const minX = state.bounds.left + halfVisualWidth;
+    const maxX = state.bounds.right - halfVisualWidth;
+    const x = clamp(randomBetween(Math.min(minX, maxX), Math.max(minX, maxX)), Math.min(minX, maxX), Math.max(minX, maxX));
+    return {
+      x,
+      y: state.bounds.bottom,
+      grounded: true,
+      platformId: "__ground__",
+    };
+  }
+
+  const platform = standablePlatforms[Math.floor(Math.random() * standablePlatforms.length)];
+  const minX = platform.left + halfVisualWidth - ROAM_VISUAL_SIDE_OVERHANG;
+  const maxX = platform.right - halfVisualWidth + ROAM_VISUAL_SIDE_OVERHANG;
+  const x = clamp(randomBetween(Math.min(minX, maxX), Math.max(minX, maxX)), Math.min(minX, maxX), Math.max(minX, maxX));
+  return {
+    x,
+    y: platform.top,
+    grounded: true,
+    platformId: platform.id,
+  };
+}
+
+async function triggerActiveTeleport(engine: PetEngine, state: RoamState): Promise<boolean> {
+  if (isTeleportAnimating || isRecallAnimating || isExiting || isManualPetControlActive() || isPetMenuOpen || isPetPanelOpen || isBlockingPetPanelOpen()) {
+    return false;
+  }
+
+  const target = chooseTeleportTarget(state);
+  if (!target) return false;
+
+  const container = document.getElementById("pet-container") as HTMLElement | null;
+  if (!container) return false;
+
+  const previousVisibility = container.style.visibility;
+  const teleportAt = performance.now();
+  isTeleportAnimating = true;
+  state.nextTeleportAt = teleportAt + randomRoamTeleportDelay();
+  state.nextDecisionAt = teleportAt + 650;
+
+  try {
+    await playRecallDisappearEffect();
+    container.style.visibility = "hidden";
+
+    const previousX = state.x;
+    state.x = target.x;
+    state.y = target.y;
+    state.vx = 0;
+    state.vy = 0;
+    state.grounded = target.grounded;
+    state.platformId = target.platformId;
+    state.facing = target.x < previousX ? "left" : "right";
+    state.action = "idle";
+    state.lastWindowSyncAt = teleportAt;
+    applyRoamFacing(state);
+    clampRoamToBounds(state);
+    await applyRoamWindowPosition(state);
+    engine.applyState("idle");
+    return true;
+  } catch (err) {
+    console.warn("active roam teleport failed:", err);
+    return false;
+  } finally {
+    resetRecallDisappearEffect(container);
+    container.style.visibility = previousVisibility;
+    isTeleportAnimating = false;
+  }
+}
+
 function findStandingPlatform(state: RoamState): RoamPlatform | null {
-  const left = state.x - state.width / 2;
-  const right = state.x + state.width / 2;
-  const footTolerance = 10;
-  return state.platforms.find((platform) => {
-    const hasHorizontalOverlap = right > platform.left + 8 && left < platform.right - 8;
-    return hasHorizontalOverlap && Math.abs(state.y - platform.top) <= footTolerance;
-  }) ?? null;
+  let bestPlatform: RoamPlatform | null = null;
+  let bestSupport = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const platform of state.platforms) {
+    const support = getRoamPlatformSupport(state, platform);
+    if (!support) continue;
+
+    if (support.support > bestSupport || (support.support === bestSupport && support.distance < bestDistance)) {
+      bestPlatform = platform;
+      bestSupport = support.support;
+      bestDistance = support.distance;
+    }
+  }
+
+  return bestPlatform;
 }
 
 function refreshGroundingAfterDrag(engine: PetEngine, state: RoamState): void {
+  if (!isPetGravityEnabled()) {
+    state.vy = 0;
+    state.grounded = true;
+    state.platformId = "";
+    if (state.action === "fall" || state.action === "jump") setRoamAction(engine, state, "idle");
+    return;
+  }
+
   const standingPlatform = findStandingPlatform(state);
   if (standingPlatform) {
     settleRoamOnPlatform(engine, state, standingPlatform);
@@ -2571,7 +3664,7 @@ function refreshGroundingAfterDrag(engine: PetEngine, state: RoamState): void {
 }
 
 async function applyRoamWindowPosition(state: RoamState): Promise<void> {
-  const position = clampWindowPositionToBounds(
+  const position = clampPetVisualWindowPositionToBounds(
     state.x - state.width / 2 - petWindowOffsetX,
     state.y - state.height + petWindowOffsetBottom,
     state.width,
@@ -2612,7 +3705,24 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     await syncRoamStateFromWindow(engine, state, recentlyDragged);
   }
 
-  if (recentlyDragged && now - state.lastPlatformScanAt > 120) {
+  const gravityEnabled = isPetGravityEnabled();
+  if (!gravityEnabled) {
+    state.grounded = true;
+    state.platformId = "";
+    state.vy = 0;
+    if (state.action === "fall" || state.action === "jump") setRoamAction(engine, state, "idle");
+  }
+
+  const activityLevel = localStorage.getItem("pet_activity_level") || "middle";
+  if (!pauseRoamDecisions && activityLevel === "active" && now >= state.nextTeleportAt) {
+    if (Math.random() < ROAM_ACTIVE_TELEPORT_CHANCE) {
+      const teleported = await triggerActiveTeleport(engine, state);
+      if (teleported) return;
+    }
+    state.nextTeleportAt = now + randomRoamTeleportDelay();
+  }
+
+  if (gravityEnabled && recentlyDragged && now - state.lastPlatformScanAt > 120) {
     state.bounds = await getRoamBounds();
     state.platforms = await scanRoamPlatforms(state.bounds);
     state.lastPlatformScanAt = now;
@@ -2628,7 +3738,7 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     return;
   }
 
-  if (now - state.lastPlatformScanAt > 3500) {
+  if (gravityEnabled && now - state.lastPlatformScanAt > 3500) {
     state.bounds = await getRoamBounds();
     state.platforms = await scanRoamPlatforms(state.bounds);
     state.lastPlatformScanAt = now;
@@ -2642,7 +3752,7 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     state.nextDecisionAt = now + 500;
   }
 
-  if (!state.grounded) {
+  if (gravityEnabled && !state.grounded) {
     state.vy = Math.min(1400, state.vy + ROAM_GRAVITY * dt);
   } else if (!["walk", "sprint"].includes(state.action)) {
     state.vx *= 0.85;
@@ -2653,13 +3763,18 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
   let nextX = state.x + state.vx * dt;
   let nextY = state.y + state.vy * dt;
 
-  if (nextX <= state.bounds.left + state.width / 2) {
-    nextX = state.bounds.left + state.width / 2;
+  const visualRect = getPetVisualRectInWindow(state.width, state.height);
+  const halfVisualWidth = visualRect.width / 2;
+  const minX = state.bounds.left + halfVisualWidth - ROAM_VISUAL_SIDE_OVERHANG;
+  const maxX = state.bounds.right - halfVisualWidth + ROAM_VISUAL_SIDE_OVERHANG;
+
+  if (nextX <= minX) {
+    nextX = minX;
     state.vx = Math.abs(state.vx) * 0.35;
     state.facing = "right";
     applyRoamFacing(state);
-  } else if (nextX >= state.bounds.right - state.width / 2) {
-    nextX = state.bounds.right - state.width / 2;
+  } else if (nextX >= maxX) {
+    nextX = maxX;
     state.vx = -Math.abs(state.vx) * 0.35;
     state.facing = "left";
     applyRoamFacing(state);
@@ -2669,20 +3784,19 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
   state.y = nextY;
   clampRoamToBounds(state);
 
-  updateRoamPlatformAttachment(state);
+  if (gravityEnabled) updateRoamPlatformAttachment(state);
 
-  if (!state.grounded && state.vy >= 0) {
-    const left = state.x - state.width / 2;
-    const right = state.x + state.width / 2;
+  if (gravityEnabled && !state.grounded && state.vy >= 0) {
     for (const platform of state.platforms) {
-      if (previousY <= platform.top && state.y >= platform.top && right > platform.left + 8 && left < platform.right - 8) {
+      if (!isStandableRoamPlatform(platform)) continue;
+      if (previousY <= platform.top && state.y >= platform.top && getRoamPlatformSupport(state, platform)) {
         settleRoamOnPlatform(engine, state, platform);
         break;
       }
     }
   }
 
-  if (!state.grounded && state.y >= state.bounds.bottom) {
+  if (gravityEnabled && !state.grounded && state.y >= state.bounds.bottom) {
     state.y = state.bounds.bottom;
     state.vy = 0;
     state.grounded = true;
@@ -2690,7 +3804,7 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     if (state.action === "fall" || state.action === "jump") setRoamAction(engine, state, "idle");
   }
 
-  if (!state.grounded && state.vy > 0 && state.action !== "fall") {
+  if (gravityEnabled && !state.grounded && state.vy > 0 && state.action !== "fall") {
     setRoamAction(engine, state, "fall");
   }
 
@@ -2721,6 +3835,7 @@ async function setupIdleRoaming(engine: PetEngine): Promise<void> {
     lastWindowSyncAt: 0,
     lastAppliedWindowX: position.x,
     lastAppliedWindowY: position.y,
+    nextTeleportAt: performance.now() + randomRoamTeleportDelay(),
     platforms: [],
     bounds,
   };
@@ -2802,7 +3917,6 @@ async function setupDrag(engine: PetEngine): Promise<void> {
         showSpeech("嘘，专心工作...", 2000);
       } else {
         spawnParticles(e.clientX, e.clientY);
-        playSound("pop");
         triggerSmartSpeech();
       }
     }
@@ -2844,13 +3958,13 @@ async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetM
   const windowLabel = getCurrentWindow().label;
   const summonedPetId = /^pet-(.+)-\d+$/.exec(windowLabel)?.[1] ?? null;
   const primaryPetId = windowLabel === "pet"
-    ? localStorage.getItem(LS_PRIMARY_PET_ID) || "ikun-pet"
+    ? getPrimaryPetId()
     : null;
   const projectPetId = params.get("petId") || summonedPetId || primaryPetId;
-  if (projectPetId === "ikun-pet") {
+  if (projectPetId === "doro") {
     return {
-      spritesheetUrl: new URL("../builtin-pets/ikun-pet/spritesheet.webp", import.meta.url).href,
-      manifest: null,
+      spritesheetUrl: new URL("../builtin-pets/doro/spritesheet_edited.webp", import.meta.url).href,
+      manifest: await fetch(new URL("../builtin-pets/doro/pet.json", import.meta.url).href).then((res) => res.json() as Promise<PetManifest>),
     };
   }
   if (projectPetId) {
@@ -2893,7 +4007,7 @@ async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetM
   return { spritesheetUrl: new URL("./spritesheet.webp", import.meta.url).href, manifest: null };
 }
 
-const RECALL_EFFECT_CLASSES = ["recall-portal", "recall-dust", "recall-shadow-sink", "recall-light-fold"] as const;
+const RECALL_EFFECT_CLASSES = ["recall-puff"] as const;
 type RecallEffectClass = typeof RECALL_EFFECT_CLASSES[number];
 
 function resetRecallDisappearEffect(container: HTMLElement): void {
@@ -2913,10 +4027,10 @@ function playRecallDisappearEffect(): Promise<void> {
 
   resetRecallDisappearEffect(container);
   const effect = randomRecallEffectClass();
-  const duration = 860 + Math.round(Math.random() * 260);
+  const duration = 560 + Math.round(Math.random() * 120);
   const startedAt = Date.now();
-  container.style.setProperty("--recall-drift-x", `${Math.round((Math.random() * 2 - 1) * 24)}px`);
-  container.style.setProperty("--recall-tilt", `${(Math.random() * 10 - 5).toFixed(1)}deg`);
+  container.style.setProperty("--recall-drift-x", `${Math.round((Math.random() * 2 - 1) * 10)}px`);
+  container.style.setProperty("--recall-tilt", `${(Math.random() * 6 - 3).toFixed(1)}deg`);
   container.style.setProperty("--recall-duration", `${duration}ms`);
   void container.offsetWidth;
   container.classList.add("recall-disappearing", effect);
@@ -2948,6 +4062,7 @@ async function recallCurrentPet(): Promise<void> {
     isRecallAnimating = true;
     isPetMenuOpen = false;
     lastPetInteractionTime = Date.now();
+    stopCurrentPetActivitiesImmediately();
     await playRecallDisappearEffect();
     if (container) container.style.visibility = "hidden";
     if (label === "pet") {
@@ -3019,7 +4134,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     }, 160);
   };
 
-  const positionMenu = (): void => {
+  const positionMenu = async (): Promise<void> => {
     menu.style.visibility = "hidden";
     menu.classList.add("show");
     const menuRect = menu.getBoundingClientRect();
@@ -3028,16 +4143,54 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     const margin = 8;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+
+    const [winPos, monitor, scaleFactor] = await Promise.all([
+      appWindow.outerPosition(),
+      currentMonitor(),
+      appWindow.scaleFactor(),
+    ]);
+
+    let rightEdgeFitsOnScreen = true;
+    let leftEdgeFitsOnScreen = true;
+
+    if (monitor && petRect) {
+      const winLogicalX = winPos.x / scaleFactor;
+      const monitorLogicalRight = (monitor.position.x + monitor.size.width) / scaleFactor;
+      const monitorLogicalLeft = monitor.position.x / scaleFactor;
+
+      const rightMenuScreenX = winLogicalX + petRect.right + gap + menuRect.width + margin;
+      const leftMenuScreenX = winLogicalX + petRect.left - gap - menuRect.width - margin;
+
+      rightEdgeFitsOnScreen = rightMenuScreenX <= monitorLogicalRight;
+      leftEdgeFitsOnScreen = leftMenuScreenX >= monitorLogicalLeft;
+    }
+
     const baseTop = petRect
       ? petRect.top + Math.max(8, petRect.height * 0.08)
       : margin;
 
     let left = petRect ? petRect.right + gap : margin;
-    if (left + menuRect.width + margin > viewportWidth && petRect) {
-      left = petRect.left - menuRect.width - gap;
+
+    if (petRect) {
+      const fitsWindowRight = left + menuRect.width + margin <= viewportWidth;
+      const rightOk = fitsWindowRight && rightEdgeFitsOnScreen;
+
+      if (!rightOk) {
+        left = petRect.left - menuRect.width - gap;
+        const fitsWindowLeft = left >= margin;
+        const leftOk = fitsWindowLeft && leftEdgeFitsOnScreen;
+
+        if (!leftOk && rightEdgeFitsOnScreen) {
+          left = petRect.right + gap;
+        }
+      }
+    }
+
+    if (left + menuRect.width + margin > viewportWidth) {
+      left = Math.max(margin, viewportWidth - menuRect.width - margin);
     }
     if (left < margin) {
-      left = Math.min(viewportWidth - menuRect.width - margin, margin);
+      left = margin;
     }
 
     const top = Math.min(
@@ -3066,7 +4219,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     lastActivityTime = Date.now();
     lastPetInteractionTime = Date.now();
     await updateRecallVisibility();
-    positionMenu();
+    await positionMenu();
     menu.setAttribute("aria-hidden", "false");
   };
 
@@ -3104,7 +4257,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
 
   focusButton.addEventListener("click", () => {
     hideMenu();
-    showFocusPanel();
+    void showFocusPanel();
   });
 
   meritButton.addEventListener("click", () => {
@@ -3396,6 +4549,9 @@ async function main(): Promise<void> {
   if (localStorage.getItem(LS_CHAT_MODE) === null) {
     localStorage.setItem(LS_CHAT_MODE, "basic");
   }
+  if (localStorage.getItem(LS_PET_GRAVITY_ENABLED) === null) {
+    localStorage.setItem(LS_PET_GRAVITY_ENABLED, "true");
+  }
   if (localStorage.getItem(LS_MERIT_TEXT) === null) {
     localStorage.setItem(LS_MERIT_TEXT, MERIT_DEFAULT_TEXT);
   }
@@ -3428,6 +4584,18 @@ async function main(): Promise<void> {
   const { spritesheetUrl, manifest } = await loadPetAssets();
   const engine = new PetEngine(spriteEl, atlasFromManifest(manifest), spritesheetUrl);
   (window as any).__petEngine = engine;
+  
+  const meritVisualEl = document.getElementById("merit-panel-pet-visual");
+  if (meritVisualEl) {
+    const meritEngine = new PetEngine(meritVisualEl, atlasFromManifest(manifest), spritesheetUrl);
+    (window as any).__meritPanelEngine = meritEngine;
+    if (meritEngine.hasState("merit")) {
+      meritEngine.applyState("merit");
+    } else {
+      meritEngine.applyState("idle");
+    }
+  }
+
   await applyPetSizeScale();
 
   // Boot ceremony: wave then idle, with speech bubble
@@ -3458,6 +4626,15 @@ async function main(): Promise<void> {
   void restoreSavedSummonedPets();
 
   // GitHub 贡献度监控：启动 3 秒后初检，之后每 5 分钟轮询
+  const stopActivitiesOnWindowExit = () => {
+    stopCurrentPetActivitiesImmediately();
+    engine.destroy();
+    const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;
+    meritEngine?.destroy();
+  };
+  window.addEventListener("pagehide", stopActivitiesOnWindowExit);
+  window.addEventListener("beforeunload", stopActivitiesOnWindowExit);
+
   setTimeout(() => checkGitHubStatus(), 3000);
   setInterval(() => checkGitHubStatus(), 5 * 60 * 1000);
   console.log("LingoPet engine initialized");
@@ -3468,6 +4645,43 @@ async function main(): Promise<void> {
 function setupFileDrop(): void {
   const container = document.getElementById("pet-container");
   if (!container) return;
+
+  const handleDroppedPaths = async (paths: string[]): Promise<void> => {
+    const validPaths = paths.filter(Boolean);
+    if (validPaths.length === 0) return;
+
+    try {
+      await invoke("move_to_trash", { paths: validPaths });
+    } catch (err) {
+      console.error("move_to_trash failed:", err);
+      showSpeech("文件没能送进回收站，请稍后再试。", 3000);
+      return;
+    }
+
+    container.classList.remove("anim-swallow");
+    void container.offsetWidth;
+    container.classList.add("anim-swallow");
+    setTimeout(() => container.classList.remove("anim-swallow"), 500);
+
+    playSound("crunch");
+    showSpeech(validPaths.length > 1 ? `已送走 ${validPaths.length} 个文件。` : "文件已送进回收站。", 3000);
+  };
+
+  void getCurrentWindow().onDragDropEvent((event) => {
+    if (event.payload.type === "enter" || event.payload.type === "over") {
+      container.classList.add("drag-over");
+      return;
+    }
+    if (event.payload.type === "leave") {
+      container.classList.remove("drag-over");
+      return;
+    }
+
+    container.classList.remove("drag-over");
+    void handleDroppedPaths(event.payload.paths);
+  }).catch((err) => {
+    console.warn("tauri drag-drop listener failed:", err);
+  });
 
   container.addEventListener("dragover", (e) => {
     e.preventDefault();
@@ -3492,21 +4706,7 @@ function setupFileDrop(): void {
       if (path) paths.push(path);
     }
 
-    if (paths.length > 0) {
-      try {
-        await invoke("move_to_trash", { paths });
-      } catch (err) {
-        console.error("move_to_trash failed:", err);
-      }
-    }
-
-    container.classList.remove("anim-swallow");
-    void container.offsetWidth;
-    container.classList.add("anim-swallow");
-    setTimeout(() => container.classList.remove("anim-swallow"), 500);
-
-    playSound("crunch");
-    showSpeech("吧唧吧唧... 垃圾清理完毕！", 3000);
+    await handleDroppedPaths(paths);
   });
 }
 

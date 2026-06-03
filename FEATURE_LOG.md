@@ -2,6 +2,77 @@
 
 用于记录已完成的用户可见功能与行为修复。每次完成一项功能后追加记录，包含日期、功能范围、完成内容与验证方式。
 
+## 2026-05-30
+
+### 功德模式 UI 完整性、当前功德避让及枫叶背景下移修复
+
+- **物理窗口中心对称膨胀定位与屏幕碰撞纠偏（绝对防出屏、防遮挡）**：
+  - 弃用传统的窗口左上角静态膨胀策略。引入全新基于原桌宠物理中心的“中心对称膨胀”高级定位方案。
+  - 读取原窗口物理坐标位置与尺寸，并转换为逻辑坐标像素。以原宠物的中心点做中心对称轴向外扩充至 `650x750`，保证大面板的弹出焦点完美匹配用户的原本关注视线。
+  - 引入高精度 **Tauri 屏幕工作区（Monitor Work Area）安全碰撞检测与自动回弹纠偏算法**。设置 `minGap = 16px` 安全呼吸边距，当检测到窗口膨胀后有任何一侧超出当前显示器边界时，瞬间自动回弹安全纠偏，彻底根治了窗口在屏幕边缘展开时导致关闭按钮和部分卡片被“展示到屏幕外”的顽疾！
+- **关闭面板后桌宠绝对零位闪现回归（彻底解决宠物跟着面板被“拖走”的位移感）**：
+  - 在 `showMeritPanel` 时，程序第一步会先通过 Tauri 接口读取并**在内存中记录当前宠物所在的原始绝对物理坐标点 `meritOrigWindowPos`**。
+  - 当用户点击“X”关闭大面板时，程序在调用 `applyPetSizeScale` 还原窗口大小前，会**瞬间强行将窗口的物理位置 setPosition 重置复原回这批记录好的出生原点**！
+  - 这样，即便用户在大面板展开期间将面板拖动到了屏幕的任何新位置，一旦关闭面板，游走的桌宠都会**神不知鬼不觉地、极其精准得闪现回归到它原本的出生位置**！彻底在产品交互上营造出“卡片只是一个浮动层，宠物并未被真正带走”的完美心智暗示！
+- **任意空白背景系统级原生鼠标拖拽移动窗口（100% 物理级丝滑拖动）**：
+  - 在大面板 DOM 容器上注册 `mousedown` 监听，判断当用户使用鼠标左键点击时，进行智能组件穿透判定：
+    - **非交互空白区**：若点击目标为任何空白背景、枫叶图片、面板头部等非互动性元素，直接在后台秒级发起 **`getCurrentWindow().startDragging()`** 原生系统拖动指令！由于是由操作系统内核直接托管窗口移动，拖拽体验呈现 **100% 物理硬件级的平滑与顺畅，完全零延迟、零抖动**！
+    - **互动性控件区**：若点击在输入框、按钮、频率调节滑块、或者侧滑大抽屉内部，自动拦截拖拽指令，保障一切点击与控制交互的精准无瑕。
+
+- **用户替换对联图智能抠底透明化与字号对齐（彻底解决底色与比例失调）**：
+  - 针对用户自行替换后可能产生的 `gongde-banner-1-left.png`（带刺眼白色底色，RGB）和 `gongde-banner-1-right.png`（带深黑色底色，RGBA 且挂轴本体偏小）问题进行了智能图像重构。
+  - 使用 Python 编写智能像素分析抠图算法：
+    - **左对联**：自动遍历并将全部接近白色底色（`R/G/B > 220`）的像素转换为完全透明的 Alpha 通道，并精准获取有图案部分的 `getbbox()` 范围，将其紧凑裁切为 `(373, 1910)`，高宽比完美还原为 `5.12 : 1`。
+    - **右对联**：当检测到用户替换为 `1024x1536` 的包含多个元素的大图时，自动在 `(390, 50, 600, 1050)` 区域中精准捕捉右联位置，并智能过滤、剔除所有接近黑色（`R/G/B < 35`）的背景，转为 Alpha 透明，同样以 `getbbox()` 裁切为 `(210, 1000)`（高宽比约 `4.76 : 1`）。
+  - **CSS 物理对齐保障**：在保留透明挂轴主体的基础上，前端 CSS 采用高度限制策略（高度统一限制为 `155px`，`object-fit: contain`），使得两幅对联的物理高度绝对一致，从而使挂轴本身的高矮和文字的字号大小自然对齐，完全解决左右联字体不一致与白底/黑底刺眼的顽疾！
+
+- **侧滑抽屉激活状态类名对齐（彻底修复抽屉无法展示问题）**：
+  - 发现并修复了 `pet.css` 中侧滑抽屉 `.merit-side-drawer` 的激活展开类名 `.show` 与 `pet.ts` 控制层中采用的 `open` 类名不一致导致的失联 Bug。
+  - 在 CSS 中将 `.merit-side-drawer.show` 全面修改对齐为 `.merit-side-drawer.open`。现在，点击“历史记录”与“更多成就”时，右侧贴边弹层能百分之百、平滑自然地侧滑拉出，交互逻辑完全闭环！
+
+- **当前功德卡片缩小与右侧列表自适应（彻底防右侧数据隐藏）**：
+  - 将当前功德大卡片 `.merit-current-card` 的宽度限制为精致的固定 `210px`（含 `padding`，采用 `box-sizing: border-box`，完美自适应内部自定义词汇输入与大字显示）。
+  - 将右侧滚动选择列表容器 `.merit-value-list-container` 的宽度由原本局促固定的 `60px` 升级为 `flex: 1`。
+  - 在卡片收窄后，右侧自动腾出了富余的 `88px` 黄金展现空间，由数值滚动选择列表自动吃满，使其在右侧大方、完整呈现，各敲击数值按钮极其开阔、易于点选。
+- **枫叶背景物理下移与朦胧虚化（使桌宠置于梦幻落叶之上）**：
+  - 在 `.merit-bg-layer` 背景枫叶层的样式中，引入 `transform: translateY(32px) scale(1.1);`。物理上将枫叶大图向下沉移 `32px` 并按比例放大 1.1 倍以阻断和消除虚化边缘带来的白边/半透明发虚边界。
+  - 引入高水准的 **`filter: blur(6px);`** 图像深度模糊处理。让红黄交织的枫叶落叶背景呈现出极其温柔、空灵、朦胧的毛玻璃虚化质感，极大减弱了背景图对桌宠主体的干扰，使桌宠在视觉上更显立体突出，画面意境深远梦幻。
+- **高精度图片裁剪与对称双挂轴布局**：
+  - 针对原图 `gongde-banner-1.png`（包含左挂轴、右挂轴与 1:1 福印印章）进行了高精度的物理切割，在项目 assets 目录下生成了独立的竖版左挂轴 `gongde-banner-1-left.png`、右挂轴 `gongde-banner-1-right.png` 以及完美的 `1:1` 正方形福印 `gongde-banner-1-fu.png`。
+  - 在 HTML 与 CSS 中设计了对称的“左挂轴 + 右挂轴 + 中央福印”对联布局，文字与印章 100% 完整展示，再无任何“左右缺失”或变形。
+  - 桌宠完美居于两幅精美挂轴的正中央，配合淡雅背景，禅意美感与 Wow 视觉冲击力拉满。
+- **物理窗口尺寸升级与防截断机制（右侧及底部成就完全显现）**：
+  - 将展开功德面板时的 Tauri 窗口物理尺寸从局促的 `560 * 620` 升级为宽裕的 `650 * 750`，面板在窗口中以 `left: 15px, top: 15px` 完美居中呈现。
+  - 在 CSS 中将 `#merit-panel` 的尺寸设为 `620px * 720px`，并将右侧数值大卡片加宽至 `310px`，彻底修复了右侧列表、关闭按钮被截断消失的 Bug。
+  - 凭借充足的高度，最下方的“今日功德成就”高亮勋章和已达成倾斜印章得以在底部完整平铺呈现，完全解决“下方的成就没展示”的问题。
+- **验证**：运行 `npm run build`，类型检查与 Vite 生产构建 100% 成功通过，产物完美打包。
+
+### 功德大师豪华 Glassmorphism 控制台重构升级
+
+- **豪华 UI 与 Glassmorphism 禅意控制面板**：全面重构功德面板，尺寸升级为宽裕精密的 `520px * 580px`，引入高透磨砂毛玻璃材质、金色渐变微光细边框与三栏自适应现代布局，提供兼具设计美感与禅意解压的功德修行控制台。
+- **一次性 Tauri 窗口物理缩放（彻底杜绝高频 IPC 抖动）**：
+  - 在大面板展开时，一次性将物理窗口尺寸调整为 `560 * 620` 并临时隐藏桌宠本身以避开视觉混乱；在关闭面板时，自动调用 `applyPetSizeScale` 将窗口和桌宠物理大小及位置无感还原。
+  - 彻底将高频自动敲击时的 resize/position 调用降至零，所有数字、气泡与木鱼动画纯靠 GPU 硬件加速的 CSS 属性渲染，达到 100% 丝滑。
+- **完全自定义词汇与正负值变动系统**：
+  - 允许用户完全自定义气泡飘字的前缀词（如：输入“烦恼”、“脂肪”或“好运”）。
+  - 右侧大数字盘和快捷切换键支持一键切换正负，并有 `+1, +2, +5, +10, -1, -2, -5, -10` 选项。
+  - 敲击反馈联动：选择“烦恼”与“-1”，敲击时面板内和宠物头顶气泡飘出 `烦恼 -1`，中间大字显示为冷色调 cyan 炫光 `-1` 并获得弹跳 bounce 效果；选择“好运”与“+5”，大字显示为金色发光 `+5`，气泡显示 `好运 +5`。
+- **纯 CSS 拟物立体木鱼与槌打动画**：
+  - 面板左侧利用 CSS Gradients 和三维多层投影，不引入额外图片资产，纯靠 CSS 绘制了一个极其饱满和具有打击触感的深褐木鱼身及三维金光圆形槌头。
+  - 敲击时，槌子做顺时针旋转敲击 `@keyframes css-mallet-strike` 动画，木鱼本身做微缩放颤抖 `@keyframes css-body-shake` 动画。
+  - 每次敲击自动在面板左侧木鱼上方产生具有随机水平偏移以防重叠的向上渐入渐出金色飘字气泡。
+- **静心打坐频率滑块与快捷键**：
+  - 滑块范围设定为科学且符合物理规律的 `0.3 ~ 5 次/秒`，下方提供 `0.5次`、`1次`、`2次`、`3次`、`5次` 5 档快捷同步按键，若在敲击中拖动或点击，会即时进行自动敲击定时器的热重启，反应灵敏。
+- **今日功德成就勋章实时解锁与倾斜盖章**：
+  - 底部并排展示三个今日功德成就（“初入佛门”今日100、“心诚则灵”今日500、“功德圆满”今日1000）。
+  - 当今日功德增加跨过对应门槛，灰色勋章瞬间高亮解锁，并伴随流畅的“啪”一下的打击感优雅盖上一枚绿色质感倾斜的“已达成”印章！
+  - 更多成就：点击“更多成就 >”可侧滑滑出展示“历史成就（暂未开放）”的抽屉占位卡片。
+- **最近 14 天打卡历史日历抽屉**：
+  - 点击“历史记录”可从右侧平滑侧滑拉出历史抽屉，锁定历史记录，并贴心地提供了一键“清空所有历史”的功能。
+- **连续天数自动更新算法**：
+  - 严密计算上次敲击日期与今天的间隔。如若为昨天敲击则连续天数自动加 1；若发生中断则重置为 1；今天已敲击过则保持。
+- **验证**：运行 `npm run build` 和 `cargo check`，前端类型检查与 Vite 打包 100% 零错误零警告一次性成功，Rust 后端编译完美通过。
+
 ## 2026-05-26
 
 ### 创意工坊套用动作弹窗顶部提示条布局优化
@@ -752,3 +823,309 @@
 - **验证**：运行 `npm run build` 成功完成，全链路 Vite 编译与 TypeScript 类型检查 100% 零警告零错误顺利通过。
 
 
+- 2026-05-30: [src/pet/index.html, src/pet/pet.css] Redesigned Merit mode panel to a dark-gold elegant layout matching user reference, replaced emoji with SVGs, and integrated generated woodfish_pet image. Verified via npm run build.
+- 2026-05-30: [src/pet/pet.ts, src/pet/index.html, src/pet/pet.css] Replaced static merit panel image with dynamic PetEngine sprite synchronization to use actual pet animations in merit panel.
+- 2026-05-30: [src/pet/index.html, src/pet/pet.css] Optimized merit panel layout: moved custom vocabulary input to right side, scaled down and shifted left pet visualization to right.
+- 2026-05-30: [src/pet/pet.ts] Fixed context menu clipping by enlarging Tauri window width, clamping based on visual rect, and calculating monitor bounds for left/right adaptive placement.
+- 2026-05-30: [src-tauri/src/lib.rs] Fixed an issue where closing the config panel would destroy the window and cause a white screen freeze on reopen by intercepting the CloseRequested event and hiding the window instead.
+### 2026-05-31 Pet edge placement soft clamp
+- Relaxed desktop pet boundary clamping so the visible body may slightly overhang the left and right screen edges, while keeping only a small safe margin at the top.
+- Updated manual drag and roam clamping to follow the visible body instead of the transparent window shell, so edge placement no longer snaps inward as aggressively.
+- Verification: `npx tsc --noEmit` and `npm run build` passed.
+### 2026-05-31 Pet edge rebound reduction
+- Replaced the remaining left/right hard window clamp in idle roaming with a visible-body-based soft clamp so the pet no longer bounces inward as aggressively at screen edges.
+- Kept the small top safe area while preserving a slight overhang allowance on both sides.
+- Verification: `npx tsc --noEmit` and `npm run build` passed.
+### 2026-05-31 落脚点分层与脚底判定优化
+- Rust 后端将桌面平台拆分为可站立的窗口顶部平台和仅接触的左右墙面，移除了窗口底边的站立平台，减少“凭空站立”。
+- 前端改为基于脚底传感器判定落脚，跳跃目标只选择可站立平台，进一步收紧边缘吸附与落点误判。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 专注面板底部安全区
+- 为专注模式浮层定位增加底部安全区，避免透明桌宠窗口覆盖到任务栏区域时，开始/停止按钮被压到屏幕底部外。
+- 验证：`npm run build` 通过。
+### 2026-05-31 专注面板定位修正
+- 将专注面板强制切换为固定定位并接管底部留白，避免旧版绝对定位的负 bottom 规则继续把按钮挤到面板外面。
+- 验证：`npm run build` 通过。
+### 2026-05-31 专注模式底部控件修正
+- 收紧专注模式面板高度、计时卡、预设按钮、分钟输入和开始/停止按钮尺寸，避免默认宠物窗口下底部控件被挤出可见区域。
+- 缩小并下沉左下角 Q 版装饰，避免遮挡输入框和操作按钮。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 活跃度随机瞬移
+- 在“满屏乱窜”活跃度下加入低频随机瞬移，复用宠物召回的消失特效，在屏幕可用区域内或可站立平台上重新出现。
+- 增加瞬移冷却与触发概率控制，避免过于频繁打断常规漫游。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 功德模式气泡节流
+- 为功德模式的敲击气泡增加独立节流与更短展示时长，避免连续敲击时气泡看起来一直挂着不消失。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 功德模式气泡频率跟随
+- 功德模式气泡改为每次敲击都显示，不再做独立节流；气泡展示时长按当前敲击频率动态缩短。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 功德模式视觉重构
+- 将功德模式面板从偏黑金控制台风格调整为更贴近桌宠软件主界面的暖色系玻璃卡片风格，统一了标题区、按钮、统计卡、频率调节、成就区和侧边抽屉的视觉。
+- 重新启用并整合了现有的功德装饰素材（对联、福字、背景叶片），让左侧舞台更完整，整体更像桌宠软件内的功能面板而不是独立黑底弹窗。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 功德模式主视觉替换
+- 按用户提供的图二摆放方式，生成并接入新的功德模式主视觉背景，左侧为“心静自然凉”，右侧为“功德日月长”，顶部保留“福”字装饰。
+- 让左侧舞台从分散装饰层切换为一体化背景图，减少叠层重复，视觉更贴近当前桌宠软件的功德模式风格。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 功德模式颜色收敛
+- 针对用户反馈的色彩突兀问题，给功德模式左侧主视觉增加了更柔和的暖色过渡和内边距，并将主图从“硬黑海报”调整为更贴合面板气质的嵌入式背景展示。
+- 维持“心静自然凉 / 功德日月长”摆放不变，仅收敛黑底与奶白卡片之间的对比，减少跳色感。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 功德模式参考布局回归
+- 按用户提供的参考图将功德模式左侧舞台重新调整为黑底主视觉，恢复更接近原图的对联/福字/木鱼摆位与舞台层次。
+- 新增并接入新的功德背景素材 `gongde-banner-4.png`，并收紧左侧区域的色彩语言，避免与右侧暖白统计卡冲突。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 功德模式背景与桌宠落位微调
+- 轻微降低了功德模式左侧主视觉背景的饱和度，并收敛对比，让黑金舞台与右侧暖白卡片过渡更自然。
+- 缩小并重新定位了功德模式内的动态桌宠，使其在舞台区域里的占比和落点更接近参考图。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 多宠召回即时停声停动作
+- 修复多宠模式下召回处于功德模式的桌宠时，木鱼音仍持续播放、动作未立刻停止的问题。
+- 召回前会先统一清理功德计时器、木鱼音效和当前动画；同时在窗口被直接关闭或隐藏时执行同样的清理，覆盖配置页召回场景。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 召回与瞬移特效资产升级
+- 将原先四种偏几何渐变的召回/瞬移效果收敛为两种更稳定的表现：金色法阵传送门与香火烟雾散逸，减少随机观感波动。
+- 使用 imagegen 生成并接入三张透明叠加资产：`recall-portal-gold.png`、`recall-smoke-gold.png`、`recall-sparkles-gold.png`，保留现有 JS 驱动与 CSS 动画架构，在轻量前提下增强层次感与遮罩感。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 Q版像素风召回特效回调
+- 针对召回/瞬移特效与 Q 版像素桌宠不贴合的问题，移除大图法阵和写实烟雾资产引用，改为轻量 CSS 像素烟点与小金星退场。
+- 召回效果统一为短时长 `recall-puff`：贴地烟雾、前景遮罩烟和少量金色像素点，减少华丽贴图感，让消失节奏更像桌宠自身动作。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-05-31 专注模式暖色小屋样式
+- 按预览效果将专注模式面板从暗色科技风调整为暖奶油与柔绿的小屋风格，强化大号倒计时、进度条、预设时长、分钟输入和开始/停止按钮层级。
+- 使用纯 CSS 增加左下角 Q 版桌宠探出装饰与右上角专注图标，不新增运行时图片资产，保持轻量。
+- 验证：`npx tsc --noEmit`、`npm run build` 通过。
+### 2026-06-02 VibePet Sprite Studio 吸管取色坐标修复
+- 修复智能去纯色吸管在多帧雪碧图中使用整张原图中心反推采样点的问题，改为按当前帧源切片定位后再采样十字光标所在像素。
+- 增加源帧切片几何计算，兼容 4 帧横版、8 帧横版和 2*4 布局，并避免光标落在当前帧实际图片外时越界采到相邻帧颜色。
+- 验证：在 `vibe-pet-sprite-studio` 运行 `npm run build`，并用 Node 坐标样例验证第 3 帧点击点映射到对应源切片像素。
+
+### 2026-06-02 VibePet Sprite Studio 逐帧 ZIP 导出
+- 在右侧导出卡片新增“逐帧导出 ZIP 文件”按钮，用于导出当前全部动作帧。
+- ZIP 内按 `frame-01.png`、`frame-02.png` 等命名保存所有 192x208 单帧 PNG，导出内容复用当前工作台处理后的画面，包含去色、橡皮擦、缩放与位移结果。
+- 验证：在 `vibe-pet-sprite-studio` 运行 `npm run build`，并启动本地 dev server 确认页面包含新的导出按钮。
+### 2026-06-02 宠物市场分页总数修复
+- 修复市场页在翻页/刷新后偶发把总数误降成当前页 30 条、导致底部分页栏消失的问题：当接口未返回 `pagination.totalItems` 时，前端会保留同一筛选条件下已知的总数，而不是回退到当前页数据量。
+- 翻页时会主动取消挂起的搜索防抖请求，避免旧的搜索请求抢占最新页并重置分页状态。
+- 市场页的重新渲染改为沿用真实总数，下载/刷新时分页栏不会再被“临时 30 条视图”覆盖。
+- 验证：`npm run build` 通过。
+### 2026-06-02 桌宠重力模式开关
+- 在设置页新增“重力模式”开关，默认开启；关闭后桌宠可固定摆放在屏幕任意可见位置，不会因为脚下没有平台而自动下坠。
+- 宠物端通过 `pet_gravity_enabled` 读取配置，关闭重力时跳过平台扫描、平台吸附、落地判定、自动下坠和跳跃物理，保留拖动与常规主动移动。
+- 验证：`npm run build` 通过。
+### 2026-06-02 功德今日成就完成态修复
+- 修复今日功德仅 25 时成就卡片仍显示“已达成”的问题：成就印章默认隐藏，仅在卡片获得 `.unlocked` 完成态后显示。
+- 将功德成就阈值与界面文案统一为今日达成 100、500、1000。
+- 验证：`npm run build` 通过。
+### 2026-06-02 桌宠普通点击静音
+- 移除普通点击桌宠时播放的 `pop` 音效，保留粒子反馈与智能气泡文本。
+- 验证：`npm run build` 通过。
+### 2026-06-02 设置页行为频率文案调整
+- 将“桌宠活跃度”改名为“行为频率”，说明文案改为控制桌宠主动走动、跳跃和乱逛的频繁程度。
+- 将选项显示名调整为“安静陪伴 / 自然活动 / 活泼乱逛”，保留原有 `quiet/middle/active` 配置值与行为逻辑。
+- 验证：`npm run build` 通过。
+### 2026-06-02 待办与提醒弹窗视觉优化
+- 将待办任务与定时提醒弹窗从黑底霓虹风调整为与功德模式一致的暖色玻璃卡片风格，补充标题、副标题、图标区、表单焦点态和统一按钮层级。
+- 优化待办和提醒列表项布局，任务文本优先展示，完成/复制/取消按钮靠右，提醒项增加循环/单次徽标与倒计时胶囊样式，避免控件与文本重叠。
+- 验证：`npm run build` 通过；Vite 浏览器预览受 Tauri runtime 依赖限制，未作为完整运行时验证。
+### 2026-06-02 待办与提醒弹窗尺寸对齐
+- 将待办任务与定时提醒弹窗默认宽度调整为与专注模式一致的 `320px`，并同步专注模式的内边距、圆角、暖色背景与阴影尺度。
+- 定时提醒的时间、单位、频率保留同一行，设置按钮独占下一行，减少默认窗体下的拥挤感。
+- 验证：`npm run build` 通过。
+### 2026-06-02 待办与提醒弹窗高度修正
+- 打开待办任务或定时提醒时临时扩大宠物窗口，并在关闭弹窗后恢复普通宠物尺寸，避免默认 192x208 窗体裁切输入区和操作按钮。
+- 将待办/提醒面板设置为更稳定的默认高度，并收窄移动端单列断点，让 320px 默认面板下输入框与主按钮保持同一行展示。
+- 验证：`npm run build` 通过。
+### 2026-06-02 待办与提醒弹窗头部关闭按钮
+- 将待办任务与定时提醒弹窗的功能图标移动到标题前方，右上角新增复用功德模式样式的关闭按钮。
+- 默认内容不足时不显示滚动条，待办/提醒列表内容较多时在列表区域内按需滚动，避免弹窗继续下撑遮住桌宠。
+- 验证：`npm run build` 通过。
+### 2026-06-02 待办与提醒弹窗溢出修正
+- 将待办与提醒面板改为内部裁切，列表仅在自身区域内滚动，避免列表项漏出圆角面板并覆盖桌宠。
+- 提高待办/提醒弹窗打开时的临时宠物窗口高度，并恢复待办输入框与添加按钮同一行展示，减少面板被向下挤出的概率。
+- 验证：`npm run build` 通过。
+### 2026-06-02 待办与提醒提交行为调整
+- 点击待办“添加”或定时提醒“设置”后保持弹窗打开，仅清空输入并刷新列表；只有右上角关闭按钮或点击弹窗外部会关闭弹窗。
+- 新增待办与提醒改为追加到列表末尾，保持录入顺序从上到下自然排列。
+- 验证：`npm run build` 通过。
+### 2026-06-02 专注空间面板重构
+- 将专注小屋重命名为“专注空间”，标题前新增功能图标，右上角新增与待办/提醒一致的关闭按钮。
+- 计时展示改为圆环进度表，主按钮在开始、结束、继续之间切换，并新增暂停与重置按钮。
+- 按待办与定时提醒的暖色玻璃风格重排专注面板布局，保留预设时长和自定义分钟输入。
+- 验证：`npm run build` 通过。
+### 2026-06-02 专注空间窗体高度修正
+- 打开专注空间时临时扩大宠物窗口高度，确保圆环、预设时长、分钟输入和开始/暂停/重置按钮完整展示。
+- 关闭专注空间时恢复普通宠物窗口尺寸，避免面板关闭后透明窗体继续占用过大区域。
+- 验证：`npm run build` 通过。
+### 2026-06-02 默认桌宠切换为 Doro
+- 将无本地选择时的默认桌宠 ID 从 `ikun-pet` 切换为 `doro`，并把 Doro 加入内置宠物资源。
+- 配置页内置宠物列表新增 Doro 并置于默认首位，保留原 ikun 内置宠物可选。
+- 验证：`npm run build` 通过。
+### 2026-06-02 内置桌宠仅保留 Doro
+- 配置页内置桌宠列表移除鸡哥 ikun，仅保留 Doro 作为内置桌宠。
+- 旧 `ikun-pet` 本地默认值会迁移到 `doro`，并删除旧 ikun 内置资源目录。
+- 验证：`npm run build` 通过。
+### 2026-06-02 Doro 内置列表注入修复
+- 修复本地宠物目录中已有 `doro` 同名包时，内置 Doro 先被判定为已存在、随后又被同名过滤移除，导致“我的桌宠”列表看不到 Doro 的问题。
+- 内置 Doro 现在始终作为内置项注入列表顶部，同名本地包会被过滤避免重复展示。
+- 验证：`npm run build` 通过。
+### 2026-06-02 Doro 内置动作状态恢复
+- 将 Doro 的 `focus`、`merit`、`music` 三个自定义动作写入配置页内置宠物元数据，避免列表使用内置项后动作状态显示为空。
+- 动作行号与帧配置保持和 `src/builtin-pets/doro/pet.json` 一致。
+- 验证：`npm run build` 通过。
+### 2026-06-02 官网首页视觉重构
+- 将 `docs/index.html` 从旧版浅色宣传页重构为深色赛博桌宠控制台风格首页，重新组织首屏、能力矩阵、Doro 动作展示、宠物生态、下载区与 FAQ。
+- 接入 Doro 雪碧图与功德模式视觉资源，新增雷达环、数据流、HUD 浮层、Doro 动作预览等动效，并支持 `prefers-reduced-motion`。
+- GitHub 仓库、Release 下载入口和下载量统计统一改为 `ZhangYiLong416/DesktopPet`。
+- 验证：本地资源引用检查、关键文案检查、`git diff --check` 与 `npm run build` 通过；浏览器插件受策略限制未能完成截图级验证。
+### 2026-06-03 桌宠文件拖放回收修复
+- 将文件拖到桌宠身上的处理从纯 DOM `drop` 事件补强为 Tauri `onDragDropEvent`，确保桌面文件路径能被正确接收并传给 `move_to_trash`。
+- 统一拖放成功、失败反馈，保留吞入动画和回收音效，并继续保留 DOM drop 作为兼容兜底。
+- 验证：`npm run build` 与 `git diff --check` 通过。
+### 2026-06-03 官网功德模式动态桌宠展示
+- 在官网首页功德模式功能卡片中叠加 Doro 功德动作雪碧图，展示桌宠敲木鱼的动态预览。
+- 为功德预览区域新增光晕、阴影与呼吸动画，保持与赛博控制台首页风格一致。
+- 验证：本地资源引用检查、`git diff --check` 与 `npm run build` 通过。
+### 2026-06-03 官网功德预览反馈动效
+- 缩小官网功德模式功能卡片里的 Doro 展示比例，避免遮挡功德背景与对联文案。
+- 在功德预览顶部新增循环弹出的收益词条，包括功德、体重、脂肪、运气、余额和卡内余额变化。
+- 验证：本地 HTML 片段检查、`git diff --check` 与 `npm run build` 通过。
+### 2026-06-03 官网 AI Intent 模块拆分
+- 将官网首页能力矩阵中的 AI Intent 大卡拆分为“定时任务”和“待办提醒”两块。
+- 为两块功能分别补充适用场景、输入示例和交互亮点说明，突出到点提醒与待办追加列表的差异。
+- 验证：`git diff --check` 与 `npm run build` 通过。
+### 2026-06-03 官网首屏 Star 入口
+- 在官网首页首屏 CTA 区新增醒目的 GitHub Star 按钮，链接到 `ZhangYiLong416/DesktopPet/stargazers`。
+- 为 Star 按钮增加金色渐变、图标和独立 hover 质感，填补下载与源码按钮旁的空白区域。
+- 验证：`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网 macOS 终端命令复制
+- 将 macOS “已损坏，无法打开” FAQ 中的 `xattr -cr /Applications/LingoPet.app` 改为终端代码块展示。
+- 新增一键复制按钮，支持 Clipboard API 与隐藏 textarea 兜底复制。
+- 验证：静态 HTML 检查、`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网首屏渐变色收敛
+- 按深蓝科技底、薄荷青主色、金色奖励点睛的方向收敛官网首屏色彩，移除标题、主按钮和雷达环中互相竞争的暖色渐变。
+- 下载主按钮改为薄荷青到青蓝，Star 按钮保留低饱和金色语义，并补充 CTA 键盘焦点外发光状态。
+- 验证：静态 HTML 样式检查、`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网能力矩阵 AI 区块精简
+- 删除能力矩阵左侧 AI Intent 大卡顶部的总标题与说明，让定时任务和待办提醒功能卡直接顶上来。
+- 将定时任务与待办提醒改为上下堆叠，并在左侧大卡内等高补齐，减少空白和信息重复。
+- 验证：HTML 片段检查、`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网功德卡信息补齐
+- 在能力矩阵的功德模式卡片左侧补充自定义词汇、今日统计和历史记录三条功能要点，填补原有大面积空白。
+- 在功德预览图下方新增收益示例条，展示功德、经验、运气和余额变化，与动态图中的收益反馈形成呼应。
+- 验证：HTML 片段检查、`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网能力矩阵提醒卡独立化
+- 将能力矩阵左侧的定时任务和待办提醒从同一个外层大卡中拆出，改为两张独立 `feature-card`。
+- 调整卡片顺序，使桌面端自动形成左侧上下两张提醒卡、右侧专注/律动与功德卡的排布。
+- 验证：HTML 片段检查、`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网年轻化概念页
+- 在 `docs/index-youth.html` 新增一版独立官网视觉探索页，采用高级深色产品感与年轻化宠物收集卡片结合的方向。
+- 首屏增加沉浸式桌面控制台、Doro 动态预览、浮动功能卡和气泡反馈，下方用 bento 卡片展示提醒、待办、专注、功德、律动、文件回收和宠物库。
+- 验证：资源引用检查、`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网 Windows 直链下载
+- 将 `docs/index.html` 与 `docs/index-youth.html` 的主下载按钮改为 GitHub Releases asset 直链，点击后直接下载 `LingoPet-windows-x64-setup.exe`。
+- 下载区文案从跳转 Release 页调整为直接下载 Windows 安装包，并保留 GitHub Star / 源码入口作为辅助操作。
+- 验证：直链引用检查、`git diff --check` 与 `npm run build` 通过。
+
+### 2026-06-03 官网年轻化概念页移除
+- 删除未采用的 `docs/index-youth.html` 风格探索页，避免项目中保留视觉方向不符合预期的备用页面。
+- 保留现有 `docs/index.html` 官网页面和 Windows 直链下载改动。
+- 验证：文件状态检查通过。
+### 2026-06-03 Docs community pet GIF previews
+- Replaced the docs homepage pet ecosystem preview grid with the exported transparent GIF sets for 11 community pets.
+- Added per-pet idle-to-random-action playback so each role starts from idle, then alternates between idle and a random action from its own GIF set.
+- Verification: checked all 11 default GIF references resolve, confirmed each copied pet folder contains 10 transparent GIFs, and reviewed the inserted playback script. Browser automation was unavailable because Playwright is not installed in this environment.
+
+### 2026-06-03 Docs qiyi pet preview insertion
+- Added the qiyi transparent GIF set to the docs homepage community pet preview assets and placed qiyi as the first preview card.
+- Verification: checked 12 pet slugs, 108 per-action GIF references, and `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs community pet action trim
+- Limited the docs homepage community pet random preview loop to idle, running-right, running-left, waving, and failed actions.
+- Removed unused community-pet GIF files for jumping, review, running, waiting, and full-preview from each role folder.
+- Verification: checked 12 pet slugs, 60 remaining allowed GIF references, zero deleted-action GIFs remaining, and `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs Windows download auto-resolution
+- Replaced hard-coded Windows installer download filenames with a latest-release API lookup that finds the current x64 setup `.exe` asset and updates all Windows download buttons.
+- Kept the latest release page as a no-JavaScript fallback so future versioned asset names do not require code changes.
+- Verification: confirmed the old `LingoPet-windows-x64-setup.exe` string is gone, GitHub API resolves the current asset as `LingoPet_0.2.0_x64-setup.exe`, and `git diff --check` passes for the touched docs file.
+
+### 2026-06-03 Docs Windows and macOS download channels
+- Added separate Windows and macOS download buttons to the docs homepage hero and download sections.
+- Extended latest-release asset resolution to update Windows buttons to the current x64 setup `.exe` and macOS buttons to the current x64 `.dmg`.
+- Verification: checked download markers, confirmed GitHub API resolves Windows as `LingoPet_0.2.0_x64-setup.exe` and macOS as `LingoPet_0.2.0_x64.dmg`, and ran `git diff --check` for the touched docs file.
+
+### 2026-06-03 Docs feature matrix layout update
+- Moved timer task and todo reminder into compact one-sentence cards alongside focus mode and rhythm mode.
+- Replaced the left-side feature space with control-panel and settings descriptions covering pet management, multi-pet recall, behavior frequency, bubble skins, and sizing.
+- Verification: checked the new feature labels are present, old input-example blocks are gone from the feature matrix, and `git diff --check` passes for the touched docs file.
+
+### 2026-06-03 Docs feature matrix image cards
+- Removed the file-drag recycle-bin card from the docs feature matrix.
+- Split the left feature area into two half-width image cards for pet recall/multi-pet online and behavior/appearance settings.
+- Verification: confirmed the recycle-bin card is gone, both new image assets resolve, and `git diff --check` passes for the touched docs files.
+
+### 2026-06-03 Docs feature matrix card pruning
+- Removed the standalone GitHub commit interaction and autostart feature cards from the docs feature matrix.
+- Expanded pet recall/multi-pet online and behavior/appearance settings into two half-width image cards across the feature grid.
+- Verification: confirmed the removed card titles are gone, the two feature image references resolve, and `git diff --check` passes for the touched docs file.
+
+### 2026-06-03 Docs feature matrix layout refinement
+- Reworked the docs feature matrix into a two-card top row, a 2x2 middle grid for timer task, todo reminder, focus mode, and rhythm mode, and a right-aligned merit mode block below behavior setup.
+- Switched the recall and settings screenshots from `object-cover` to contained image rendering so the lower content of each card stays fully visible.
+- Verification: reviewed the updated `#features` section structure in `docs/index.html` and confirmed the new layout and image sizing classes are present.
+
+### 2026-06-03 Docs feature matrix lower placement
+- Split the lower feature matrix into left and right groups so timer task and todo reminder stay on the left, focus mode and rhythm mode sit on the right, and merit mode follows directly below the right group.
+- Fixed the feature matrix heading closing tag while adjusting the same section.
+- Verification: reviewed the updated `#features` layout structure in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs feature matrix height alignment
+- Made the lower feature matrix columns stretch to equal height so the left four-card grid aligns with the right merit mode card.
+- Split the left four-card grid into two equal rows on large screens, keeping each module evenly distributed within the shared height.
+- Verification: checked the updated layout classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs feature matrix height alignment restore
+- Restored the lower feature matrix height alignment after the local layout code was overwritten.
+- Reapplied the equal-height column stretch and two-row left grid classes without changing the card content.
+- Verification: checked the restored layout classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs FAQ width alignment
+- Removed the inner `max-w-3xl` constraint from the FAQ section so the question cards align with the page shell width used by the sections above.
+- Left-aligned the FAQ heading with the same section rhythm as the surrounding homepage blocks.
+- Verification: checked the FAQ container classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs feature mode English labels
+- Added English eyebrow labels to the focus mode and rhythm mode cards so they match the timer task and todo reminder card style.
+- Verification: checked the new `Focus Mode` and `Rhythm Mode` labels in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs FAQ visual hierarchy
+- Strengthened FAQ title rows with a custom mint caret, open-state divider, and clearer open-card border/background treatment.
+- Styled FAQ body links with mint color, heavier weight, underline, and hover feedback so `LingoPet Sprite Studio` reads as an obvious hyperlink.
+- Verification: checked the scoped FAQ CSS in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-03 Docs hero title wrapping
+- Reduced the desktop hero title size slightly and kept the gradient phrase on one line so the final character no longer wraps by itself.
+- Verification: checked the updated hero title classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-04 Docs footer copyright centering
+- Reworked the docs footer into a three-column layout so the copyright text stays centered while the GitHub and back-to-top links remain right-aligned.
+- Verification: checked the footer layout classes in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-04 Docs merit preview saturation tuning
+- Reduced the saturation, brightness, and contrast of the merit mode preview artwork in the docs feature matrix.
+- Softened the gold reward bubble, glow, border, and reward-pill colors so the merit block better matches the surrounding dark glass UI.
+- Verification: checked the updated merit preview CSS in `docs/index.html` and ran `git diff --check` for the touched docs files.
+
+### 2026-06-04 GitHub account rename and docs SEO
+- Updated active GitHub repository and workshop endpoints from `ZhangYiLong416` to `dev-zyl`.
+- Added docs homepage SEO metadata including keywords, robots, author, canonical URL, Open Graph fields, and Twitter card fields.
+- Verification: checked active code paths for old account references and ran `git diff --check` for the touched files.

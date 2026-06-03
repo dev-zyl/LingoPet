@@ -1,228 +1,510 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>灵动宠物 LingoPet</title>
-  </head>
-  <body>
-    <svg width="0" height="0" style="position: absolute;">
-      <filter id="remove-fringe" color-interpolation-filters="sRGB">
-        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="original-alpha"/>
-        <feMorphology in="original-alpha" operator="erode" radius="1.5" result="eroded-alpha"/>
-        <feGaussianBlur in="eroded-alpha" stdDeviation="0.5" result="blurred-alpha"/>
-        <feColorMatrix in="blurred-alpha" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 10 -5" result="final-alpha"/>
-        <feComposite in="SourceGraphic" in2="final-alpha" operator="in"/>
-      </filter>
-    </svg>
-    <div id="pet-container">
-      <div id="pet-speech-bubble"><span class="bubble-text"></span></div>
-      <div id="pet-visual">
-        <div id="pet-sprite"></div>
-      </div>
-      <div id="merit-woodfish" aria-hidden="true">
-        <div class="woodfish-body"></div>
-        <div class="woodfish-mallet"></div>
-      </div>
-      <div id="pet-hitbox"></div>
-    </div>
-    <div id="pet-context-menu" class="pet-context-menu" aria-hidden="true">
-      <button id="context-manager" class="context-menu-item" type="button">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M4 7h7M15 7h5M4 17h3M11 17h9"/><circle cx="13" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
-        </span>
-        <span>桌宠管理</span>
-      </button>
-      <button id="context-reminder" class="context-menu-item" type="button">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M6.5 10a5.5 5.5 0 0 1 11 0c0 4.8 2.2 5.4 2.2 5.4H4.3S6.5 14.8 6.5 10Z"/><path d="M10 18a2.2 2.2 0 0 0 4 0M8 4.6 6.2 3.2M16 4.6l1.8-1.4"/></svg>
-        </span>
-        <span>定时提醒</span>
-      </button>
-      <button id="context-todo" class="context-menu-item" type="button">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M9 5h6M9 3h6v4H9z"/><path d="M7 5H5v16h14V5h-2"/><path d="m8 13 2.2 2.2L16 9.5"/></svg>
-        </span>
-        <span>待办任务</span>
-      </button>
-      <button id="context-focus" class="context-menu-item" type="button">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><path d="M12 13V9M12 13l3 2M9 3h6M12 3v3"/></svg>
-        </span>
-        <span>专注模式</span>
-      </button>
-      <button id="context-merit" class="context-menu-item" type="button">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M4.5 15c.6-3.4 3.8-5.7 7.5-5.7s6.9 2.3 7.5 5.7"/><path d="M4.5 15h15v2.2c0 1.5-3.4 2.8-7.5 2.8s-7.5-1.3-7.5-2.8Z"/><path d="m15.8 5.2 4.1 3.3M18.7 4l-4.1 5.1"/></svg>
-        </span>
-        <span>功德模式</span>
-      </button>
-      <button id="context-music" class="context-menu-item" type="button" aria-pressed="false">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M9 18V7l9-2v11"/><path d="M9 7l9-2"/><ellipse cx="6.5" cy="18.5" rx="2.5" ry="1.8"/><ellipse cx="15.5" cy="16.5" rx="2.5" ry="1.8"/></svg>
-        </span>
-        <span>音乐律动</span>
-      </button>
-      <button id="context-recall" class="context-menu-item" type="button">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5"/><path d="M5 12h9a5 5 0 0 1 5 5"/></svg>
-        </span>
-        <span>宠物召回</span>
-      </button>
-      <button id="context-quit" class="context-menu-item danger" type="button">
-        <span class="context-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M7 6.8a8 8 0 1 0 10 0"/></svg>
-        </span>
-        <span>退出应用</span>
-      </button>
-    </div>
-    <script type="module" src="./pet.ts"></script>
-    <div id="volume-panel" style="display: none;">
-      <span class="volume-icon">Vol</span>
-      <input type="range" id="volume-slider" min="0" max="100" value="60">
-      <span id="volume-text">60</span>
-    </div>
-    <div id="size-panel" style="display: none;">
-      <div class="size-panel-header">
-        <span class="size-icon">尺寸</span>
-        <span id="size-text">60% · 115 x 154px</span>
-      </div>
-      <div class="size-panel-controls">
-        <input type="range" id="size-slider" min="35" max="140" value="60">
-        <label class="size-input-wrap">
-          <input type="number" id="size-input" min="35" max="140" value="60">
-          <span>%</span>
-        </label>
-      </div>
-    </div>
-    <div id="focus-panel" style="display: none;">
-      <div class="focus-panel-top">
-        <div>
-          <div class="focus-panel-title">专注小屋</div>
-          <div id="focus-state-label">准备开始</div>
-        </div>
-        <div class="focus-orbit" aria-hidden="true"></div>
-      </div>
 
-      <div class="focus-timer-card">
-        <div id="focus-status-text">25:00</div>
-        <div class="focus-progress-track" aria-hidden="true">
-          <div id="focus-progress-bar"></div>
-        </div>
-      </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>灵动宠物 LingoPet</title>
+</head>
 
-      <div class="focus-preset-row" aria-label="专注时长预设">
-        <button class="focus-preset active" type="button" data-focus-minutes="25">25</button>
-        <button class="focus-preset" type="button" data-focus-minutes="45">45</button>
-        <button class="focus-preset" type="button" data-focus-minutes="60">60</button>
+<body>
+  <svg width="0" height="0" style="position: absolute;">
+    <filter id="remove-fringe" color-interpolation-filters="sRGB">
+      <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
+        result="original-alpha" />
+      <feMorphology in="original-alpha" operator="erode" radius="1.5" result="eroded-alpha" />
+      <feGaussianBlur in="eroded-alpha" stdDeviation="0.5" result="blurred-alpha" />
+      <feColorMatrix in="blurred-alpha" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 10 -5"
+        result="final-alpha" />
+      <feComposite in="SourceGraphic" in2="final-alpha" operator="in" />
+    </filter>
+  </svg>
+  <div id="pet-container">
+    <div id="pet-speech-bubble"><span class="bubble-text"></span></div>
+    <div id="pet-visual">
+      <div id="pet-sprite"></div>
+    </div>
+    <div id="merit-woodfish" aria-hidden="true">
+      <div class="woodfish-body"></div>
+      <div class="woodfish-mallet"></div>
+    </div>
+    <div id="pet-hitbox"></div>
+  </div>
+  <div id="pet-context-menu" class="pet-context-menu" aria-hidden="true">
+    <button id="context-manager" class="context-menu-item" type="button">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M4 7h7M15 7h5M4 17h3M11 17h9" />
+          <circle cx="13" cy="7" r="2" />
+          <circle cx="9" cy="17" r="2" />
+        </svg>
+      </span>
+      <span>桌宠管理</span>
+    </button>
+    <button id="context-reminder" class="context-menu-item" type="button">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M6.5 10a5.5 5.5 0 0 1 11 0c0 4.8 2.2 5.4 2.2 5.4H4.3S6.5 14.8 6.5 10Z" />
+          <path d="M10 18a2.2 2.2 0 0 0 4 0M8 4.6 6.2 3.2M16 4.6l1.8-1.4" />
+        </svg>
+      </span>
+      <span>定时提醒</span>
+    </button>
+    <button id="context-todo" class="context-menu-item" type="button">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M9 5h6M9 3h6v4H9z" />
+          <path d="M7 5H5v16h14V5h-2" />
+          <path d="m8 13 2.2 2.2L16 9.5" />
+        </svg>
+      </span>
+      <span>待办任务</span>
+    </button>
+    <button id="context-focus" class="context-menu-item" type="button">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="13" r="7" />
+          <path d="M12 13V9M12 13l3 2M9 3h6M12 3v3" />
+        </svg>
+      </span>
+      <span>专注模式</span>
+    </button>
+    <button id="context-merit" class="context-menu-item" type="button">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M4.5 15c.6-3.4 3.8-5.7 7.5-5.7s6.9 2.3 7.5 5.7" />
+          <path d="M4.5 15h15v2.2c0 1.5-3.4 2.8-7.5 2.8s-7.5-1.3-7.5-2.8Z" />
+          <path d="m15.8 5.2 4.1 3.3M18.7 4l-4.1 5.1" />
+        </svg>
+      </span>
+      <span>功德模式</span>
+    </button>
+    <button id="context-music" class="context-menu-item" type="button" aria-pressed="false">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M9 18V7l9-2v11" />
+          <path d="M9 7l9-2" />
+          <ellipse cx="6.5" cy="18.5" rx="2.5" ry="1.8" />
+          <ellipse cx="15.5" cy="16.5" rx="2.5" ry="1.8" />
+        </svg>
+      </span>
+      <span>音乐律动</span>
+    </button>
+    <button id="context-recall" class="context-menu-item" type="button">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M9 7 4 12l5 5" />
+          <path d="M5 12h9a5 5 0 0 1 5 5" />
+        </svg>
+      </span>
+      <span>宠物召回</span>
+    </button>
+    <button id="context-quit" class="context-menu-item danger" type="button">
+      <span class="context-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 3v9" />
+          <path d="M7 6.8a8 8 0 1 0 10 0" />
+        </svg>
+      </span>
+      <span>退出应用</span>
+    </button>
+  </div>
+  <script type="module" src="./pet.ts"></script>
+  <div id="volume-panel" style="display: none;">
+    <span class="volume-icon">Vol</span>
+    <input type="range" id="volume-slider" min="0" max="100" value="60">
+    <span id="volume-text">60</span>
+  </div>
+  <div id="size-panel" style="display: none;">
+    <div class="size-panel-header">
+      <span class="size-icon">尺寸</span>
+      <span id="size-text">60% · 115 x 154px</span>
+    </div>
+    <div class="size-panel-controls">
+      <input type="range" id="size-slider" min="35" max="140" value="60">
+      <label class="size-input-wrap">
+        <input type="number" id="size-input" min="35" max="140" value="60">
+        <span>%</span>
+      </label>
+    </div>
+  </div>
+  <div id="focus-panel" style="display: none;">
+    <div class="focus-panel-top">
+      <div>
+        <div class="focus-panel-title">专注小屋</div>
+        <div id="focus-state-label">准备开始</div>
       </div>
+      <div class="focus-orbit" aria-hidden="true"></div>
+    </div>
 
-      <div class="focus-input-row">
-        <label class="focus-input-wrap">
-          <input type="number" id="focus-minutes-input" min="1" max="240" value="25">
-          <span>分钟</span>
-        </label>
-      </div>
-
-      <div class="focus-action-row">
-        <button id="focus-start" type="button">开始专注</button>
-        <button id="focus-stop" type="button">STOP</button>
+    <div class="focus-timer-card">
+      <div id="focus-status-text">25:00</div>
+      <div class="focus-progress-track" aria-hidden="true">
+        <div id="focus-progress-bar"></div>
       </div>
     </div>
-    <div id="merit-panel" style="display: none;">
-      <div class="merit-panel-top">
+
+    <div class="focus-preset-row" aria-label="专注时长预设">
+      <button class="focus-preset active" type="button" data-focus-minutes="25">25</button>
+      <button class="focus-preset" type="button" data-focus-minutes="45">45</button>
+      <button class="focus-preset" type="button" data-focus-minutes="60">60</button>
+    </div>
+
+    <div class="focus-input-row">
+      <label class="focus-input-wrap">
+        <input type="number" id="focus-minutes-input" min="1" max="240" value="25">
+        <span>分钟</span>
+      </label>
+    </div>
+
+    <div class="focus-action-row">
+      <button id="focus-start" type="button">开始专注</button>
+      <button id="focus-stop" type="button">STOP</button>
+    </div>
+  </div>
+  <div id="merit-panel" style="display: none;">
+    <!-- 面板头部 -->
+    <div class="merit-panel-header">
+      <div class="merit-header-title-box">
+        <svg class="merit-bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
         <div>
           <div class="merit-panel-title">功德模式</div>
-          <div id="merit-state-label">准备敲木鱼</div>
+          <div class="merit-panel-subtitle">静心敲击木鱼，积累功德福报</div>
         </div>
-        <div class="merit-mini-woodfish" aria-hidden="true"></div>
       </div>
-      <div class="merit-count-card">
-        <div class="merit-count-line merit-count-total">
-          <span>累计</span>
+      <div class="merit-header-actions">
+        <button id="merit-history-btn" class="merit-text-btn" type="button">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          历史记录
+        </button>
+        <button id="merit-close-btn" class="merit-close-x" type="button" aria-label="关闭">×</button>
+      </div>
+    </div>
+
+    <!-- 核心展示与配置分栏 -->
+    <div class="merit-main-columns">
+      <!-- 左侧：动态图与自定文字图片 -->
+      <div class="merit-left-area">
+        <img class="merit-bg-layer" src="../assets/ui/gongde-banner-4.png" alt="" />
+        <div class="merit-text-layer">
+          <div class="merit-banner-left">
+            <img src="../assets/ui/gongde-banner-1-left.png" alt="左对联" />
+          </div>
+          <div class="merit-banner-right">
+            <img src="../assets/ui/gongde-banner-1-right.png" alt="右对联" />
+          </div>
+          <div class="merit-fu-img-box">
+            <img src="../assets/ui/gongde-banner-1-fu.png" alt="福" />
+          </div>
+        </div>
+        <div class="merit-pet-image-box">
+          <div id="merit-panel-pet-visual"></div>
+          <!-- 用于在面板内产生飘字的容器 -->
+          <div id="merit-panel-floating-container"></div>
+        </div>
+      </div>
+
+      <!-- 右侧：当前功德与数值配置 -->
+      <div class="merit-right-area">
+        <div class="merit-current-card">
+          <div class="merit-current-label">
+            <svg class="decorative-star" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L15 9l7 3-7 3-3 7-3-7-7-3 7-3z" />
+            </svg>
+            当前功德
+            <svg class="decorative-star" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L15 9l7 3-7 3-3 7-3-7-7-3 7-3z" />
+            </svg>
+          </div>
+          <div class="merit-big-display-box">
+            <div id="merit-big-number" class="merit-gold-number">-1</div>
+          </div>
+          <!-- 自定义飘字词汇输入 -->
+          <div class="merit-custom-input-card">
+            <span class="input-label">自定义词汇：</span>
+            <input type="text" id="merit-text-input" maxlength="12" value="脂肪" spellcheck="false" autocomplete="off"
+              placeholder="如：功德、好运">
+            <svg class="edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div class="merit-value-list-container">
+          <div id="merit-value-list" class="merit-value-list">
+            <!-- 由 TS 生成列表项 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 三大统计数据卡片统一条 -->
+    <div class="merit-stats-bar">
+      <div class="merit-stat-col">
+        <div class="stat-col-header">累计功德</div>
+        <div class="stat-col-val">
+          <svg class="stat-icon lotus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2s-3 8-3 12c0 2.2 1.3 4 3 4s3-1.8 3-4c0-4-3-12-3-12z" />
+            <path d="M12 18c-3.3 0-6-1.5-6-3 0-3 5-8 5-8s-2 6-2 8c0 1 1 2 3 2z" />
+            <path d="M12 18c3.3 0 6-1.5 6-3 0-3-5-8-5-8s2 6 2 8c0 1-1 2-3 2z" />
+          </svg>
           <strong id="merit-total-count-text">0</strong>
-          <span>次</span>
         </div>
-        <div class="merit-count-line merit-count-today">
-          <span>今日</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="merit-stat-col">
+        <div class="stat-col-header">今日功德</div>
+        <div class="stat-col-val">
+          <svg class="stat-icon calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
           <strong id="merit-today-count-text">0</strong>
-          <span>次</span>
         </div>
       </div>
-      <label class="merit-input-wrap">
-        <input type="text" id="merit-text-input" maxlength="12" value="功德" spellcheck="false" autocomplete="off">
-        <span>+1</span>
-      </label>
-      <div class="merit-action-row">
-        <button id="merit-start" type="button">开始</button>
-        <button id="merit-stop" type="button">停止</button>
+      <div class="stat-divider"></div>
+      <div class="merit-stat-col">
+        <div class="stat-col-header">连续天数</div>
+        <div class="stat-col-val">
+          <svg class="stat-icon fire-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+          </svg>
+          <strong id="merit-streak-count-text">0 天</strong>
+        </div>
       </div>
     </div>
-    <div id="api-settings-panel" style="display: none;">
-      <div class="api-settings-title">API 节点设置</div>
-      <div class="api-settings-field">
-        <input type="text" id="api-endpoint" placeholder="Endpoint" spellcheck="false" autocomplete="off">
+
+    <!-- 控制与频率调节区 -->
+    <div class="merit-control-row">
+      <!-- 频率滑动箱 -->
+      <div class="merit-freq-box">
+        <div class="freq-title-row">
+          <span>敲击频率 <span class="freq-info-tip" title="调整自动敲击的速度">ⓘ</span></span>
+          <span class="freq-title-val" id="merit-freq-text">1.3 次/秒</span>
+        </div>
+        <div class="freq-slider-row">
+          <button id="merit-freq-dec" class="freq-adjust-btn" type="button">-</button>
+          <div class="slider-wrapper">
+            <input type="range" id="merit-freq-slider" min="0.3" max="5.0" step="0.1" value="1.0">
+          </div>
+          <button id="merit-freq-inc" class="freq-adjust-btn" type="button">+</button>
+        </div>
+        <div class="freq-quick-presets">
+          <button class="freq-preset-btn" data-val="0.5" type="button">0.5次</button>
+          <button class="freq-preset-btn active" data-val="1.0" type="button">1次</button>
+          <button class="freq-preset-btn" data-val="2.0" type="button">2次</button>
+          <button class="freq-preset-btn" data-val="3.0" type="button">3次</button>
+          <button class="freq-preset-btn" data-val="5.0" type="button">5次</button>
+        </div>
       </div>
-      <div class="api-settings-field">
-        <input type="password" id="api-key" placeholder="Key" spellcheck="false" autocomplete="off">
-      </div>
-      <div class="api-settings-field">
-        <input type="text" id="api-model" placeholder="Model" spellcheck="false" autocomplete="off">
-      </div>
-      <div class="api-settings-actions">
-        <button id="api-settings-cancel" class="btn-cancel">取消</button>
-        <button id="api-settings-save" class="btn-save">保存</button>
+
+      <!-- 运行状态与大按钮 -->
+      <div class="merit-status-box">
+        <div class="status-indicator-row">
+          <span>运行状态</span>
+          <div class="status-light-wrap">
+            <span id="merit-status-dot" class="status-dot"></span>
+            <span id="merit-status-label-text" class="status-text">未开始</span>
+          </div>
+        </div>
+        <button id="merit-action-btn" class="merit-action-glow-btn" type="button">
+          <div class="btn-primary-text">
+            <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 3l14 9-14 9V3z" />
+            </svg>
+            <span id="merit-action-text-span">开始敲击</span>
+          </div>
+          <div class="btn-sub-text" id="merit-action-sub-text-span">开始积累功德</div>
+        </button>
       </div>
     </div>
-    <div id="custom-persona-panel" style="display: none;">
-      <div class="api-settings-title">自定义性格设定</div>
-      <div class="api-settings-field">
-        <textarea id="custom-persona-text" rows="5" placeholder="设定它的语气、身份或习惯（如：你是一个傲娇秘书，喜欢说口头禅...）" spellcheck="false"></textarea>
+
+    <!-- 今日功德成就区 -->
+    <div class="merit-achievements-header">
+      <span>今日功德成就</span>
+      <button id="merit-more-achievements-btn" class="merit-more-link" type="button">更多成就 &gt;</button>
+    </div>
+    <div class="merit-achievements-grid">
+      <div id="badge-level1" class="achievement-badge card-level1">
+        <div class="badge-icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2a4 4 0 0 0-4 4v1h8V6a4 4 0 0 0-4-4z" />
+            <path d="M4 11v9h16v-9a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4z" />
+          </svg>
+        </div>
+        <div class="badge-info">
+          <div class="badge-name">初入佛门</div>
+          <div class="badge-desc">今日达成 100</div>
+        </div>
+        <div class="achievement-stamp">已达成</div>
       </div>
-      <div class="api-settings-actions">
-        <button id="persona-settings-cancel" class="btn-cancel">取消</button>
-        <button id="persona-settings-save" class="btn-save">保存</button>
+
+      <div id="badge-level2" class="achievement-badge card-level2">
+        <div class="badge-icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2L15 9l7 3-7 3-3 7-3-7-7-3 7-3z" />
+          </svg>
+        </div>
+        <div class="badge-info">
+          <div class="badge-name">心诚则灵</div>
+          <div class="badge-desc">今日达成 500</div>
+        </div>
+        <div class="achievement-stamp">已达成</div>
+      </div>
+
+      <div id="badge-level3" class="achievement-badge card-level3">
+        <div class="badge-icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 22h20" />
+            <path d="M12 2l4 10h-8z" />
+            <path d="M12 12v10" />
+          </svg>
+        </div>
+        <div class="badge-info">
+          <div class="badge-name">功德圆满</div>
+          <div class="badge-desc">今日达成 1000</div>
+        </div>
+        <div class="achievement-stamp">已达成</div>
       </div>
     </div>
-    <div id="github-settings-panel" style="display: none;">
-      <div class="api-settings-title">GitHub 绿点监控</div>
-      <div class="api-settings-field">
-        <label>关联账号</label>
-        <input type="text" id="github-username-input" placeholder="仅输入 GitHub 用户名即可" spellcheck="false" autocomplete="off">
+
+    <!-- 历史记录侧滑抽屉 -->
+    <div id="merit-history-drawer" class="merit-side-drawer">
+      <div class="drawer-header">
+        <span class="drawer-title">📜 历史日历记录</span>
+        <button id="close-history-drawer-btn" class="drawer-close-btn" type="button">×</button>
       </div>
-      <div class="api-settings-actions">
-        <button id="github-settings-cancel" class="btn-cancel">取消</button>
-        <button id="github-settings-test" class="btn-test">测试</button>
-        <button id="github-settings-save" class="btn-save">跟踪</button>
+      <div class="drawer-body">
+        <div id="merit-history-list" class="drawer-list">
+          <!-- 动态渲染历史纪录 -->
+        </div>
+      </div>
+      <div class="drawer-footer">
+        <button id="clear-merit-history-btn" class="drawer-clear-btn" type="button">🧹 清空所有记录</button>
       </div>
     </div>
-    <div id="todo-panel" style="display: none;">
-      <div class="todo-panel-title">TODO TASKS</div>
-      <div class="todo-input-row">
-        <input type="text" id="todo-input" placeholder="输入待办任务" spellcheck="false" autocomplete="off">
-        <button id="todo-submit">添加</button>
+
+    <!-- 更多历史成就（暂未开放）侧滑抽屉 -->
+    <div id="merit-achievements-drawer" class="merit-side-drawer">
+      <div class="drawer-header">
+        <span class="drawer-title">🏆 更多历史成就</span>
+        <button id="close-achievements-drawer-btn" class="drawer-close-btn" type="button">×</button>
       </div>
-      <div id="todo-list"></div>
+      <div class="drawer-body drawer-achievements-body">
+        <div class="locked-achievements-tip">
+          <span class="tip-icon">🔒</span>
+          <div class="tip-title">历史成就系统暂未开放</div>
+          <div class="tip-desc">累计功德和历史勋章统计功能正在筹备中，敬请期待！</div>
+        </div>
+        <div class="drawer-list locked-list">
+          <div class="achievement-locked-item">
+            <div class="locked-icon">🛡️</div>
+            <div class="locked-info">
+              <div class="locked-name">功德无量 (累计 10,000)</div>
+              <div class="locked-status">未开放</div>
+            </div>
+          </div>
+          <div class="achievement-locked-item">
+            <div class="locked-icon">🔥</div>
+            <div class="locked-info">
+              <div class="locked-name">禅定大师 (连续 30 天)</div>
+              <div class="locked-status">未开放</div>
+            </div>
+          </div>
+          <div class="achievement-locked-item">
+            <div class="locked-icon">💎</div>
+            <div class="locked-info">
+              <div class="locked-name">木鱼狂人 (单日 5,000)</div>
+              <div class="locked-status">未开放</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div id="reminder-panel" style="display: none;">
-      <div class="todo-panel-title">TIMER REMINDER</div>
-      <div class="todo-input-row">
-        <input type="text" id="reminder-input" placeholder="提醒内容，例如：喝水" spellcheck="false" autocomplete="off">
-      </div>
-      <div class="reminder-options-row">
-        <input type="number" id="reminder-delay" min="1" value="10" aria-label="提醒间隔">
-        <select id="reminder-unit" aria-label="时间单位">
-          <option value="seconds">秒后</option>
-          <option value="minutes" selected>分钟后</option>
-          <option value="hours">小时后</option>
-        </select>
-        <select id="reminder-repeat" aria-label="提醒频率">
-          <option value="once">单次</option>
-          <option value="repeat">循环</option>
-        </select>
-        <button id="reminder-submit">设置</button>
-      </div>
-      <div id="reminder-list"></div>
+  </div>
+  <div id="api-settings-panel" style="display: none;">
+    <div class="api-settings-title">API 节点设置</div>
+    <div class="api-settings-field">
+      <input type="text" id="api-endpoint" placeholder="Endpoint" spellcheck="false" autocomplete="off">
     </div>
-  </body>
+    <div class="api-settings-field">
+      <input type="password" id="api-key" placeholder="Key" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="api-settings-field">
+      <input type="text" id="api-model" placeholder="Model" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="api-settings-actions">
+      <button id="api-settings-cancel" class="btn-cancel">取消</button>
+      <button id="api-settings-save" class="btn-save">保存</button>
+    </div>
+  </div>
+  <div id="custom-persona-panel" style="display: none;">
+    <div class="api-settings-title">自定义性格设定</div>
+    <div class="api-settings-field">
+      <textarea id="custom-persona-text" rows="5" placeholder="设定它的语气、身份或习惯（如：你是一个傲娇秘书，喜欢说口头禅...）"
+        spellcheck="false"></textarea>
+    </div>
+    <div class="api-settings-actions">
+      <button id="persona-settings-cancel" class="btn-cancel">取消</button>
+      <button id="persona-settings-save" class="btn-save">保存</button>
+    </div>
+  </div>
+  <div id="github-settings-panel" style="display: none;">
+    <div class="api-settings-title">GitHub 绿点监控</div>
+    <div class="api-settings-field">
+      <label>关联账号</label>
+      <input type="text" id="github-username-input" placeholder="仅输入 GitHub 用户名即可" spellcheck="false"
+        autocomplete="off">
+    </div>
+    <div class="api-settings-actions">
+      <button id="github-settings-cancel" class="btn-cancel">取消</button>
+      <button id="github-settings-test" class="btn-test">测试</button>
+      <button id="github-settings-save" class="btn-save">跟踪</button>
+    </div>
+  </div>
+  <div id="todo-panel" style="display: none;">
+    <div class="todo-panel-title">TODO TASKS</div>
+    <div class="todo-input-row">
+      <input type="text" id="todo-input" placeholder="输入待办任务" spellcheck="false" autocomplete="off">
+      <button id="todo-submit">添加</button>
+    </div>
+    <div id="todo-list"></div>
+  </div>
+  <div id="reminder-panel" style="display: none;">
+    <div class="todo-panel-title">TIMER REMINDER</div>
+    <div class="todo-input-row">
+      <input type="text" id="reminder-input" placeholder="提醒内容，例如：喝水" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="reminder-options-row">
+      <input type="number" id="reminder-delay" min="1" value="10" aria-label="提醒间隔">
+      <select id="reminder-unit" aria-label="时间单位">
+        <option value="seconds">秒后</option>
+        <option value="minutes" selected>分钟后</option>
+        <option value="hours">小时后</option>
+      </select>
+      <select id="reminder-repeat" aria-label="提醒频率">
+        <option value="once">单次</option>
+        <option value="repeat">循环</option>
+      </select>
+      <button id="reminder-submit">设置</button>
+    </div>
+    <div id="reminder-list"></div>
+  </div>
+</body>
+
 </html>

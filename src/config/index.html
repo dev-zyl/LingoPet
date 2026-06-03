@@ -14,7 +14,7 @@
       <div class="brand">
         <img class="brand-icon" src="./app-icon.png" alt="" width="44" height="44" />
         <div>
-          <h1>灵动桌宠</h1>
+          <h1>灵动宠物</h1>
           <p>LingoPet</p>
         </div>
       </div>
@@ -233,13 +233,20 @@
                 <button class="secondary-button mode-action-preset" data-action-key="focus" type="button">专注模式</button>
                 <button class="secondary-button mode-action-preset" data-action-key="music" type="button">音乐律动</button>
               </div>
+              <div class="action-strip-import-tools">
+                <label class="action-strip-frame-count-field" for="action-strip-frame-count">
+                  <span>帧数</span>
+                  <input id="action-strip-frame-count" type="number" min="1" max="8" step="1" inputmode="numeric" placeholder="自动" title="留空则自动识别帧数；输入数字可手动指定帧数" />
+                </label>
+                <button id="action-strip-import-btn" class="secondary-button" type="button">导入横版图</button>
+              </div>
+              <small class="action-strip-help">粘贴或导入时会优先按这里的帧数拆分；留空则自动识别。</small>
               <input id="action-strip-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
               <button id="action-strip-share-btn" class="primary-button" type="button"
                 style="background-color: #8b5cf6 !important; border-color: #8b5cf6 !important; color: white !important; font-weight: 800; font-size: 14px; padding: 12px; margin-top: 8px;">分享当前动作到社区</button>
 
               <!-- 隐藏的后向兼容辅助元素 -->
               <button id="editor-align-action-btn" type="button" style="display: none !important;"></button>
-              <button id="action-strip-import-btn" type="button" style="display: none !important;"></button>
               <button id="prompt-copy-btn" type="button" style="display: none !important;"></button>
               <textarea id="image-prompt-output" style="display: none !important;"></textarea>
             </div>
@@ -272,8 +279,8 @@
         </div>
         <div class="market-meta">
           <p id="market-status" class="status"></p>
-          <a id="market-home-link" class="market-home-link" href="https://codexpet.1024588.xyz/?style=cartoon"
-            target="_blank" rel="noreferrer">前往官网</a>
+          <a id="market-home-link" class="market-home-link" href="https://codex.lingopet.xyz/?style=cartoon"
+            target="_blank" rel="noreferrer">宠物画廊</a>
         </div>
         <div id="market-grid" class="pet-table"></div>
         <div id="market-pagination" class="pagination"></div>
@@ -332,6 +339,14 @@
               <span class="switch-control"><input id="always-top-toggle" type="checkbox" /><span
                   aria-hidden="true"></span></span>
             </label>
+            <label class="setting-row setting-toggle-row">
+              <span>
+                <strong>重力模式</strong>
+                <small>开启后脚下没有平台会下落；关闭后可固定摆放在桌面任意位置。</small>
+              </span>
+              <span class="switch-control"><input id="gravity-mode-toggle" type="checkbox" /><span
+                  aria-hidden="true"></span></span>
+            </label>
             <div class="setting-row">
               <span>
                 <strong>桌宠模式</strong>
@@ -356,21 +371,21 @@
             </div>
             <div class="setting-row">
               <span>
-                <strong>桌宠活跃度</strong>
-                <small>控制桌宠在桌面上的行动活跃级别。</small>
+                <strong>行为频率</strong>
+                <small>控制桌宠主动走动、跳跃和乱逛的频繁程度。</small>
               </span>
-              <div class="pet-mode-options" role="radiogroup" aria-label="桌宠活跃度">
+              <div class="pet-mode-options" role="radiogroup" aria-label="行为频率">
                 <label class="pet-mode-option">
                   <input type="radio" name="pet-activity-level" value="quiet" />
-                  <span>乖乖宠</span>
+                  <span>安静陪伴</span>
                 </label>
                 <label class="pet-mode-option">
                   <input type="radio" name="pet-activity-level" value="middle" />
-                  <span>中规中矩</span>
+                  <span>自然活动</span>
                 </label>
                 <label class="pet-mode-option">
                   <input type="radio" name="pet-activity-level" value="active" />
-                  <span>满屏乱串</span>
+                  <span>活泼乱逛</span>
                 </label>
               </div>
             </div>
@@ -496,17 +511,17 @@
             </div>
             <div class="setting-row">
               <span>
-                <strong>律动模式选择</strong>
-                <small>控制多只桌宠在音乐律动时是否保持舞步一致。</small>
+                <strong>律动模式</strong>
+                <small>控制多只相同桌宠在音乐律动时是否保持舞步一致。</small>
               </span>
               <div class="pet-mode-options" role="radiogroup" aria-label="音乐律动同步方式">
                 <label class="pet-mode-option">
                   <input type="radio" name="music-rhythm-sync" value="independent" />
-                  <span>不齐舞团</span>
+                  <span>随机</span>
                 </label>
                 <label class="pet-mode-option">
                   <input type="radio" name="music-rhythm-sync" value="aligned" />
-                  <span>整齐划一</span>
+                  <span>同步</span>
                 </label>
               </div>
             </div>

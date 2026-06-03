@@ -3,977 +3,1271 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LingoPet 灵动宠物 - 你的智能桌面伴侣</title>
-  <link rel="icon" type="image/png" href="./app-icon.png">
-  <link rel="apple-touch-icon" href="./app-icon.png">
+  <meta name="description" content="LingoPet 灵动宠物是一款基于 Tauri v2 与 Rust 的轻量桌面宠物应用，支持 AI 对话、专注空间、待办提醒、功德模式、宠物导入与动作编辑。" />
+  <meta name="keywords" content="LingoPet,灵动宠物,AI桌宠,AI桌面宠物,桌面宠物,桌宠软件,Tauri桌宠,Rust桌宠,Codex宠物,Codex Pets,codex pet,桌面助手,宠物助手,专注计时,待办提醒,功德模式,律动模式,宠物社区,桌宠下载,创意工坊" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="dev-zyl" />
+  <link rel="canonical" href="https://github.com/dev-zyl/DesktopPet" />
+  <meta property="og:title" content="LingoPet 灵动宠物 - 会陪你工作的 AI 桌宠" />
+  <meta property="og:description" content="LingoPet 灵动宠物是一款轻量 AI 桌面宠物应用，支持聊天、提醒、专注计时、功德模式、律动模式、宠物导入和创意工坊动作。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://github.com/dev-zyl/DesktopPet" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/dev-zyl/DesktopPet/main/docs/app-icon.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="LingoPet 灵动宠物 - AI 桌宠" />
+  <meta name="twitter:description" content="轻量 AI 桌面宠物应用，支持聊天、提醒、专注计时、功德模式、律动模式和桌宠创意工坊。" />
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/dev-zyl/DesktopPet/main/docs/app-icon.png" />
+  <title>LingoPet 灵动宠物 - 会陪你工作的 AI 桌宠</title>
+  <link rel="icon" type="image/png" href="./app-icon.png" />
+  <link rel="apple-touch-icon" href="./app-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
-            brand: {
-              50:  '#f0fdfa',
-              100: '#ccfbf1',
-              200: '#99f6e4',
-              300: '#5eead4',
-              400: '#2dd4bf',
-              500: '#14b8a6',
-              600: '#0f766e',
-              700: '#0d5d56',
-              800: '#115e59',
-              900: '#134e4a',
-            }
+            ink: '#0a1020',
+            panel: '#111a2e',
+            mint: '#39f5c7',
+            cyan: '#4cc9f0',
+            honey: '#f8c14a',
+            rose: '#ff6b9d'
           },
           fontFamily: {
-            display: ['Fraunces', 'Georgia', 'serif'],
+            sans: ['Noto Sans SC', 'system-ui', 'sans-serif'],
+            display: ['Noto Serif SC', 'serif']
           }
         }
       }
     }
   </script>
   <style>
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    :root {
+      color-scheme: dark;
+      --bg: #08101f;
+      --panel: rgba(15, 25, 47, 0.78);
+      --line: rgba(102, 252, 241, 0.22);
+      --text: #edf7ff;
+      --muted: #9fb0c7;
+      --mint: #39f5c7;
+      --cyan: #4cc9f0;
+      --honey: #f8c14a;
+      --rose: #f6a5c2;
+    }
 
-    /* ---- Body multi-gradient background ---- */
+    * { box-sizing: border-box; }
+
     body {
-      background-color: #f4fbfe;
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 10%, rgba(57, 245, 199, 0.15), transparent 30%),
+        radial-gradient(circle at 88% 22%, rgba(76, 201, 240, 0.08), transparent 34%),
+        linear-gradient(180deg, #08101f 0%, #0a1224 46%, #101423 100%);
+      font-family: "Noto Sans SC", system-ui, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.28;
       background-image:
-        radial-gradient(circle at 0% 0%, rgba(0, 180, 216, 0.18), transparent 35%),
-        radial-gradient(circle at 100% 0%, rgba(118, 200, 147, 0.18), transparent 35%),
-        radial-gradient(circle at 0% 100%, rgba(144, 224, 239, 0.15), transparent 45%),
-        radial-gradient(circle at 100% 100%, rgba(181, 228, 140, 0.15), transparent 40%),
-        linear-gradient(180deg, rgba(202, 240, 248, 0.3) 0%, rgba(255, 255, 255, 0.6) 50%, rgba(217, 237, 146, 0.3) 100%);
-      background-attachment: fixed;
+        linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+      background-size: 54px 54px;
+      mask-image: linear-gradient(to bottom, #000, transparent 88%);
+      z-index: -2;
     }
 
-    @keyframes countUp {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .count-animate { animation: countUp 0.6s ease-out forwards; }
-
-    /* ---- Hero shell ---- */
-    .hero-shell {
-      background: transparent;
-    }
-
-    /* ---- Toplink (nav links) ---- */
-    .toplink {
-      position: relative; padding-bottom: 2px;
-      color: #64748b; transition: color .2s;
-    }
-    .toplink::after {
-      content: ''; position: absolute; left: 0; bottom: 0;
-      width: 0; height: 1.5px; background: #0f766e;
-      transition: width .25s ease;
-    }
-    .toplink:hover { color: #0f766e; }
-    .toplink:hover::after { width: 100%; }
-
-    /* ---- Nav pill buttons ---- */
-    .nav-pill {
-      display: inline-block;
-      padding: 6px 16px;
-      border-radius: 100px;
-      background: rgba(255,255,255,.5);
-      border: 1px solid rgba(226,232,240,.5);
-      box-shadow: 0 1px 2px rgba(0,0,0,.04);
-      color: #64748b;
-      transition: all .2s ease;
-    }
-    .nav-pill:hover {
-      background: #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,.06);
-      color: #0f766e;
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.09;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E");
+      z-index: -1;
     }
 
-    /* ---- Buttons ---- */
-    .button-primary {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 14px 28px;
-      background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
-      color: #fff; font-weight: 600; font-size: .95rem;
-      border-radius: 14px;
-      box-shadow: 0 4px 14px rgba(15,118,110,.25);
-      transition: all .25s ease;
-    }
-    .button-primary:hover {
-      box-shadow: 0 6px 20px rgba(15,118,110,.35);
-      transform: translateY(-1px);
+    ::selection { background: rgba(57, 245, 199, 0.35); }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #080e1a; }
+    ::-webkit-scrollbar-thumb { background: rgba(76, 201, 240, 0.45); border-radius: 999px; }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin-inline: auto;
     }
 
-    .button-secondary {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 14px 28px;
-      background: #fff; color: #334155; font-weight: 600; font-size: .95rem;
-      border: 1.5px solid #e2e8f0; border-radius: 14px;
-      transition: all .25s ease;
-    }
-    .button-secondary:hover {
-      border-color: #94a3b8; background: #f8fafc;
-      transform: translateY(-1px);
+    .glass {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: linear-gradient(145deg, rgba(19, 30, 54, 0.82), rgba(11, 17, 32, 0.62));
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
     }
 
-    /* ---- Screen shell ---- */
-    .screen-shell {
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 10px 10px 0 10px;
-      box-shadow: 0 25px 60px rgba(0,0,0,.12), 0 8px 20px rgba(0,0,0,.08);
+    .nav-link {
       position: relative;
-    }
-    .screen-dots {
-      display: flex; gap: 6px; margin-bottom: 10px; padding-left: 4px;
-    }
-    .screen-dots span {
-      width: 10px; height: 10px; border-radius: 50%;
-    }
-
-    /* ---- Float notes ---- */
-    .float-note {
-      position: absolute;
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 10px 16px;
-      box-shadow: 0 4px 16px rgba(0,0,0,.06);
-      font-size: .8rem;
-      white-space: nowrap;
-      z-index: 10;
-    }
-    .float-note strong {
-      display: block;
-      font-size: .75rem;
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 14px;
+      color: #b9c7dc;
+      font-size: 14px;
       font-weight: 700;
-      color: #0f766e;
-      margin-bottom: 2px;
+      transition: color 180ms ease, background 180ms ease;
     }
-    .float-note span {
-      color: #64748b;
-      font-size: .72rem;
-    }
-
-    /* ---- Stat card ---- */
-    .stat-card {
-      background: rgba(255,255,255,0.6);
-      border: 1px solid rgba(255,255,255,0.6);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-radius: 10px;
-      padding: 10px 8px;
-      text-align: center;
-      transition: all .25s ease;
-    }
-    .stat-card:hover {
-      border-color: #99f6e4;
-      box-shadow: 0 4px 16px rgba(20,184,166,.08);
-    }
-    .stat-num {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: #0f766e;
-      line-height: 1;
-    }
-    .stat-label {
-      margin-top: 4px;
-      font-size: .7rem;
-      color: #94a3b8;
-    }
-
-    /* ---- Feature tag ---- */
-    .feat-tag {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 14px;
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 100px;
-      font-size: .78rem;
-      color: #475569;
-      font-weight: 500;
-      transition: all .2s;
-    }
-    .feat-tag:hover { border-color: #99f6e4; }
-
-    /* ---- FAQ items ---- */
-    .faq-item {
-      border-bottom: 1px solid rgba(226,232,240,0.6);
-      padding: 18px 0 18px 16px;
-      transition: all .3s ease;
-      position: relative;
-    }
-    .faq-item::before {
-      content: '';
+    .nav-link::after {
+      content: "";
       position: absolute;
-      left: 0;
-      top: 18px;
-      bottom: 18px;
-      width: 3px;
-      border-radius: 2px;
-      background: transparent;
-      transition: background .3s ease, transform .3s ease;
-      transform: scaleY(0.4);
+      left: 14px;
+      right: 14px;
+      bottom: 6px;
+      height: 2px;
+      transform: scaleX(0);
+      transform-origin: left;
+      background: linear-gradient(90deg, var(--mint), var(--cyan));
+      transition: transform 220ms ease;
     }
-    .faq-item:hover::before,
-    .faq-item[open]::before {
-      background: linear-gradient(180deg, #00b4d8, #0077b6);
-      transform: scaleY(1);
-    }
-    .faq-item:hover,
-    .faq-item[open] {
-      padding-left: 24px;
-      background: rgba(255,255,255,0.25);
-      border-radius: 12px;
-    }
-    .faq-item summary {
-      font-weight: 600;
-      color: #1e293b;
-      cursor: pointer;
-      user-select: none;
-      list-style: none;
+    .nav-link:hover,
+    .nav-link:focus-visible {
+      color: #ffffff;
       outline: none;
-      font-size: 0.9375rem;
+    }
+    .nav-link:hover::after,
+    .nav-link:focus-visible::after {
+      transform: scaleX(1);
+    }
+
+    .cta {
+      display: inline-flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border-radius: 16px;
+      padding: 13px 20px;
+      font-weight: 900;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      will-change: transform;
+    }
+    .cta:hover,
+    .cta:focus-visible {
+      transform: translateY(-2px);
+      outline: none;
+    }
+    .cta-primary {
+      color: #06131f;
+      background: linear-gradient(135deg, #4cf8cc, #4cc9f0);
+      box-shadow: 0 18px 42px rgba(57, 245, 199, 0.24);
+    }
+    .cta-secondary {
+      color: #e7f2ff;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.07);
+    }
+    .cta-star {
+      color: #120d05;
+      border: 1px solid rgba(248, 193, 74, 0.62);
+      background: linear-gradient(135deg, #fff0a8, #f8c14a 72%, #d99835);
+      box-shadow: 0 16px 34px rgba(248, 193, 74, 0.16);
+    }
+    .cta-primary:focus-visible {
+      box-shadow: 0 18px 42px rgba(57, 245, 199, 0.24), 0 0 0 4px rgba(57, 245, 199, 0.28);
+    }
+    .cta-secondary:focus-visible {
+      box-shadow: 0 0 0 4px rgba(76, 201, 240, 0.22);
+    }
+    .cta-star:focus-visible {
+      box-shadow: 0 16px 34px rgba(248, 193, 74, 0.16), 0 0 0 4px rgba(248, 193, 74, 0.24);
+    }
+
+    .hero-title {
+      font-family: "Noto Serif SC", serif;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    .gradient-text {
+      color: transparent;
+      background: linear-gradient(90deg, #ffffff 0%, #dcfff7 44%, #7ff6df 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    .data-stream {
+      position: absolute;
+      inset: -20%;
+      opacity: 0.22;
+      background:
+        repeating-linear-gradient(115deg, transparent 0 28px, rgba(57,245,199,0.24) 29px 30px, transparent 31px 54px),
+        repeating-linear-gradient(65deg, transparent 0 46px, rgba(76,201,240,0.2) 47px 48px, transparent 49px 80px);
+      animation: streamShift 16s linear infinite;
+    }
+
+    @keyframes streamShift {
+      from { transform: translate3d(-4%, -4%, 0); }
+      to { transform: translate3d(4%, 4%, 0); }
+    }
+
+    .pet-stage {
+      position: relative;
+      min-height: 620px;
+      overflow: hidden;
+      border-radius: 34px;
+    }
+
+    .desktop-window {
+      position: absolute;
+      inset: 74px 30px 44px;
+      border-radius: 26px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.09), transparent 64%),
+        rgba(7, 13, 27, 0.78);
+      box-shadow: 0 30px 70px rgba(0,0,0,0.42);
+      overflow: hidden;
+    }
+
+    .desktop-window::before {
+      content: "";
+      position: absolute;
+      inset: 56px 0 0;
+      background-image:
+        linear-gradient(rgba(57,245,199,0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(57,245,199,0.1) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(to bottom, #000, transparent 82%);
+    }
+
+    .window-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
-    .faq-item summary::-webkit-details-marker { display: none; }
-    .faq-item summary::after {
-      content: '';
-      width: 8px;
-      height: 8px;
-      border-right: 2px solid #94a3b8;
-      border-bottom: 2px solid #94a3b8;
-      transform: rotate(-45deg);
-      transition: transform .3s ease, border-color .3s ease;
-      flex-shrink: 0;
-      margin-left: 12px;
-    }
-    .faq-item[open] summary::after {
-      transform: rotate(45deg);
-      border-color: #00b4d8;
-    }
-    .faq-item .faq-answer {
-      margin-top: 10px;
-      font-size: 0.9375rem;
-      color: #64748b;
-      line-height: 1.7;
-      padding-right: 8px;
-    }
-    .feat-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: #14b8a6;
+      padding: 0 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.11);
+      background: rgba(255,255,255,0.06);
     }
 
-    /* ---- Animated letters ---- */
-    .animated-letter {
-      display: inline-block;
-      font-family: 'Fraunces', Georgia, serif;
-      font-weight: 800;
-      font-size: 1.5rem;
-      letter-spacing: 0.05em;
-      color: #0f766e;
-      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s ease;
-      cursor: default;
-      animation: letterFloat 3s ease-in-out infinite;
-    }
-    .animated-letter:nth-child(1) { animation-delay: 0s; }
-    .animated-letter:nth-child(2) { animation-delay: 0.15s; }
-    .animated-letter:nth-child(3) { animation-delay: 0.3s; }
-    .animated-letter:nth-child(5) { animation-delay: 0.6s; }
-    .animated-letter:nth-child(6) { animation-delay: 0.75s; }
-    .animated-letter:nth-child(7) { animation-delay: 0.9s; }
-    @keyframes letterFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-4px); }
-    }
-    .animated-letter:hover {
-      animation-play-state: paused;
-      transform: translateY(-6px) scale(1.15);
-      color: #00b4d8;
-    }
-
-    /* ---- Infinite scroll tracks for hero background ---- */
-    @keyframes coolorsScrollUp {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(-50%); }
-    }
-    @keyframes coolorsScrollDown {
-      0% { transform: translateY(-50%); }
-      100% { transform: translateY(0); }
-    }
-    .scroll-track-1 { animation: coolorsScrollUp 25s linear infinite; }
-    .scroll-track-2 { animation: coolorsScrollDown 30s linear infinite; }
-    .scroll-track-3 { animation: coolorsScrollUp 22s linear infinite; }
-    .scroll-track-4 { animation: coolorsScrollDown 28s linear infinite; }
-
-    /* ---- Sprite sheet animation: per-action frame counts ---- */
-    @keyframes anim4 { 100% { background-position-x: -768px; } }
-    @keyframes anim5 { 100% { background-position-x: -960px; } }
-    @keyframes anim6 { 100% { background-position-x: -1152px; } }
-    @keyframes anim8 { 100% { background-position-x: -1536px; } }
-
-    .sprite-action {
-      width: 192px; height: 208px;
-      background-image: url('./assets/spritesheet.webp');
+    .doro-sprite {
+      width: 192px;
+      height: 208px;
+      background-image: url("./assets/doro-spritesheet.webp");
       background-repeat: no-repeat;
+      background-position: 0 0;
+      animation: doroIdle 950ms steps(6) infinite, doroFloat 4.8s ease-in-out infinite;
+      image-rendering: auto;
+      filter: drop-shadow(0 24px 28px rgba(0,0,0,0.42));
     }
-    .sprite-idle   { background-position-y: 0;      animation: anim5 1.0s steps(5) infinite; }
-    .sprite-walk   { background-position-y: -208px;  animation: anim8 1.2s steps(8) infinite; }
-    .sprite-run    { background-position-y: -416px;  animation: anim8 1.0s steps(8) infinite; }
-    .sprite-sit    { background-position-y: -624px;  animation: anim4 0.8s steps(4) infinite; }
-    .sprite-sleep  { background-position-y: -832px;  animation: anim5 1.5s steps(5) infinite; }
-    .sprite-greet  { background-position-y: -1040px; animation: anim8 1.2s steps(8) infinite; }
-    .sprite-play   { background-position-y: -1248px; animation: anim6 1.2s steps(6) infinite; }
+
+    @keyframes doroIdle {
+      to { background-position-x: -1152px; }
+    }
+    @keyframes doroFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-14px); }
+    }
+
+    .pet-orbit {
+      position: absolute;
+      left: 50%;
+      top: 54%;
+      width: 360px;
+      height: 360px;
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      border: 1px solid rgba(57,245,199,0.18);
+      background:
+        conic-gradient(from 0deg, transparent, rgba(57,245,199,0.3), transparent 34%, rgba(76,201,240,0.22), transparent 68%, rgba(57,245,199,0.14), transparent);
+      animation: radarSpin 9s linear infinite;
+      opacity: 0.72;
+    }
+    .pet-orbit::before,
+    .pet-orbit::after {
+      content: "";
+      position: absolute;
+      inset: 54px;
+      border-radius: inherit;
+      border: 1px dashed rgba(255,255,255,0.12);
+    }
+    .pet-orbit::after {
+      inset: 118px;
+      border-style: solid;
+      border-color: rgba(76,201,240,0.2);
+    }
+    @keyframes radarSpin {
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    .pet-core {
+      position: absolute;
+      left: 50%;
+      top: 53%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+
+    .hud-card {
+      position: absolute;
+      z-index: 3;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(9, 15, 29, 0.74);
+      box-shadow: 0 18px 46px rgba(0,0,0,0.3);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      animation: hudFloat 5.8s ease-in-out infinite;
+    }
+    .hud-card small { color: var(--muted); }
+    .hud-card strong { color: #ffffff; }
+    .hud-card:nth-of-type(2) { animation-delay: -1.5s; }
+    .hud-card:nth-of-type(3) { animation-delay: -2.4s; }
+
+    @keyframes hudFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .feature-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.11);
+      background: linear-gradient(145deg, rgba(19, 30, 54, 0.88), rgba(9, 15, 29, 0.68));
+      box-shadow: 0 22px 54px rgba(0,0,0,0.2);
+      transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+    }
+    .feature-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      background: linear-gradient(135deg, rgba(57,245,199,0.18), transparent 45%, rgba(255,107,157,0.14));
+      transition: opacity 220ms ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(57,245,199,0.36);
+      box-shadow: 0 32px 80px rgba(0,0,0,0.28);
+    }
+    .feature-card:hover::before { opacity: 1; }
+
+    .section-kicker {
+      color: var(--mint);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      border-radius: 999px;
+      padding: 7px 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #cfdbed;
+      background: rgba(255,255,255,0.06);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .chip::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      margin-right: 8px;
+      border-radius: 999px;
+      background: var(--mint);
+      box-shadow: 0 0 14px var(--mint);
+    }
+
+    #faq details {
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    #faq details[open] {
+      border-color: rgba(57, 245, 199, 0.24);
+      background:
+        linear-gradient(145deg, rgba(21, 36, 66, 0.9), rgba(11, 17, 32, 0.68)),
+        rgba(255, 255, 255, 0.04);
+    }
+
+    #faq summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      list-style: none;
+      color: #ffffff;
+      letter-spacing: 0;
+    }
+
+    #faq summary::-webkit-details-marker {
+      display: none;
+    }
+
+    #faq summary::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      flex: 0 0 auto;
+      border-right: 2px solid var(--mint);
+      border-bottom: 2px solid var(--mint);
+      transform: rotate(-45deg);
+      transition: transform 180ms ease;
+      filter: drop-shadow(0 0 10px rgba(57, 245, 199, 0.5));
+    }
+
+    #faq details[open] summary {
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(57, 245, 199, 0.16);
+    }
+
+    #faq details[open] summary::before {
+      transform: rotate(45deg);
+    }
+
+    #faq details > p {
+      color: #b8c6d9;
+      font-size: 17px;
+    }
+
+    #faq a {
+      color: var(--mint);
+      font-weight: 900;
+      text-decoration-line: underline;
+      text-decoration-color: rgba(57, 245, 199, 0.65);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 5px;
+      transition: color 180ms ease, text-decoration-color 180ms ease, background-color 180ms ease;
+    }
+
+    #faq a:hover {
+      color: #ffffff;
+      background: rgba(57, 245, 199, 0.12);
+      text-decoration-color: #ffffff;
+    }
+
+    .media-frame {
+      overflow: hidden;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.13);
+      background: rgba(255,255,255,0.05);
+    }
+
+    .merit-preview {
+      position: relative;
+      min-height: 280px;
+      background:
+        radial-gradient(circle at 52% 76%, rgba(248, 193, 74, 0.2), transparent 32%),
+        #050506;
+    }
+
+    .merit-info-panel {
+      border-radius: 18px;
+      border: 1px solid rgba(57, 245, 199, 0.16);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 14px;
+    }
+
+    .merit-info-item {
+      display: flex;
+      gap: 10px;
+      padding: 12px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .merit-info-item:first-child {
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .merit-info-item:last-child {
+      padding-bottom: 0;
+    }
+
+    .merit-info-dot {
+      flex: 0 0 auto;
+      width: 9px;
+      height: 9px;
+      margin-top: 9px;
+      border-radius: 999px;
+      background: var(--mint);
+      box-shadow: 0 0 14px rgba(57, 245, 199, 0.75);
+    }
+
+    .merit-info-item strong {
+      display: block;
+      color: #ffffff;
+      font-size: 15px;
+    }
+
+    .merit-info-item span {
+      display: block;
+      margin-top: 3px;
+      color: #9fb0c7;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .merit-preview-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(0.68) brightness(0.9) contrast(0.96);
+    }
+
+    .merit-preview-pet {
+      position: absolute;
+      left: 50%;
+      bottom: 42px;
+      z-index: 2;
+      width: 192px;
+      height: 208px;
+      background-image: url("./assets/doro-spritesheet.webp");
+      background-repeat: no-repeat;
+      background-position-y: -1872px;
+      animation: action4 820ms steps(4) infinite, meritPetBreathe 2.8s ease-in-out infinite;
+      filter: drop-shadow(0 18px 22px rgba(0, 0, 0, 0.55));
+      transform: translateX(-50%) scale(0.58);
+      transform-origin: bottom center;
+    }
+
+    .merit-pop-feed {
+      position: absolute;
+      left: 50%;
+      top: 22%;
+      z-index: 4;
+      width: min(190px, 46%);
+      height: 50px;
+      transform: translateX(-50%);
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .merit-pop {
+      position: absolute;
+      left: 50%;
+      top: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 118px;
+      min-height: 34px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(222, 178, 91, 0.42);
+      color: #f3d796;
+      background: linear-gradient(135deg, rgba(22, 16, 12, 0.84), rgba(66, 48, 30, 0.66));
+      box-shadow: 0 0 12px rgba(222, 178, 91, 0.2), inset 0 1px 0 rgba(255,255,255,0.12);
+      font-size: 15px;
+      font-weight: 900;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+      opacity: 0;
+      transform: translate(-50%, 18px) scale(0.92);
+      animation: meritPop 7.5s ease-in-out infinite;
+    }
+
+    .merit-pop:nth-child(2) { animation-delay: 1.25s; }
+    .merit-pop:nth-child(3) { animation-delay: 2.5s; }
+    .merit-pop:nth-child(4) { animation-delay: 3.75s; }
+    .merit-pop:nth-child(5) { animation-delay: 5s; }
+    .merit-pop:nth-child(6) { animation-delay: 6.25s; }
+
+    .merit-preview::after {
+      content: "";
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      bottom: 20px;
+      height: 48px;
+      z-index: 1;
+      border-radius: 999px;
+      background: radial-gradient(ellipse, rgba(222, 178, 91, 0.14), transparent 70%);
+      filter: blur(6px);
+    }
+
+    .merit-reward-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      border-radius: 18px;
+      border: 1px solid rgba(222, 178, 91, 0.16);
+      background:
+        radial-gradient(circle at 12% 20%, rgba(222, 178, 91, 0.08), transparent 38%),
+        rgba(255, 255, 255, 0.035);
+      padding: 12px;
+    }
+
+    .merit-reward-pill {
+      display: inline-flex;
+      min-height: 32px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 1px solid rgba(222, 178, 91, 0.22);
+      background: rgba(222, 178, 91, 0.055);
+      color: #efd59b;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    @keyframes meritPetBreathe {
+      0%, 100% { transform: translateX(-50%) scale(0.58); }
+      50% { transform: translateX(-50%) scale(0.6) translateY(-4px); }
+    }
+
+    @keyframes meritPop {
+      0%, 10% { opacity: 0; transform: translate(-50%, 18px) scale(0.92); }
+      15%, 28% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      36%, 100% { opacity: 0; transform: translate(-50%, -18px) scale(0.96); }
+    }
+
+    .action-sprite {
+      width: 192px;
+      height: 208px;
+      background-image: url("./assets/doro-spritesheet.webp");
+      background-repeat: no-repeat;
+      transform: scale(0.72);
+      transform-origin: center;
+      filter: drop-shadow(0 18px 20px rgba(0,0,0,0.35));
+    }
+    .action-focus { background-position-y: -2288px; animation: action4 1.2s steps(4) infinite; }
+    .action-merit { background-position-y: -1872px; animation: action4 800ms steps(4) infinite; }
+    .action-music { background-position-y: -2080px; animation: action8 1.12s steps(8) infinite; }
+    @keyframes action4 { to { background-position-x: -768px; } }
+    @keyframes action8 { to { background-position-x: -1536px; } }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      animation: revealUp 720ms ease forwards;
+    }
+    @keyframes revealUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 960px) {
+      .pet-stage { min-height: 560px; }
+      .desktop-window { inset: 70px 18px 34px; }
+      .hud-card { position: relative; inset: auto !important; margin: 10px; }
+      .pet-orbit { width: 300px; height: 300px; }
+    }
 
     @media (max-width: 640px) {
-      .sprite-action {
-        width: 96px; height: 104px;
-        background-size: 768px auto;
+      .shell { width: min(100% - 24px, 1180px); }
+      .hero-title { font-size: 44px; line-height: 1.08; }
+      .pet-stage { min-height: 500px; border-radius: 24px; }
+      .desktop-window { inset: 64px 12px 24px; }
+      .doro-sprite { transform-origin: center; }
+      .pet-core { top: 56%; }
+      .pet-orbit { top: 56%; width: 260px; height: 260px; }
+      .cta { width: 100%; }
+      .merit-preview { min-height: 240px; }
+      .merit-preview-pet { bottom: 28px; transform: translateX(-50%) scale(0.5); }
+      .merit-pop-feed { top: 20%; width: 54%; }
+      .merit-pop { min-width: 96px; font-size: 13px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
       }
-      .sprite-idle   { background-position-y: 0; }
-      .sprite-walk   { background-position-y: -104px; }
-      .sprite-run    { background-position-y: -208px; }
-      .sprite-sit    { background-position-y: -312px; }
-      .sprite-sleep  { background-position-y: -416px; }
-      .sprite-greet  { background-position-y: -520px; }
-      .sprite-play   { background-position-y: -624px; }
-    }
-
-    /* ---- Showcase sprite scale ---- */
-    .showcase-sprite {
-      transform: scale(0.65) translateY(58px);
-      transform-origin: top center;
-    }
-
-    /* ---- Grid pattern background ---- */
-    .bg-grid-pattern {
-      background-color: #ffffff;
-      background-image:
-        linear-gradient(to right, #f1f5f9 1px, transparent 1px),
-        linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
-      background-size: 24px 24px;
     }
   </style>
 </head>
-<body class="text-slate-800 antialiased">
-
-  <!-- ============================================================
-       HERO SHELL (Nav + Hero)
-       ============================================================ -->
-  <div class="hero-shell">
-
-    <!-- Topbar -->
-    <nav class="relative mx-auto max-w-6xl flex items-center justify-between px-6 py-5">
-      <a href="#" class="text-xl font-bold tracking-tight text-slate-800 hover:text-brand-600 transition-colors">
-        LingoPet 灵动宠物
+<body class="antialiased">
+  <header class="sticky top-0 z-50 border-b border-white/10 bg-ink/72 backdrop-blur-xl">
+    <nav class="shell flex min-h-[76px] items-center justify-between gap-4">
+      <a href="#hero" class="flex items-center gap-3 font-black tracking-tight text-white" aria-label="LingoPet 首页">
+        <img src="./app-icon.png" alt="" class="h-11 w-11 rounded-2xl border border-mint/30 shadow-[0_0_24px_rgba(57,245,199,0.22)]" />
+        <span class="hidden sm:block text-lg">LingoPet 灵动宠物</span>
       </a>
-      <div class="hidden md:flex items-center gap-3 text-sm font-medium">
-        <a href="#pets" class="nav-pill">宠物库</a>
-        <a href="#features" class="nav-pill">能力</a>
-        <a href="#showcase" class="nav-pill">预览</a>
-        <a href="#faq" class="nav-pill">FAQ</a>
+      <div class="hidden items-center rounded-full border border-white/10 bg-white/5 px-2 md:flex">
+        <a class="nav-link" href="#features">功能展示</a>
+        <a class="nav-link" href="#modes">模式演示</a>
+        <a class="nav-link" href="#pets">桌宠生态</a>
+        <a class="nav-link" href="#download">软件下载</a>
+        <a class="nav-link" href="#faq">常见问题</a>
       </div>
-      <div class="flex items-center gap-4">
-        <div class="flex items-center space-x-2">
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
-          </span>
-          <span class="text-sm font-medium text-slate-600">下载量: <span id="nav-download-count">读取中...</span></span>
-        </div>
-        <a href="https://github.com/Muxinlucky/DesktopPet" target="_blank" rel="noopener"
-           class="toplink inline-flex items-center gap-1.5 text-sm font-medium">
-          <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38
-                     0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15
-                     -.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87
-                     2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
-                     0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21
-                     2.2.82a7.63 7.63 0 014 0c1.53-1.04 2.2-.82 2.2-.82.44
-                     1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87
-                     3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01
-                     2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      <div class="flex items-center gap-3">
+        <span class="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold text-slate-200 sm:inline-flex">
+          <span class="h-2 w-2 rounded-full bg-mint shadow-[0_0_18px_#39f5c7]"></span>
+          下载量 <span id="nav-download-count">读取中</span>
+        </span>
+        <a href="https://github.com/dev-zyl/DesktopPet" target="_blank" rel="noopener" class="cta cta-secondary !min-h-[44px] !px-4" aria-label="打开 GitHub 仓库">
+          <svg class="h-5 w-5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.63 7.63 0 014 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/>
           </svg>
-          GitHub
+          <span class="hidden sm:inline">GitHub</span>
         </a>
       </div>
-      <!-- Bottom divider -->
-      <div class="absolute bottom-0 left-0 w-full h-[1.5px] bg-gradient-to-r from-transparent via-slate-300 to-transparent"></div>
     </nav>
+  </header>
 
-    <!-- Hero Grid: visual left, text right -->
-    <section id="hero" class="mx-auto max-w-6xl px-6 pt-8 pb-20">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-
-        <!-- Left: Visual -->
-        <div class="relative overflow-hidden rounded-[2.5rem] h-[560px] p-4 bg-white/40 border-2 border-slate-100/80 shadow-[0_25px_60px_-15px_rgba(0,119,182,0.1)] backdrop-blur-xl transition-all duration-300 hover:border-sky-100 order-2 lg:order-1">
-
-          <!-- Animated title -->
-          <div class="absolute top-6 left-0 w-full flex justify-center z-30 pointer-events-auto">
-            <div class="flex space-x-1 select-none">
-              <span class="animated-letter">L</span>
-              <span class="animated-letter">i</span>
-              <span class="animated-letter">n</span>
-              <span class="animated-letter">g</span>
-              <span class="animated-letter">o</span>
-              <span class="animated-letter">P</span>
-              <span class="animated-letter">e</span>
-              <span class="animated-letter">t</span>
-            </div>
-          </div>
-
-          <!-- A. Bottom layer: 4 scroll tracks -->
-          <div class="absolute top-20 left-0 right-0 bottom-0 grid grid-cols-4 gap-3 p-3">
-            <!-- Track 1 -->
-            <div class="overflow-hidden">
-              <div class="scroll-track-1">
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-1.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-2.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-3.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-4.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <!-- Duplicate for seamless loop -->
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-1.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-2.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-3.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-4.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-              </div>
-            </div>
-            <!-- Track 2 -->
-            <div class="overflow-hidden">
-              <div class="scroll-track-2">
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-5.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-6.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-7.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-8.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-5.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-6.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-7.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-8.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-              </div>
-            </div>
-            <!-- Track 3 -->
-            <div class="overflow-hidden">
-              <div class="scroll-track-3">
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-9.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-10.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-11.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-12.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-9.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-10.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-11.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-12.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-              </div>
-            </div>
-            <!-- Track 4 -->
-            <div class="overflow-hidden">
-              <div class="scroll-track-4">
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-13.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-14.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-15.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-16.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-13.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-14.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-15.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-                <div class="flex items-center justify-center bg-white/60 backdrop-blur-sm aspect-square rounded-2xl border border-white/60 shadow-sm transition-transform hover:scale-105 duration-300 overflow-hidden mb-3"><img src="./assets/scroll-16.gif" class="max-w-[80%] max-h-[80%] w-auto h-auto object-contain" alt="" /></div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Right: Text -->
-        <div class="order-1 lg:order-2">
-          <!-- Eyebrow -->
-          <p class="text-sm font-semibold tracking-widest text-brand-600 uppercase mb-4">
-            Desktop Control Surface For AI Pet Companion
-          </p>
-
-          <!-- H1 -->
-          <h1 class="font-display text-4xl sm:text-5xl lg:text-[3.4rem] font-800 leading-[1.15] text-slate-900">
-            一个桌面，养育你的 AI 灵魂宠物。
-          </h1>
-
-          <!-- Subtitle -->
-          <p class="mt-5 text-lg text-slate-600 leading-relaxed max-w-lg">
-            灵感来源于 Codex Pet，将其独立并赋予更多伴侣级桌面能力。即便没有使用代码编辑器，也能拥有一只懂你的桌面宠物。
-            如果你有Github账号，贡献一颗免费的小星星⭐我将不胜感激！
-          </p>
-
-          <!-- Button group -->
-          <div class="mt-8 flex flex-wrap gap-4">
-            <a href="#download" id="cta-download" class="button-primary">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"
-                   viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
-              </svg>
-              下载安装包
-            </a>
-            <a href="https://github.com/Muxinlucky/DesktopPet" target="_blank" rel="noopener" class="button-secondary">
-              <svg class="w-5 h-5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38
-                         0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15
-                         -.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87
-                         2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
-                         0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21
-                         2.2.82a7.63 7.63 0 014 0c1.53-1.04 2.2-.82 2.2-.82.44
-                         1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87
-                         3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01
-                         2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/>
-              </svg>
-              View on GitHub
-            </a>
-          </div>
-
-          <!-- Feature tags -->
-          <div class="mt-8 flex flex-wrap gap-2.5">
-            <span class="feat-tag"><span class="feat-dot"></span>AI Intent</span>
-            <span class="feat-tag"><span class="feat-dot"></span>Audio Sensing</span>
-            <span class="feat-tag"><span class="feat-dot"></span>Tauri v2</span>
-            <span class="feat-tag"><span class="feat-dot"></span>Rust Core</span>
-          </div>
-
-          <!-- Stats grid -->
-          <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-2.5">
-            <div class="stat-card">
-              <div class="stat-num">AI</div>
-              <div class="stat-label">模型接入智能回复</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-num">7</div>
-              <div class="stat-label">七种动作随心变化</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-num">5MB</div>
-              <div class="stat-label">极致轻量占用</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-num">&#8734;</div>
-              <div class="stat-label">随机语录热情陪伴</div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- Divider -->
-      <div class="w-full h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent mt-24"></div>
-    </section>
-  </div>
-
-
-  <!-- ============================================================
-       CUSTOM PETS SECTION
-       ============================================================ -->
-  <section id="pets" class="py-20">
-    <div class="mx-auto max-w-6xl px-6">
-
-      <!-- Section header -->
-      <div class="text-center mb-14">
-        <h2 class="text-3xl sm:text-4xl font-bold text-slate-900">
-          海量自定义宠物，一键无缝切换
-        </h2>
-        <p class="mt-4 max-w-2xl mx-auto text-base text-slate-500 leading-relaxed">
-          不满足于默认形象？前往开源社区下载宠物压缩包，在灵动宠物中右键即可直接导入。
+  <main id="hero">
+    <section class="shell grid min-h-[calc(100dvh-76px)] items-center gap-10 py-14 lg:grid-cols-[0.95fr_1.05fr] lg:py-20">
+      <div class="reveal">
+        <p class="section-kicker">AI Desktop Pet Companion</p>
+        <h3 class="hero-title mt-5 text-[56px] leading-[1.06] text-white sm:text-7xl lg:text-[82px]">
+          个人专属<br />
+          <span class="gradient-text whitespace-nowrap">桌面宠物宇宙</span>
+        </h3>
+        <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+          LingoPet 是一只真正住在桌面上的轻量 AI 桌宠，灵感源于codex的桌面宠物，适配codexpet社区桌宠文件。本项目旨在打造一个可以互动的轻量级桌面宠物应用。它能聊天、提醒、专注计时、敲功德木鱼、感知音乐、回收文件，还能下载海量宠物资源和创意工坊个性动作。
         </p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a id="cta-download" class="cta cta-primary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-windows-download>
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+            </svg>
+            下载 Windows
+          </a>
+          <a class="cta cta-secondary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-mac-download>
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+            </svg>
+            下载 macOS
+          </a>
+        </div>
+        <div class="mt-8 flex flex-wrap gap-2">
+          <span class="chip">Tauri v2</span>
+          <span class="chip">Rust Core</span>
+          <span class="chip">纯 DOM 渲染</span>
+          <span class="chip">OpenAI 兼容 API</span>
+        </div>
       </div>
 
-      <!-- Two cards -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        <!-- Card A: codexpet.xyz -->
-        <div class="group rounded-2xl border border-white/60 bg-white/60 backdrop-blur-lg overflow-hidden
-                    hover:shadow-lg hover:border-slate-300 transition-all duration-300">
-          <div class="p-6 pb-4">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="inline-block w-2 h-2 rounded-full text-sm bg-brand-400"></span>
-              <h3 class="text-lg font-semibold text-slate-800">
-                <a href="https://codexpet.xyz/zh" target="_blank" rel="noopener"
-                   class="hover:text-brand-600 transition-colors underline">
-                  codexpet.xyz/zh
-                </a>
-              </h3>
+      <div class="pet-stage glass reveal" style="animation-delay: 120ms">
+        <div class="data-stream" aria-hidden="true"></div>
+        <div class="desktop-window">
+          <div class="window-bar">
+            <div class="flex items-center gap-2">
+              <span class="h-3 w-3 rounded-full bg-rose"></span>
+              <span class="h-3 w-3 rounded-full bg-honey"></span>
+              <span class="h-3 w-3 rounded-full bg-mint"></span>
             </div>
-            <p class="text-[0.9375rem] text-slate-500">社区维护的宠物资源站，持续更新中，<a href="./daorujiaocheng.md" target="_blank" class="underline text-sky-600 hover:text-sky-800">下载更换宠物教程</a></p>
+            <span class="text-xs font-black tracking-[0.28em] text-slate-400">LINGOPET CONTROL SURFACE</span>
           </div>
-          <div class="px-6 pb-6">
-            <div class="rounded-xl overflow-hidden border border-white/60 bg-white/40">
-              <img src="./assets/codexpet-site.png"
-                   alt="codexpet.xyz 宠物列表预览"
-                   class="w-full h-auto object-contain rounded-2xl shadow-xl"
-                   loading="lazy" />
+          <div class="pet-orbit" aria-hidden="true"></div>
+          <div class="pet-core" aria-label="Doro 默认桌宠动画预览">
+            <div class="doro-sprite"></div>
+          </div>
+          <div class="hud-card left-6 top-24 w-44 p-4">
+            <small>Gravity Mode</small>
+            <strong class="mt-1 block text-2xl">自由摆放</strong>
+            <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+              <div class="h-full w-2/3 rounded-full bg-mint"></div>
             </div>
           </div>
-        </div>
-
-        <!-- Card B: codex-pet.org -->
-        <div class="group rounded-2xl border border-white/60 bg-white/60 backdrop-blur-lg overflow-hidden
-                    hover:shadow-lg hover:border-slate-300 transition-all duration-300">
-          <div class="p-6 pb-4">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="inline-block w-2 h-2 rounded-full text-sm bg-emerald-400"></span>
-              <h3 class="text-lg font-semibold text-slate-800">
-                <a href="https://codex-pet.org/zh" target="_blank" rel="noopener"
-                   class="hover:text-brand-600 transition-colors underline">
-                  codex-pet.org/zh
-                </a>
-              </h3>
-            </div>
-            <p class="text-[0.9375rem] text-slate-500">Codex Pet 原始项目社区，<a href="./daorujiaocheng.md" target="_blank" class="underline text-sky-600 hover:text-sky-800">下载更换宠物教程</a></p>
+          <div class="hud-card right-5 top-32 w-48 p-4">
+            <small>AI Persona</small>
+            <strong class="mt-1 block">六种性格 + 自定义</strong>
+            <p class="mt-2 text-sm text-slate-400">兼容 OpenAI API</p>
           </div>
-          <div class="px-6 pb-6">
-            <div class="rounded-xl overflow-hidden border border-white/60 bg-white/40">
-              <img src="./assets/codexpet-org.png"
-                   alt="codex-pet.org 宠物列表预览"
-                   class="w-full h-auto object-contain rounded-2xl shadow-xl"
-                   loading="lazy" />
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ============================================================
-       FEATURES: Bento Box Layout
-       ============================================================ -->
-  <section id="features" class="py-20">
-    <div class="mx-auto max-w-7xl px-6">
-
-      <div class="text-center mb-14">
-        <h2 class="text-3xl sm:text-4xl font-bold text-slate-900">核心能力</h2>
-        <p class="mt-4 text-slate-500">不只是一个桌面摆件，而是一整套轻量生产力工具。</p>
-      </div>
-
-      <!-- Standard 4x2 Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        <!-- Card 1 -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="p-5 shrink-0">
-            <h3 class="text-lg font-bold text-slate-800">自定义代办</h3>
-            <p class="text-sm text-slate-500 mt-2">输入x秒（分钟）后提醒我干什么开始倒计时，时间到了变大提醒</p>
-          </div>
-          <div class="flex-1 relative bg-slate-50/50">
-            <img src="./assets/todo-demo.png" alt="自定义代办演示" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-        </div>
-
-        <!-- Card 2 -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="p-5 shrink-0">
-            <h3 class="text-lg font-bold text-slate-800">小小记事本</h3>
-            <p class="text-sm text-slate-500 mt-2">一个暂时的粘贴板，适用于有多个需要粘贴以备复制场景，一键复制</p>
-          </div>
-          <div class="flex-1 relative bg-slate-50/50">
-            <img src="./assets/memo-demo.png" alt="小小记事本演示" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-        </div>
-
-        <!-- Card 3 -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="p-5 shrink-0">
-            <h3 class="text-lg font-bold text-slate-800">专注模式</h3>
-            <p class="text-sm text-slate-500 mt-2">一个pet倒计时，5-60分钟专注学习时间自定义</p>
-          </div>
-          <div class="flex-1 relative bg-slate-50/50">
-            <img src="./assets/zhuanzhumoshi.png" alt="专注模式演示" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-        </div>
-
-        <!-- Card 4 -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="p-5 shrink-0">
-            <h3 class="text-lg font-bold text-slate-800">节日祝福</h3>
-            <p class="text-sm text-slate-500 mt-2">内置日历，节日当天首次开机送上祝福</p>
-          </div>
-          <div class="flex-1 relative bg-slate-50/50">
-            <img src="./assets/jierizhufu.png" alt="节日祝福演示" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-        </div>
-
-        <!-- Card 5 -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="p-5 shrink-0">
-            <h3 class="text-lg font-bold text-slate-800">互动彩蛋</h3>
-            <p class="text-sm text-slate-500 mt-2">点击身体随机出现黄脸标签，头顶上方出现各种语录</p>
-          </div>
-          <div class="flex-1 relative bg-slate-50/50">
-            <img src="./assets/chat-demo.png" alt="互动彩蛋演示" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-        </div>
-
-        <!-- Card 6 -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="p-5 shrink-0">
-            <h3 class="text-lg font-bold text-slate-800">自定义形象</h3>
-            <p class="text-sm text-slate-500 mt-2">支持切换导入自己喜欢的宠物，ikun，奶龙......支持自己创作，甚至可以把亲人，朋友，情侣创作出来陪伴</p>
-          </div>
-          <div class="flex-1 relative bg-slate-50/50">
-            <img src="./assets/codexpet-site.png" alt="自定义形象演示" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-        </div>
-
-        <!-- Card 7 -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="p-5 shrink-0">
-            <h3 class="text-lg font-bold text-slate-800">极致轻量</h3>
-            <p class="text-sm text-slate-500 mt-2">pet体积仅5MB，后台常驻完全不影响</p>
-          </div>
-          <div class="flex-1 relative bg-slate-50/50">
-            <img src="./assets/volume.png" alt="极致轻量演示" class="w-full h-full object-cover" loading="lazy" />
-          </div>
-        </div>
-
-        <!-- Card 8: text only -->
-        <div class="flex flex-col bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden h-[340px] transition-transform hover:-translate-y-1 duration-300">
-          <div class="flex flex-col justify-center h-full p-6 text-center">
-            <h3 class="text-lg font-bold text-slate-800">API 接入</h3>
-            <p class="text-sm text-slate-500 mt-2">填入自定义 API Endpoint 与 Key，解锁大模型完全体，六大基础人格任你选择。</p>
-            <a href="./getAPI.md" target="_blank" class="text-sm text-sky-600 underline hover:text-sky-800 mt-1">(戳我免费API获取教程体验完整功能)</a>
-            <div class="mt-4">
-              <h3 class="text-lg font-bold text-slate-800">Github提交互动</h3>
-              <p class="text-sm text-slate-500 mt-2">程序员专属彩蛋。绑定后，每次检测到新的 commit，宠物都会为你冒出鼓励语。</p>
+          <div class="hud-card bottom-7 left-8 right-8 p-4">
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <strong class="text-xl text-mint">25:00</strong>
+                <small class="block">专注模式</small>
+              </div>
+              <div>
+                <strong class="text-xl text-honey">+1</strong>
+                <small class="block">功德模式</small>
+              </div>
+              <div>
+                <strong class="text-xl text-cyan">🎵</strong>
+                <small class="block">律动模式</small>
+              </div>
             </div>
           </div>
         </div>
-
       </div>
-    </div>
-  </section>
+    </section>
 
-
-  <!-- ============================================================
-       SHOWCASE: Sprite Sheet Animations
-       ============================================================ -->
-  <section id="showcase" class="py-20">
-    <div class="mx-auto max-w-7xl px-6">
-
-      <div class="text-center mb-14">
-        <h2 class="text-3xl sm:text-4xl font-bold text-slate-900">动作展示</h2>
-        <p class="mt-4 text-slate-500">七种内置动态动作，每一种都有独特的个性表达。</p>
+    <section class="shell grid gap-4 pb-20 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="glass rounded-3xl p-5">
+        <strong class="text-3xl text-mint">8MB+</strong>
+        <p class="mt-1 text-sm text-slate-400">轻量安装，多宠模式也克制</p>
       </div>
-
-      <div class="flex flex-nowrap justify-center gap-3 overflow-x-auto pb-4">
-
-        <!-- Row 0: Idle -->
-        <div class="shrink-0 w-[140px] h-[180px] flex flex-col items-center justify-between bg-white/60 backdrop-blur-lg rounded-2xl border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-sky-200 transition-all duration-300 group overflow-hidden">
-          <div class="bg-grid-pattern flex items-center justify-center h-[130px] overflow-hidden rounded-t-2xl border-b-2 border-dashed border-slate-100">
-            <div class="sprite-action showcase-sprite sprite-idle"></div>
-          </div>
-          <div class="relative z-10 text-center py-1.5 px-2">
-            <span class="inline-block px-3 py-1 rounded-full text-xs bg-sky-50 text-sky-800 font-bold">待机</span>
-          </div>
-        </div>
-
-        <!-- Row 1: Walk -->
-        <div class="shrink-0 w-[140px] h-[180px] flex flex-col items-center justify-between bg-white/60 backdrop-blur-lg rounded-2xl border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-emerald-200 transition-all duration-300 group overflow-hidden">
-          <div class="bg-grid-pattern flex items-center justify-center h-[130px] overflow-hidden rounded-t-2xl border-b-2 border-dashed border-slate-100">
-            <div class="sprite-action showcase-sprite sprite-walk"></div>
-          </div>
-          <div class="relative z-10 text-center py-1.5 px-2">
-            <span class="inline-block px-3 py-1 rounded-full text-xs bg-emerald-50 text-emerald-800 font-bold">行走</span>
-          </div>
-        </div>
-
-        <!-- Row 2: Run -->
-        <div class="shrink-0 w-[140px] h-[180px] flex flex-col items-center justify-between bg-white/60 backdrop-blur-lg rounded-2xl border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-amber-200 transition-all duration-300 group overflow-hidden">
-          <div class="bg-grid-pattern flex items-center justify-center h-[130px] overflow-hidden rounded-t-2xl border-b-2 border-dashed border-slate-100">
-            <div class="sprite-action showcase-sprite sprite-run"></div>
-          </div>
-          <div class="relative z-10 text-center py-1.5 px-2">
-            <span class="inline-block px-3 py-1 rounded-full text-xs bg-amber-50 text-amber-800 font-bold">奔跑</span>
-          </div>
-        </div>
-
-        <!-- Row 3: Sit -->
-        <div class="shrink-0 w-[140px] h-[180px] flex flex-col items-center justify-between bg-white/60 backdrop-blur-lg rounded-2xl border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-violet-200 transition-all duration-300 group overflow-hidden">
-          <div class="bg-grid-pattern flex items-center justify-center h-[130px] overflow-hidden rounded-t-2xl border-b-2 border-dashed border-slate-100">
-            <div class="sprite-action showcase-sprite sprite-sit"></div>
-          </div>
-          <div class="relative z-10 text-center py-1.5 px-2">
-            <span class="inline-block px-3 py-1 rounded-full text-xs bg-violet-50 text-violet-800 font-bold">坐下</span>
-          </div>
-        </div>
-
-        <!-- Row 4: Sleep -->
-        <div class="shrink-0 w-[140px] h-[180px] flex flex-col items-center justify-between bg-white/60 backdrop-blur-lg rounded-2xl border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-indigo-200 transition-all duration-300 group overflow-hidden">
-          <div class="bg-grid-pattern flex items-center justify-center h-[130px] overflow-hidden rounded-t-2xl border-b-2 border-dashed border-slate-100">
-            <div class="sprite-action showcase-sprite sprite-sleep"></div>
-          </div>
-          <div class="relative z-10 text-center py-1.5 px-2">
-            <span class="inline-block px-3 py-1 rounded-full text-xs bg-indigo-50 text-indigo-800 font-bold">睡觉</span>
-          </div>
-        </div>
-
-        <!-- Row 5: Greet -->
-        <div class="shrink-0 w-[140px] h-[180px] flex flex-col items-center justify-between bg-white/60 backdrop-blur-lg rounded-2xl border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-rose-200 transition-all duration-300 group overflow-hidden">
-          <div class="bg-grid-pattern flex items-center justify-center h-[130px] overflow-hidden rounded-t-2xl border-b-2 border-dashed border-slate-100">
-            <div class="sprite-action showcase-sprite sprite-greet"></div>
-          </div>
-          <div class="relative z-10 text-center py-1.5 px-2">
-            <span class="inline-block px-3 py-1 rounded-full text-xs bg-rose-50 text-rose-800 font-bold">打招呼</span>
-          </div>
-        </div>
-
-        <!-- Row 6: Play -->
-        <div class="shrink-0 w-[140px] h-[180px] flex flex-col items-center justify-between bg-white/60 backdrop-blur-lg rounded-2xl border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:border-teal-200 transition-all duration-300 group overflow-hidden">
-          <div class="bg-grid-pattern flex items-center justify-center h-[130px] overflow-hidden rounded-t-2xl border-b-2 border-dashed border-slate-100">
-            <div class="sprite-action showcase-sprite sprite-play"></div>
-          </div>
-          <div class="relative z-10 text-center py-1.5 px-2">
-            <span class="inline-block px-3 py-1 rounded-full text-xs bg-teal-50 text-teal-800 font-bold">玩耍</span>
-          </div>
-        </div>
-
+      <div class="glass rounded-3xl p-5">
+        <strong class="text-3xl text-cyan">4000+</strong>
+        <p class="mt-1 text-sm text-slate-400">完善的社区宠物包，桌面不再单调</p>
       </div>
-    </div>
-  </section>
-
-
-  <!-- ============================================================
-       RIGHT-CLICK MENU SHOWCASE
-       ============================================================ -->
-  <div class="max-w-5xl mx-auto my-16 px-4 flex flex-col items-center">
-    <h2 class="text-2xl font-bold text-slate-800 mb-6 text-center">右键出现丰富菜单栏</h2>
-    <img src="./assets/caidanlan.png" alt="右键菜单栏" class="w-full max-w-4xl rounded-2xl shadow-lg border border-slate-200/60 object-cover">
-  </div>
-
-
-  <!-- ============================================================
-       FAQ
-       ============================================================ -->
-  <section id="faq" class="py-20">
-    <div class="mx-auto max-w-3xl px-6">
-
-      <div class="text-center mb-14">
-        <h2 class="text-3xl sm:text-4xl font-bold text-slate-900">常见问题</h2>
+      <div class="glass rounded-3xl p-5">
+        <strong class="text-3xl text-honey">创意工坊</strong>
+        <p class="mt-1 text-sm text-slate-400">自定义你的专属桌宠</p>
       </div>
+      <div class="glass rounded-3xl p-5">
+        <strong class="text-3xl text-rose">AI</strong>
+        <p class="mt-1 text-sm text-slate-400">可接入任意 OpenAI 兼容接口</p>
+      </div>
+    </section>
 
+    <section id="features" class="shell py-20">
+      <div class="max-w-3xl">
+        <p class="section-kicker">Feature Matrix</p>
+        <h3 class="hero-title mt-4 text-4xl leading-tight text-white sm:text-6xl">功能展示</h3>
+      </div>
+      <div class="mt-10 grid gap-5 lg:grid-cols-4">
+        <article class="feature-card overflow-hidden lg:col-span-2">
+          <div class="relative z-10 flex h-full flex-col">
+            <div class="p-6">
+              <span class="text-sm font-black uppercase tracking-[0.18em] text-mint">Recall Hub</span>
+              <h3 class="mt-3 text-2xl font-black text-white">宠物控制面板</h3>
+              <p class="mt-3 leading-7 text-slate-300">单宠、多宠双模式自由切换。支持桌宠自定义动作编辑、宠物收藏、自定义标签、自定义搜索、海量桌宠一键下载、创意工坊个性化动作套用等众多功能。</p>
+            </div>
+            <img src="./assets/feature-pet-recall.png" alt="桌宠管理面板与多宠在线预览" class="mt-auto h-80 w-full border-t border-white/10 bg-black/20 object-contain object-center p-4 opacity-90 sm:h-[22rem]" loading="lazy" />
+          </div>
+        </article>
+        <article class="feature-card overflow-hidden lg:col-span-2">
+          <div class="relative z-10 flex h-full flex-col">
+            <div class="p-6">
+              <span class="text-sm font-black uppercase tracking-[0.18em] text-honey">Behavior Setup</span>
+              <h3 class="mt-3 text-2xl font-black text-white">行为与外观设置</h3>
+              <p class="mt-3 leading-7 text-slate-300">开机自启、窗口置顶、重力模式、桌宠数量、行为频率、气泡皮肤、宠物尺寸、声音大小都能在设置页集中调整。</p>
+            </div>
+            <img src="./assets/feature-pet-settings.png" alt="桌宠设置页行为与外观预览" class="mt-auto h-80 w-full border-t border-white/10 bg-black/20 object-contain object-center p-4 opacity-90 sm:h-[22rem]" loading="lazy" />
+          </div>
+        </article>
+        <div class="grid gap-5 lg:col-span-4 lg:grid-cols-2 lg:items-stretch">
+          <div class="grid gap-5 sm:grid-cols-2 lg:h-full lg:grid-rows-2">
+            <article class="feature-card p-6">
+              <div class="relative z-10">
+                <span class="text-sm font-black uppercase tracking-[0.18em] text-mint">Timer Task</span>
+                <h3 class="mt-3 text-2xl font-black text-white">定时任务</h3>
+                <p class="mt-3 leading-7 text-slate-300">单次提醒、循环提醒，提醒你按时喝水、拒绝久坐。</p>
+              </div>
+            </article>
+            <article class="feature-card p-6">
+              <div class="relative z-10">
+                <span class="text-sm font-black uppercase tracking-[0.18em] text-honey">Todo Reminder</span>
+                <h3 class="mt-3 text-2xl font-black text-white">待办提醒</h3>
+                <p class="mt-3 leading-7 text-slate-300">把工作内容录入到待办提醒里，可以进行快捷查看、一键复制。TODO一目了然。</p>
+              </div>
+            </article>
+              <article class="feature-card p-6">
+                <div class="relative z-10">
+                  <span class="text-sm font-black uppercase tracking-[0.18em] text-mint">Focus Mode</span>
+                  <h3 class="mt-3 text-2xl font-black text-white">专注模式</h3>
+                  <p class="mt-3 leading-7 text-slate-300">开启番茄钟后，桌宠进入专注状态，陪你一起保持工作节奏。</p>
+                </div>
+              </article>
+              <article class="feature-card p-6">
+                <div class="relative z-10">
+                  <span class="text-sm font-black uppercase tracking-[0.18em] text-honey">Rhythm Mode</span>
+                  <h3 class="mt-3 text-2xl font-black text-white">律动模式</h3>
+                  <p class="mt-3 leading-7 text-slate-300">检测系统音频播放后，桌宠会跟随音乐切换律动动作，桌面更有现场感。</p>
+                </div>
+              </article>
+
+          </div>
+          <div class="grid gap-5 lg:h-full">
+            <article class="feature-card overflow-hidden lg:h-full">
+              <div class="relative z-10 grid h-full gap-0 md:grid-cols-[0.85fr_1fr]">
+                <div class="flex flex-col gap-5 p-6">
+                  <h3 class="text-2xl font-black text-white">功德模式</h3>
+                  <p class="mt-3 leading-7 text-slate-300">桌宠敲击木鱼，可以设置自定义词汇，玩出无限花样！</p>
+                  <div class="merit-info-panel">
+                    <div class="merit-info-item">
+                      <i class="merit-info-dot" aria-hidden="true"></i>
+                      <div>
+                        <strong>自定义词汇</strong>
+                        <span>把功德改成余额、运气、经验值，反馈更有梗。</span>
+                      </div>
+                    </div>
+                    <div class="merit-info-item">
+                      <i class="merit-info-dot" aria-hidden="true"></i>
+                      <div>
+                        <strong>每日统计</strong>
+                        <span>记录今日功德、累计功德和连续天数。</span>
+                      </div>
+                    </div>
+                    <div class="merit-info-item">
+                      <i class="merit-info-dot" aria-hidden="true"></i>
+                      <div>
+                        <strong>历史记录</strong>
+                        <span>支持查看历史功德记录，保留你的桌面仪式感。</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex flex-col gap-3 p-5">
+                  <div class="media-frame merit-preview bg-black/20" aria-label="Doro 在功德模式中敲击木鱼的动态预览">
+                    <img src="./assets/gongde-banner-4.png" alt="功德模式视觉背景" class="merit-preview-bg" loading="lazy" />
+                    <div class="merit-pop-feed" aria-hidden="true">
+                      <span class="merit-pop">功德 +1</span>
+                      <span class="merit-pop">体重 -1</span>
+                      <span class="merit-pop">脂肪 -1</span>
+                      <span class="merit-pop">幸运值 +1</span>
+                      <span class="merit-pop">余额 +10</span>
+                      <span class="merit-pop">经验值 +10</span>
+                      <span class="merit-pop">声望 +1</span>
+                      <span class="merit-pop">魅力 +5</span>
+                    </div>
+                    <div class="merit-preview-pet" aria-hidden="true"></div>
+                  </div>
+                  <div class="merit-reward-strip" aria-label="功德模式收益示例">
+                    <span class="merit-reward-pill">经验 +10</span>
+                    <span class="merit-reward-pill">运气 +1</span>
+                    <span class="merit-reward-pill">余额 +10</span>
+                    <span class="merit-reward-pill">体重 -1</span>
+                    <span class="merit-reward-pill">魅力值 +5</span>
+                    <span class="merit-reward-pill">勇气值 +1</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="modes" class="shell py-20">
+      <div class="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+        <div>
+          <p class="section-kicker">Doro Action Set</p>
+          <h3 class="hero-title mt-4 text-4xl text-white sm:text-6xl">自定义动作</h3>
+        </div>
+        <a class="cta cta-secondary" href="#download">立即安装体验</a>
+      </div>
+      <div class="mt-10 grid gap-5 md:grid-cols-3">
+        <article class="feature-card flex min-h-80 flex-col items-center justify-center p-6 text-center">
+          <div class="action-sprite action-focus"></div>
+          <h3 class="mt-2 text-2xl font-black text-white">专注空间</h3>
+          <p class="mt-2 text-slate-400">圆环倒计时、暂停、重置、开始与结束切换。</p>
+        </article>
+        <article class="feature-card flex min-h-80 flex-col items-center justify-center p-6 text-center">
+          <div class="action-sprite action-merit"></div>
+          <h3 class="mt-2 text-2xl font-black text-white">功德模式</h3>
+          <p class="mt-2 text-slate-400">自动敲木鱼，积累今日功德与成就。</p>
+        </article>
+        <article class="feature-card flex min-h-80 flex-col items-center justify-center p-6 text-center">
+          <div class="action-sprite action-music"></div>
+          <h3 class="mt-2 text-2xl font-black text-white">律动模式</h3>
+          <p class="mt-2 text-slate-400">感知音频播放，进入轻盈律动状态。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="pets" class="shell py-20">
+      <div class="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+        <div>
+          <p class="section-kicker">Pet Ecosystem</p>
+          <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">社区资源丰富</h2>
+          <p class="mt-5 leading-8 text-slate-300">完美支持codex社区4000+款宠物，拒绝单调桌面。支持在管理面板中查看、收藏、召唤、编辑和召回桌宠。开启多宠狂欢模式，让你的桌面成为萌宠的舞台！</p>
+          <div class="mt-6 flex flex-wrap gap-3">
+            <a class="cta cta-secondary" href="https://codex.lingopet.xyz" target="_blank" rel="noopener">访问codex宠物画廊</a>
+            <a class="cta cta-secondary" href="https://codex-pet.org/zh" target="_blank" rel="noopener">访问Codex Pets社区</a>
+          </div>
+        </div>
+        <div class="glass overflow-hidden rounded-[28px] p-4">
+          <div class="grid max-h-[560px] grid-cols-3 gap-3 overflow-y-auto pr-1 sm:grid-cols-4">
+            <img src="./assets/community-pets/qiyi/qiyi-idle-transparent.gif" alt="Qiyi pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="qiyi" />
+            <img src="./assets/community-pets/mint-normal/mint-normal-idle-transparent.gif" alt="Mint Normal pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="mint-normal" />
+            <img src="./assets/community-pets/asuka-kklover-20260601/asuka-kklover-20260601-idle-transparent.gif" alt="Asuka pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="asuka-kklover-20260601" />
+            <img src="./assets/community-pets/ikkun/ikkun-idle-transparent.gif" alt="Ikkun pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="ikkun" />
+            <img src="./assets/community-pets/goku/goku-idle-transparent.gif" alt="Goku pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="goku" />
+            <img src="./assets/community-pets/firefly/firefly-idle-transparent.gif" alt="Firefly pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="firefly" />
+            <img src="./assets/community-pets/goku-forms/goku-forms-idle-transparent.gif" alt="Goku Forms pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="goku-forms" />
+            <img src="./assets/community-pets/han-laomo-yuanying/han-laomo-yuanying-idle-transparent.gif" alt="Han Laomo Yuanying pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="han-laomo-yuanying" />
+            <img src="./assets/community-pets/slate/slate-idle-transparent.gif" alt="Slate pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="slate" />
+            <img src="./assets/community-pets/ikunchick/ikunchick-idle-transparent.gif" alt="Ikunchick pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="ikunchick" />
+            <img src="./assets/community-pets/gali-boo/gali-boo-idle-transparent.gif" alt="Gali Boo pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="gali-boo" />
+            <img src="./assets/community-pets/xueren/xueren-idle-transparent.gif" alt="Xueren pet preview" class="community-pet-preview aspect-square rounded-2xl border border-white/10 bg-white/8 object-contain p-3" loading="lazy" data-pet-slug="xueren" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="download" class="shell py-20">
+      <div class="glass overflow-hidden rounded-[34px] p-8 md:p-12">
+        <div class="grid gap-8 lg:grid-cols-[1fr_0.78fr] lg:items-center">
+          <div>
+            <p class="section-kicker">Download</p>
+            <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">软件下载</h2>
+            <p class="mt-5 max-w-2xl leading-8 text-slate-300">软件完全免费开源，点击下方平台可以直接下载。如果您有Github账号，贡献一颗免费的小星星⭐，我将不胜感激！</p>
+            <div class="mt-7 flex flex-wrap gap-3">
+              <a class="cta cta-secondary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-windows-download>下载 Windows</a>
+              <a class="cta cta-secondary" href="https://github.com/dev-zyl/DesktopPet/releases/latest" data-mac-download>下载 macOS</a>
+              <a class="cta cta-primary" href="https://github.com/dev-zyl/DesktopPet/stargazers" target="_blank" rel="noopener">⭐GitHub Star</a>
+            </div>
+          </div>
+          <div class="rounded-3xl border border-white/10 bg-black/20 p-5">
+            <div class="flex items-center justify-between border-b border-white/10 pb-4">
+              <span class="font-black text-slate-300">Release Telemetry</span>
+              <span class="rounded-full bg-mint/15 px-3 py-1 text-sm font-black text-mint">LIVE</span>
+            </div>
+            <dl class="mt-5 grid gap-4">
+              <div class="flex items-center justify-between">
+                <dt class="text-slate-400">总下载量</dt>
+                <dd id="download-count" class="text-2xl font-black text-white">读取中</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-slate-400">当前版本</dt>
+                <dd class="text-lg font-black text-honey">v0.2.0</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-slate-400">构建目标</dt>
+                <dd class="text-lg font-black text-cyan">NSIS / MSI</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="shell py-20">
       <div>
-
-        <!-- Q1 -->
-        <details open class="faq-item">
-          <summary>软件收费吗？</summary>
-          <div class="faq-answer">
-            完全免费开源。基础对话调用的是文心一言海量语录库。大模型对话功能由于接入的是你自己的 API Key，有很多免费的api可以接入。<a href="./getAPI.md" target="_blank" class="underline text-sky-600 hover:text-sky-800">戳这里看教程</a>
-          </div>
-        </details>
-
-        <!-- Q2 -->
-        <details open class="faq-item">
-          <summary>支持 Mac 或 Linux 吗？</summary>
-          <div class="faq-answer">
-            目前主打 Windows 体验，但由于基于 Tauri 框架，你可以克隆源码自行在 Mac 下编译运行。
-            因为主包对Mac和Linux不熟悉，所以暂时没有提供官方安装包。欢迎朋友贡献跨平台版本！
-            可以通过我的抖音联系我dy1nrbj3gm4gd或者直接提交 PR！
-          </div>
-        </details>
-
-        <!-- Q3 -->
-        <details open class="faq-item">
-          <summary>怎么更换自己喜欢的宠物？</summary>
-          <div class="faq-answer">
-            在网页上方前往开源社区下载 <code class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs">.zip</code> 格式的宠物包，右键点击桌面上的宠物，进入设置，导入宠物即可。<a href="./daorujiaocheng.md" target="_blank" class="underline text-sky-600 hover:text-sky-800">戳这里直达教程</a>
-          </div>
-        </details>
-
+        <p class="section-kicker">FAQ</p>
+        <h2 class="hero-title mt-4 text-4xl text-white sm:text-6xl">常见问题</h2>
+        <div class="mt-10 space-y-4">
+          <details class="glass rounded-3xl p-6" open>
+            <summary class="cursor-pointer text-lg font-black text-white">软件收费吗？</summary>
+            <p class="mt-4 leading-8 text-slate-300">LingoPet项目完全开源，基础功能可直接使用，可以直接下载软件安装包，或者下载源码在此基础上进行二创，软件遵守MIT许可证。</p>
+          </details>
+          <details class="glass rounded-3xl p-6" open>
+            <summary class="cursor-pointer text-lg font-black text-white">macOS安装后 提示“已损坏，无法打开”？</summary>
+            <p class="mt-4 leading-8 text-slate-300">因为 LingoPet 应用尚未签名和 Apple 公证。解决方法：将 LingoPet.app 拖到“应用程序”后，在终端执行下面的命令，然后再次打开应用即可解决。</p>
+            <div class="mt-4 overflow-hidden rounded-2xl border border-mint/20 bg-black/35">
+              <div class="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <span class="text-xs font-black uppercase tracking-[0.18em] text-mint">Terminal</span>
+                <button class="copy-command rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-sm font-bold text-slate-100 transition hover:border-mint/40 hover:text-mint" type="button" data-copy="xattr -cr /Applications/LingoPet.app">复制</button>
+              </div>
+              <pre class="overflow-x-auto px-4 py-4 text-sm leading-7 text-slate-100"><code>xattr -cr /Applications/LingoPet.app</code></pre>
+            </div>
+          </details>
+          <details class="glass rounded-3xl p-6">
+            <summary class="cursor-pointer text-lg font-black text-white">如何下载并更换喜欢的桌宠？</summary>
+            <p class="mt-4 leading-8 text-slate-300">在桌宠管理-->宠物市场-->下载喜欢的宠物，即可召唤宠物（这里的宠物市场是codex宠物社区，兼容所有基础动作）</p>
+            <p class="mt-4 leading-8 text-slate-300">安装个性动作，可以在创意工坊中搜索。也可以桌宠管理-->我的桌宠-->编辑-->手动添加功德模式、专注模式、律动模式动作，创作的个性化动作也可以分享到创意工坊，供别的朋友使用。</p>
+          </details>
+          <details class="glass rounded-3xl p-6">
+            <summary class="cursor-pointer text-lg font-black text-white">如何制作桌宠个性化动作？</summary>
+            <p class="mt-4 leading-8 text-slate-300">在桌宠管理-->我的桌宠-->编辑，打开编辑界面，复制待机动作的第一帧画面，去生图模型，编写提示词生成横版动作精灵表。</p>
+            <p class="mt-4 leading-8 text-slate-300">如果不是标准透明背景，可以在<a href="https://studio.lingopet.xyz" target="_blank" rel="noopener noreferrer ">LingoPet Sprite Studio</a>去除背景后，导入到软件编辑器中预览。</p>
+          </details>
+          <details class="glass rounded-3xl p-6">
+            <summary class="cursor-pointer text-lg font-black text-white">为什么说它很轻量？</summary>
+            <p class="mt-4 leading-8 text-slate-300">前端使用 Vite + TypeScript + 纯 DOM，后端是 Tauri v2 + Rust，没有引入 Canvas/WebGL 或大型前端框架，桌宠窗口也保持小尺寸透明渲染。</p>
+          </details>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
 
-
-  <!-- ============================================================
-       FOOTER
-       ============================================================ -->
-  <footer class="border-t border-slate-200">
-    <div class="mx-auto max-w-6xl px-6 py-10 flex flex-col sm:flex-row
-                items-center justify-between gap-4 text-[0.9375rem] text-slate-500">
-      <span>LingoPet &mdash; MIT License</span>
-      <div class="flex items-center gap-6">
-        <a href="https://github.com/Muxinlucky/DesktopPet" target="_blank" rel="noopener"
-           class="hover:text-slate-600 transition-colors">GitHub</a>
-        <a href="#hero" class="hover:text-slate-600 transition-colors">回到顶部</a>
+  <footer class="border-t border-white/10 py-10">
+    <div class="shell grid gap-4 text-sm text-slate-400 sm:grid-cols-3 sm:items-center">
+      <span class="hidden sm:block" aria-hidden="true"></span>
+      <span class="text-center">LingoPet © 2026. All Rights Reserved.</span>
+      <div class="flex items-center justify-center gap-5 sm:justify-end">
+        <a class="hover:text-white" href="https://github.com/dev-zyl/DesktopPet" target="_blank" rel="noopener">GitHub</a>
+        <a class="hover:text-white" href="#hero">回到顶部</a>
       </div>
     </div>
   </footer>
 
-  <!-- ============================================================
-       DOWNLOAD COUNTER SCRIPT
-       ============================================================ -->
   <script>
     (function () {
-      var COUNTER_API = 'https://api.counterapi.dev/v1';
-      var NAMESPACE = 'lingopet-downloads-count';
-      var KEY = 'total';
-      var DOWNLOAD_URL = 'https://github.com/Muxinlucky/DesktopPet/releases/download/v1.0.0/LingoPet_1.0.0_x64_en-US.msi';
+      var REPO = 'dev-zyl/DesktopPet';
+      var releaseUrl = 'https://github.com/' + REPO + '/releases/latest';
+      var countTargets = [
+        document.getElementById('nav-download-count'),
+        document.getElementById('download-count')
+      ].filter(Boolean);
 
-      var countEl = document.getElementById('download-count');
+      var windowsDownloadLinks = Array.prototype.slice.call(document.querySelectorAll('[data-windows-download]'));
+      windowsDownloadLinks.forEach(function (link) {
+        link.href = releaseUrl;
+      });
+      var macDownloadLinks = Array.prototype.slice.call(document.querySelectorAll('[data-mac-download]'));
+      macDownloadLinks.forEach(function (link) {
+        link.href = releaseUrl;
+      });
 
-      // Fetch current count on page load
-      fetch(COUNTER_API + '/' + NAMESPACE + '/' + KEY)
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (data && typeof data.data === 'number') {
-            countEl.textContent = data.data.toLocaleString();
+      function findWindowsInstallerAsset(release) {
+        var assets = release && Array.isArray(release.assets) ? release.assets : [];
+        return assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /(?:x64|windows|win).*setup\.exe$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /\.exe$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || null;
+      }
+
+      function findMacInstallerAsset(release) {
+        var assets = release && Array.isArray(release.assets) ? release.assets : [];
+        return assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /x64.*\.dmg$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || assets.find(function (asset) {
+          return asset &&
+            typeof asset.name === 'string' &&
+            /\.dmg$/i.test(asset.name) &&
+            typeof asset.browser_download_url === 'string';
+        }) || null;
+      }
+
+      fetch('https://api.github.com/repos/' + REPO + '/releases/latest')
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (release) {
+          var windowsInstaller = findWindowsInstallerAsset(release);
+          if (windowsInstaller) {
+            windowsDownloadLinks.forEach(function (link) {
+              link.href = windowsInstaller.browser_download_url;
+              link.setAttribute('download', windowsInstaller.name);
+            });
+          }
+
+          var macInstaller = findMacInstallerAsset(release);
+          if (macInstaller) {
+            macDownloadLinks.forEach(function (link) {
+              link.href = macInstaller.browser_download_url;
+              link.setAttribute('download', macInstaller.name);
+            });
           }
         })
         .catch(function () {
-          // Keep default display on failure
+          windowsDownloadLinks.forEach(function (link) {
+            link.href = releaseUrl;
+          });
+          macDownloadLinks.forEach(function (link) {
+            link.href = releaseUrl;
+          });
         });
 
-      // Increment on CTA click, then redirect after 300ms
-      var ctaBtn = document.getElementById('cta-download');
-      if (ctaBtn) {
-        ctaBtn.addEventListener('click', function (e) {
-          e.preventDefault();
-          fetch(COUNTER_API + '/' + NAMESPACE + '/' + KEY + '/up', { method: 'POST' })
-            .catch(function () {});
-          setTimeout(function () {
-            window.location.href = DOWNLOAD_URL;
-          }, 300);
+      document.querySelectorAll('.copy-command').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var text = button.getAttribute('data-copy') || '';
+          var originalText = button.textContent || '复制';
+
+          function setCopyState(success) {
+            button.textContent = success ? '已复制' : '复制失败';
+            window.setTimeout(function () {
+              button.textContent = originalText;
+            }, 1400);
+          }
+
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text)
+              .then(function () { setCopyState(true); })
+              .catch(function () { setCopyState(false); });
+            return;
+          }
+
+          var textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+
+          try {
+            setCopyState(document.execCommand('copy'));
+          } catch (error) {
+            setCopyState(false);
+          }
+
+          textarea.remove();
+        });
+      });
+
+      var petActionFrames = {
+        idle: 6,
+        'running-right': 8,
+        'running-left': 8,
+        waving: 4,
+        failed: 7
+      };
+      var petRandomActions = Object.keys(petActionFrames).filter(function (action) {
+        return action !== 'idle';
+      });
+      var petFrameMs = 150;
+
+      function petGifPath(slug, action) {
+        return './assets/community-pets/' + slug + '/' + slug + '-' + action + '-transparent.gif';
+      }
+
+      function playCommunityPet(img, action) {
+        var slug = img.getAttribute('data-pet-slug');
+        if (!slug) return;
+        img.src = petGifPath(slug, action);
+        img.setAttribute('data-current-action', action);
+      }
+
+      document.querySelectorAll('.community-pet-preview').forEach(function (img, index) {
+        var idleDuration = petActionFrames.idle * petFrameMs;
+        var nextAction = 'idle';
+
+        function queueNext() {
+          var currentAction = nextAction;
+          playCommunityPet(img, currentAction);
+
+          var actionDuration = (petActionFrames[currentAction] || petActionFrames.idle) * petFrameMs;
+          nextAction = currentAction === 'idle'
+            ? petRandomActions[Math.floor(Math.random() * petRandomActions.length)]
+            : 'idle';
+
+          window.setTimeout(queueNext, actionDuration);
+        }
+
+        window.setTimeout(queueNext, index * 130 + Math.floor(Math.random() * idleDuration));
+      });
+
+      function setCount(value) {
+        countTargets.forEach(function (el) {
+          el.textContent = value;
         });
       }
-    })();
-  </script>
 
-  <!-- ============================================================
-       GITHUB RELEASES DOWNLOAD COUNT
-       ============================================================ -->
-  <script>
-    (function () {
-      var el = document.getElementById('nav-download-count');
-      if (!el) return;
-      fetch('https://api.github.com/repos/Muxinlucky/DesktopPet/releases')
-        .then(function (res) { return res.json(); })
+      fetch('https://api.github.com/repos/' + REPO + '/releases')
+        .then(function (res) { return res.ok ? res.json() : []; })
         .then(function (releases) {
           var total = 0;
           if (Array.isArray(releases)) {
-            releases.forEach(function (r) {
-              if (r && Array.isArray(r.assets)) {
-                r.assets.forEach(function (a) {
-                  total += (a.download_count || 0);
+            releases.forEach(function (release) {
+              if (release && Array.isArray(release.assets)) {
+                release.assets.forEach(function (asset) {
+                  total += asset.download_count || 0;
                 });
               }
             });
           }
-          el.innerText = total > 0 ? total.toLocaleString() : '50+';
+          setCount(total > 0 ? total.toLocaleString() : '待发布');
         })
         .catch(function () {
-          el.innerText = '50+';
+          setCount('待发布');
         });
     })();
   </script>
-
 </body>
 </html>
