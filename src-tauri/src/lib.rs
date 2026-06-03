@@ -318,6 +318,7 @@ struct DesktopPlatform {
     top: i32,
     right: i32,
     bottom: i32,
+    kind: String,
 }
 
 #[cfg(windows)]
@@ -384,15 +385,27 @@ fn list_desktop_platforms() -> Result<Vec<DesktopPlatform>, String> {
             top: rect.top,
             right: rect.right,
             bottom: rect.top + edge_height,
+            kind: "platform".to_string(),
         });
 
-        // Bottom border, inside the window chrome/content area.
+        // Left border: contact only, not a standing surface.
         platforms.push(DesktopPlatform {
-            id: format!("app-window-bottom-{index}"),
+            id: format!("app-window-left-{index}"),
             left: rect.left,
-            top: rect.bottom - edge_height,
+            top: rect.top,
+            right: rect.left + edge_height,
+            bottom: rect.bottom,
+            kind: "wall".to_string(),
+        });
+
+        // Right border: contact only, not a standing surface.
+        platforms.push(DesktopPlatform {
+            id: format!("app-window-right-{index}"),
+            left: rect.right - edge_height,
+            top: rect.top,
             right: rect.right,
             bottom: rect.bottom,
+            kind: "wall".to_string(),
         });
 
         BOOL(1)

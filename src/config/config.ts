@@ -60,7 +60,7 @@ const ATLAS_CELL_WIDTH = 192;
 const ATLAS_CELL_HEIGHT = 208;
 
 const DEFAULT_ACTION_NAMES = [
-  "待机", "向右跑", "向左跑", "挥手", "跳跃", "失败", "等待", "工作", "审阅"
+  "待机", "向右跑", "向左跑", "打招呼", "跳跃", "哭泣", "等待", "工作", "审阅"
 ];
 
 const MODE_ACTION_PRESETS: Record<ModeActionKey, ModeActionPreset> = {
@@ -112,17 +112,36 @@ const LS_CUSTOM_TAGS = "pet_custom_tags";
 const LS_PET_WINDOW_STATE_VERSION = "pet_window_state_version";
 const LS_PET_VOLUME = "pet-volume";
 const LS_SPEECH_BUBBLE_STYLE = "pet_speech_bubble_style";
-const BUILTIN_IKUN_PET: ProjectPet = {
-  id: "ikun-pet",
-  displayName: "鸡哥ikun",
+const LS_PET_GRAVITY_ENABLED = "pet_gravity_enabled";
+const BUILTIN_DORO_PET: ProjectPet = {
+  id: "doro",
+  displayName: "Doro",
   description: "内置默认桌宠",
-  spritesheetPath: "spritesheet.webp",
-  kind: "animal",
+  spritesheetPath: "spritesheet_edited.webp",
+  kind: "creature",
   version: "v1.0.0",
   dir: "内置资源",
   spritesheetFile: "",
   builtin: true,
+  animations: {
+    focus: {
+      row: 11,
+      frames: 4,
+      frameDurations: [300, 300, 300, 300],
+    },
+    merit: {
+      row: 9,
+      frames: 4,
+      frameDurations: [150, 150, 150, 300],
+    },
+    music: {
+      row: 10,
+      frames: 8,
+      frameDurations: [140, 140, 140, 140, 140, 140, 140, 140],
+    },
+  },
 };
+const BUILTIN_PROJECT_PETS = [BUILTIN_DORO_PET];
 
 interface MarketPet {
   slug: string;
@@ -198,6 +217,7 @@ const els = {
   settingsOpenPetsDir: document.getElementById("settings-open-pets-dir") as HTMLButtonElement,
   autostartToggle: document.getElementById("autostart-toggle") as HTMLInputElement,
   alwaysTopToggle: document.getElementById("always-top-toggle") as HTMLInputElement,
+  gravityModeToggle: document.getElementById("gravity-mode-toggle") as HTMLInputElement,
   petInstanceModeRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="pet-instance-mode"]')],
   petActivityLevelRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="pet-activity-level"]')],
   musicRhythmSyncRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="music-rhythm-sync"]')],
@@ -261,6 +281,7 @@ const els = {
   editorModePresets: [...document.querySelectorAll<HTMLButtonElement>(".mode-action-preset")],
   editorAlignAction: document.getElementById("editor-align-action-btn") as HTMLButtonElement,
   actionStripUpload: document.getElementById("action-strip-upload-input") as HTMLInputElement,
+  actionStripFrameCount: document.getElementById("action-strip-frame-count") as HTMLInputElement,
   actionStripImport: document.getElementById("action-strip-import-btn") as HTMLButtonElement,
   actionStripShare: document.getElementById("action-strip-share-btn") as HTMLButtonElement,
   promptCopy: document.getElementById("prompt-copy-btn") as HTMLButtonElement,
@@ -273,6 +294,7 @@ const state = {
   sort: "hot" as SortName,
   marketPage: 1,
   marketTotal: 0,
+  marketFilterKey: "",
   minePage: 1,
   currentMineTag: "all" as string,
   currentWorkshopTag: "all" as string, // 新增的创意工坊当前筛选标签
@@ -322,6 +344,21 @@ const state = {
 
 let marketRequestSeq = 0;
 let marketSearchTimer: number | null = null;
+
+function clearMarketSearchTimer(): void {
+  if (marketSearchTimer !== null) {
+    window.clearTimeout(marketSearchTimer);
+    marketSearchTimer = null;
+  }
+}
+
+function getMarketFilterKey(): string {
+  return `${state.sort}::${els.marketSearch.value.trim().toLowerCase()}`;
+}
+
+function getMarketTotalCount(): number {
+  return state.marketTotal || state.marketPets.length;
+}
 
 function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
@@ -679,7 +716,7 @@ function createSprite(url: string, title: string): HTMLDivElement {
 }
 
 function projectPetSpriteUrl(pet: ProjectPet): string {
-  return pet.builtin ? new URL("../builtin-pets/ikun-pet/spritesheet.webp", import.meta.url).href : convertFileSrc(pet.spritesheetFile);
+  return pet.builtin ? new URL("../builtin-pets/doro/spritesheet_edited.webp", import.meta.url).href : convertFileSrc(pet.spritesheetFile);
 }
 
 function pageItems<T>(items: T[], page: number): T[] {
@@ -1098,7 +1135,8 @@ function petNameById(petId: string): string {
 }
 
 function currentPrimaryPetId(): string {
-  return localStorage.getItem(LS_PRIMARY_PET_ID) || BUILTIN_IKUN_PET.id;
+  const saved = localStorage.getItem(LS_PRIMARY_PET_ID);
+  return saved && saved !== "ikun-pet" ? saved : BUILTIN_DORO_PET.id;
 }
 
 function rememberPrimaryPet(petId: string): void {
@@ -1490,7 +1528,7 @@ function removeOneSavedSummonedPetId(petId: string): void {
 function normalizePrimaryPetId(): void {
   const current = currentPrimaryPetId();
   if (!state.projectPets.some((pet) => pet.id === current)) {
-    rememberPrimaryPet(BUILTIN_IKUN_PET.id);
+    rememberPrimaryPet(BUILTIN_DORO_PET.id);
   }
 }
 
@@ -1604,6 +1642,7 @@ function renderOnlinePetCard(): void {
 
 async function fetchMarketPets(page = 1): Promise<void> {
   const requestSeq = ++marketRequestSeq;
+  const filterKey = getMarketFilterKey();
   setStatus(els.marketStatus, "正在加载宠物市场...");
   els.marketGrid.replaceChildren();
   state.marketPage = page;
@@ -1622,8 +1661,18 @@ async function fetchMarketPets(page = 1): Promise<void> {
     });
     if (requestSeq !== marketRequestSeq) return;
     state.marketPets = Array.isArray(data.pets) ? data.pets : [];
-    state.marketTotal = Number(data.pagination?.totalItems || state.marketPets.length);
-    renderMarket(state.marketTotal);
+    const reportedTotal = Number(data.pagination?.totalItems);
+    const knownPageTotal = (page - 1) * PAGE_SIZE + state.marketPets.length;
+    if (Number.isFinite(reportedTotal) && reportedTotal > 0) {
+      state.marketTotal = reportedTotal;
+      state.marketFilterKey = filterKey;
+    } else if (state.marketFilterKey !== filterKey) {
+      state.marketTotal = knownPageTotal;
+      state.marketFilterKey = filterKey;
+    } else {
+      state.marketTotal = Math.max(state.marketTotal, knownPageTotal);
+    }
+    renderMarket(getMarketTotalCount());
   } catch (err) {
     if (requestSeq !== marketRequestSeq) return;
     console.error(err);
@@ -1634,14 +1683,16 @@ async function fetchMarketPets(page = 1): Promise<void> {
 async function loadProjectPets(): Promise<void> {
   try {
     const pets = await invoke<ProjectPet[]>("list_project_pets");
-    state.projectPets = pets.some((pet) => pet.id === BUILTIN_IKUN_PET.id)
-      ? pets
-      : [BUILTIN_IKUN_PET, ...pets];
+    const builtinIds = new Set(BUILTIN_PROJECT_PETS.map((pet) => pet.id));
+    state.projectPets = [
+      ...BUILTIN_PROJECT_PETS,
+      ...pets.filter((pet) => !builtinIds.has(pet.id)),
+    ];
     normalizePrimaryPetId();
     cleanupFavoritePetIds();
     renderMyPets();
     renderMineTagsBar();
-    renderMarket(state.marketTotal);
+    renderMarket(getMarketTotalCount());
     await loadActivePets();
   } catch (err) {
     console.error(err);
@@ -1856,6 +1907,7 @@ function updateBubbleStyleControls(value: string): void {
 async function loadSettings(): Promise<void> {
   els.autostartToggle.checked = await isEnabled().catch(() => false);
   els.alwaysTopToggle.checked = localStorage.getItem("pet-always-on-top") !== "false";
+  els.gravityModeToggle.checked = localStorage.getItem(LS_PET_GRAVITY_ENABLED) !== "false";
   const isMultiple = allowMultiplePets();
   for (const radio of els.petInstanceModeRadios) {
     radio.checked = (radio.value === "party" && isMultiple) || (radio.value === "single" && !isMultiple);
@@ -1892,6 +1944,7 @@ els.navItems.forEach((item) => {
 });
 els.sortButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    clearMarketSearchTimer();
     state.sort = (button.dataset.sort || "hot") as SortName;
     state.marketPage = 1;
     for (const item of els.sortButtons) item.classList.toggle("active", item === button);
@@ -1900,7 +1953,7 @@ els.sortButtons.forEach((button) => {
 });
 els.marketSearch.addEventListener("input", () => {
   state.marketPage = 1;
-  if (marketSearchTimer !== null) window.clearTimeout(marketSearchTimer);
+  clearMarketSearchTimer();
   marketSearchTimer = window.setTimeout(() => {
     marketSearchTimer = null;
     void fetchMarketPets(1);
@@ -2018,6 +2071,9 @@ els.autostartToggle.addEventListener("change", async () => {
 });
 els.alwaysTopToggle.addEventListener("change", () => {
   localStorage.setItem("pet-always-on-top", String(els.alwaysTopToggle.checked));
+});
+els.gravityModeToggle.addEventListener("change", () => {
+  localStorage.setItem(LS_PET_GRAVITY_ENABLED, String(els.gravityModeToggle.checked));
 });
 els.petInstanceModeRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
@@ -2716,6 +2772,10 @@ async function importActionStripImage(file: File): Promise<void> {
   let framesCount = 8;
   if (action.key && action.key in MODE_ACTION_PRESETS) {
     framesCount = MODE_ACTION_PRESETS[action.key as ModeActionKey].frames;
+  }
+  const customFramesCount = Number(els.actionStripFrameCount.value);
+  if (Number.isInteger(customFramesCount) && customFramesCount >= 1 && customFramesCount <= ATLAS_COLS) {
+    framesCount = customFramesCount;
   }
   const originalText = els.actionStripImport.textContent || `导入横版 ${framesCount} 帧图`;
   els.actionStripImport.disabled = true;

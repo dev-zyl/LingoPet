@@ -3195,6 +3195,47 @@ textarea {
   border-radius: 8px;
 }
 
+.action-strip-import-tools {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  align-items: end;
+}
+
+.action-strip-frame-count-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b5743;
+}
+
+.action-strip-frame-count-field input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #d7c9af;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: #342c22;
+  font-weight: 700;
+  outline: none;
+}
+
+.action-strip-frame-count-field input:focus {
+  border-color: #78b957;
+  box-shadow: 0 0 0 2px rgba(120, 185, 87, 0.14);
+}
+
+.action-strip-help {
+  margin-top: -2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(91, 81, 68, 0.78);
+}
+
 /* 动作模式三个按钮的并排紧凑排布 */
 .mode-action-buttons {
   display: grid;
