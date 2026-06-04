@@ -1139,3 +1139,8 @@
 - Generated the local updater signing key pair under `C:\Users\10424\.tauri\` and configured the public key in `tauri.conf.json`.
 - Configured the updater endpoint to GitHub Releases `latest/download/latest.json` for `dev-zyl/LingoPet` and enabled updater artifact generation.
 - Verification: ran `npx tauri build --debug --ci` with `TAURI_SIGNING_PRIVATE_KEY` set from the local key and confirmed NSIS/MSI `.sig` files were generated.
+
+### 2026-06-04 Docs release download repository fix
+- Updated the docs homepage release links, GitHub links, Open Graph image URLs, and release telemetry script from `dev-zyl/DesktopPet` to `dev-zyl/LingoPet`.
+- Updated the displayed current version from `v0.2.0` to `v0.2.1` so the homepage matches the latest published release.
+- Verification: checked the latest `dev-zyl/LingoPet` release assets resolve to the Windows setup `.exe` and macOS `.dmg` direct download URLs.
