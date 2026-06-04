@@ -1149,7 +1149,8 @@
 - Embedded the built-in Doro manifest in the pet window runtime so the default pet no longer depends on a runtime `pet.json` fetch during startup.
 - Added spritesheet load fallback handling and disabled pointer hitboxes when a pet window cannot render, preventing transparent failed windows from blocking desktop/control-panel clicks.
 - Switched the updater endpoint to `https://www.lingopet.xyz/latest.json` and added a docs-hosted updater manifest to avoid GitHub release redirect failures.
-- Bumped the app version to `0.2.3` for a follow-up patch release.
+- Bumped the app version to `0.2.4` for a follow-up patch release.
+- Updated the release workflow to publish tag builds directly instead of leaving them as draft releases.
 - Verification: ran `npm run build` and validated `docs/latest.json` as UTF-8 JSON.
 
 ### 2026-06-04 Docs image loading performance

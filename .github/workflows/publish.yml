@@ -69,6 +69,6 @@ jobs:
             xattr -cr /Applications/LingoPet.app
             ```
             然后再次打开应用。
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
