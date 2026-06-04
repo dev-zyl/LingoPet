@@ -1144,3 +1144,8 @@
 - Updated the docs homepage release links, GitHub links, Open Graph image URLs, and release telemetry script from `dev-zyl/DesktopPet` to `dev-zyl/LingoPet`.
 - Updated the displayed current version from `v0.2.0` to `v0.2.1` so the homepage matches the latest published release.
 - Verification: checked the latest `dev-zyl/LingoPet` release assets resolve to the Windows setup `.exe` and macOS `.dmg` direct download URLs.
+
+### 2026-06-04 Docs image loading performance
+- Delayed community pet preview GIF rotation until previews are near the viewport so the homepage no longer starts downloading every animated pet immediately.
+- Added async image decoding hints to homepage preview images.
+- Verification: ran `git diff --check -- docs/index.html`.
