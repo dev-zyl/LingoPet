@@ -1134,3 +1134,8 @@
 - Added a software update section to the settings window with current version display, manual update checking, and download/relaunch installation flow.
 - Registered the Tauri updater plugin and permissions without enabling release artifact generation before a signing key and update endpoint are configured.
 - Verification: ran `npm run build`, `cargo check` in `src-tauri/`, and confirmed `npm run tauri build -- --debug` reaches bundling once artifact generation stays disabled.
+
+### 2026-06-04 Updater signing configuration
+- Generated the local updater signing key pair under `C:\Users\10424\.tauri\` and configured the public key in `tauri.conf.json`.
+- Configured the updater endpoint to GitHub Releases `latest/download/latest.json` for `dev-zyl/LingoPet` and enabled updater artifact generation.
+- Verification: ran `npx tauri build --debug --ci` with `TAURI_SIGNING_PRIVATE_KEY` set from the local key and confirmed NSIS/MSI `.sig` files were generated.

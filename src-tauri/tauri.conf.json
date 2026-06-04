@@ -46,8 +46,20 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE5NzNCQTU5NURGODQ1OTIKUldTU1JmaGRXYnB6R1pxVXZ3SmFUMitqU05NQTBEbWlLNXBuM244Njh2UVFGZzh2YWZIWDN3alIK",
+      "endpoints": [
+        "https://github.com/dev-zyl/LingoPet/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": [
       "nsis",
       "msi"
