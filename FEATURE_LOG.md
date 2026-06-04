@@ -1161,3 +1161,8 @@
 - Compressed docs image assets from about 40.3 MB to about 4.3 MB, including shrinking large PNG/WebP files and heavily reducing animated GIFs.
 - Converted homepage feature preview images to smaller WebP files and removed unused community preview actions, keeping only idle and running-left.
 - Verification: checked image dimensions with Pillow, searched docs for removed action references, and ran `git diff --check` for docs assets and `docs/index.html`.
+
+### 2026-06-04 Docs community GIF lossless restore
+- Restored community pet preview GIFs to their original 192x208 dimensions and recompressed them with lossless `gifsicle -O3` optimization only.
+- Kept the trimmed action set to idle and running-left while preserving transparent corners for browser rendering.
+- Verification: checked all 24 community GIFs for transparency indexes, confirmed RGBA corner alpha is 0 on sample frames, and searched docs for removed action references.
