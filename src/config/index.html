@@ -609,6 +609,26 @@
             <p id="settings-pets-path" class="path-text"></p>
             <button id="settings-open-pets-dir" class="primary-button" type="button">打开目录</button>
           </div>
+
+          <div class="setting-group update-settings">
+            <div class="setting-group-title"><svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v10"></path>
+                <path d="m8 9 4 4 4-4"></path>
+                <path d="M5 17.5A3.5 3.5 0 0 0 8.5 21h7a3.5 3.5 0 0 0 3.5-3.5"></path>
+              </svg>
+              <h3>软件更新</h3>
+            </div>
+            <div class="setting-row update-setting-row">
+              <span>
+                <strong>当前版本 <span id="current-version-text" class="version-badge">-</span></strong>
+                <small id="update-status" aria-live="polite">可手动检查新版本；安装完成后会重启应用。</small>
+              </span>
+              <div class="row-actions">
+                <button id="check-update-btn" class="ghost-button" type="button">检查更新</button>
+                <button id="install-update-btn" class="primary-button" type="button" hidden>下载并重启</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>

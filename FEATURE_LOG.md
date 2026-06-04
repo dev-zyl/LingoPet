@@ -1129,3 +1129,8 @@
 - Updated active GitHub repository and workshop endpoints from `ZhangYiLong416` to `dev-zyl`.
 - Added docs homepage SEO metadata including keywords, robots, author, canonical URL, Open Graph fields, and Twitter card fields.
 - Verification: checked active code paths for old account references and ran `git diff --check` for the touched files.
+
+### 2026-06-04 Settings updater controls
+- Added a software update section to the settings window with current version display, manual update checking, and download/relaunch installation flow.
+- Registered the Tauri updater plugin and permissions without enabling release artifact generation before a signing key and update endpoint are configured.
+- Verification: ran `npm run build`, `cargo check` in `src-tauri/`, and confirmed `npm run tauri build -- --debug` reaches bundling once artifact generation stays disabled.

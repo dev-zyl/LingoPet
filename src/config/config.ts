@@ -8,8 +8,11 @@ import style7Ornaments from "../assets/ui/speech-bubble-style-7-ornaments.png";
 import style8Ornaments from "../assets/ui/speech-bubble-style-8-ornaments.png";
 import style9Ornaments from "../assets/ui/speech-bubble-style-9-ornaments.png";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { open } from "@tauri-apps/plugin-dialog";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 
 // ==========================================
 // 创意工坊 & 雪碧图编辑器 新增类型与全局常量
@@ -215,6 +218,10 @@ const els = {
   settingsPetsPath: document.getElementById("settings-pets-path") as HTMLParagraphElement,
   openPetsDir: document.getElementById("open-pets-dir") as HTMLButtonElement | null,
   settingsOpenPetsDir: document.getElementById("settings-open-pets-dir") as HTMLButtonElement,
+  currentVersion: document.getElementById("current-version-text") as HTMLSpanElement,
+  updateStatus: document.getElementById("update-status") as HTMLElement,
+  checkUpdate: document.getElementById("check-update-btn") as HTMLButtonElement,
+  installUpdate: document.getElementById("install-update-btn") as HTMLButtonElement,
   autostartToggle: document.getElementById("autostart-toggle") as HTMLInputElement,
   alwaysTopToggle: document.getElementById("always-top-toggle") as HTMLInputElement,
   gravityModeToggle: document.getElementById("gravity-mode-toggle") as HTMLInputElement,
@@ -339,6 +346,7 @@ const state = {
   workshopItems: [] as WorkshopItem[],
   workshopSearchQuery: "",
   workshopFilterType: "all",
+  availableUpdate: null as Update | null,
 
 };
 
@@ -522,6 +530,80 @@ function applyEditorPreviewBackground(background: EditorPreviewBackground): void
 function setApiConfigStatus(message = "", isError = false): void {
   els.apiConfigStatus.textContent = message;
   els.apiConfigStatus.classList.toggle("error", isError);
+}
+
+function setUpdateStatus(message: string, isError = false): void {
+  els.updateStatus.textContent = message;
+  els.updateStatus.classList.toggle("error", isError);
+}
+
+async function loadCurrentVersion(): Promise<void> {
+  if (!isTauriRuntime()) {
+    els.currentVersion.textContent = "dev";
+    setUpdateStatus("浏览器预览模式无法检查桌面应用更新。");
+    return;
+  }
+
+  try {
+    els.currentVersion.textContent = `v${await getVersion()}`;
+  } catch (err) {
+    console.error(err);
+    els.currentVersion.textContent = "-";
+  }
+}
+
+async function checkForAppUpdate(): Promise<void> {
+  if (!isTauriRuntime()) {
+    setUpdateStatus("请在灵动宠物桌面应用中检查更新。", true);
+    return;
+  }
+
+  state.availableUpdate = null;
+  els.installUpdate.hidden = true;
+  els.checkUpdate.disabled = true;
+  setUpdateStatus("正在检查新版本...");
+
+  try {
+    const update = await check();
+    if (!update) {
+      setUpdateStatus("当前已是最新版本。");
+      return;
+    }
+
+    state.availableUpdate = update;
+    els.installUpdate.hidden = false;
+    setUpdateStatus(`发现新版本 v${update.version}，可下载并重启安装。`);
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
+    setUpdateStatus(`检查更新失败：${message}`, true);
+  } finally {
+    els.checkUpdate.disabled = false;
+  }
+}
+
+async function installAppUpdate(): Promise<void> {
+  const update = state.availableUpdate;
+  if (!update) {
+    setUpdateStatus("请先检查更新。", true);
+    return;
+  }
+
+  els.checkUpdate.disabled = true;
+  els.installUpdate.disabled = true;
+  setUpdateStatus(`正在下载 v${update.version}...`);
+
+  try {
+    await update.downloadAndInstall();
+    setUpdateStatus("更新安装完成，正在重启应用...");
+    await relaunch();
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
+    setUpdateStatus(`安装更新失败：${message}`, true);
+    els.checkUpdate.disabled = false;
+    els.installUpdate.disabled = false;
+  }
 }
 
 function normalizeApiEndpoint(value: string): string {
@@ -1937,6 +2019,7 @@ async function loadSettings(): Promise<void> {
   }
   applyEditorPreviewBackground(editorPreviewBackground);
   void loadPetsPath();
+  void loadCurrentVersion();
 }
 
 els.navItems.forEach((item) => {
@@ -1970,6 +2053,8 @@ els.refresh.addEventListener("click", () => {
 });
 els.openPetsDir?.addEventListener("click", () => void invoke("open_pet_folder", { petId: null }));
 els.settingsOpenPetsDir.addEventListener("click", () => void invoke("open_pet_folder", { petId: null }));
+els.checkUpdate.addEventListener("click", () => void checkForAppUpdate());
+els.installUpdate.addEventListener("click", () => void installAppUpdate());
 els.addTagBtn.addEventListener("click", () => {
   const name = window.prompt("请输入新建分组（标签）的名称：")?.trim();
   if (name) {

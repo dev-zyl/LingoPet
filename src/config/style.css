@@ -1105,6 +1105,34 @@ textarea:focus {
   color: #756d60;
 }
 
+.setting-row small.error {
+  color: #b73b2f;
+}
+
+.update-setting-row {
+  align-items: flex-start;
+}
+
+.update-setting-row .row-actions {
+  flex: 0 0 auto;
+}
+
+.version-badge {
+  display: inline-grid;
+  min-width: 54px;
+  min-height: 24px;
+  place-items: center;
+  margin-left: 6px;
+  padding: 0 8px;
+  border: 1px solid #d8c9ad;
+  border-radius: 999px;
+  background: #fffaf0;
+  color: #1d4030;
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
 .setting-row input[type="checkbox"] {
   width: 20px;
   height: 20px;
