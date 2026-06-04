@@ -24,6 +24,9 @@ jobs:
             args: "--bundles nsis,msi"
 
     runs-on: ${{ matrix.platform }}
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -42,6 +45,14 @@ jobs:
 
       - name: Install Frontend Dependencies
         run: npm ci || npm install
+
+      - name: Validate updater signing key
+        shell: bash
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Missing TAURI_SIGNING_PRIVATE_KEY repository secret. Set it to the contents of the local updater private key file."
+            exit 1
+          fi
 
       - name: Build and Release
         uses: tauri-apps/tauri-action@v0
