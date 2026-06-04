@@ -1026,7 +1026,7 @@
               </div>
               <div class="flex items-center justify-between">
                 <dt class="text-slate-400">当前版本</dt>
-                <dd class="text-lg font-black text-honey">v0.2.1</dd>
+                <dd id="latest-release-version" class="text-lg font-black text-honey">读取中</dd>
               </div>
               <div class="flex items-center justify-between">
                 <dt class="text-slate-400">构建目标</dt>
@@ -1096,6 +1096,7 @@
         document.getElementById('nav-download-count'),
         document.getElementById('download-count')
       ].filter(Boolean);
+      var latestVersionTarget = document.getElementById('latest-release-version');
 
       var windowsDownloadLinks = Array.prototype.slice.call(document.querySelectorAll('[data-windows-download]'));
       windowsDownloadLinks.forEach(function (link) {
@@ -1139,6 +1140,10 @@
       fetch('https://api.github.com/repos/' + REPO + '/releases/latest')
         .then(function (res) { return res.ok ? res.json() : null; })
         .then(function (release) {
+          if (latestVersionTarget && release && release.tag_name) {
+            latestVersionTarget.textContent = release.tag_name;
+          }
+
           var windowsInstaller = findWindowsInstallerAsset(release);
           if (windowsInstaller) {
             windowsDownloadLinks.forEach(function (link) {
@@ -1156,6 +1161,10 @@
           }
         })
         .catch(function () {
+          if (latestVersionTarget) {
+            latestVersionTarget.textContent = '待发布';
+          }
+
           windowsDownloadLinks.forEach(function (link) {
             link.href = releaseUrl;
           });
