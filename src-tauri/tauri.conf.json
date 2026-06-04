@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "LingoPet",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "identifier": "com.lingopet.app",
   "build": {
     "frontendDist": "../dist",
@@ -50,7 +50,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE5NzNCQTU5NURGODQ1OTIKUldTU1JmaGRXYnB6R1pxVXZ3SmFUMitqU05NQTBEbWlLNXBuM244Njh2UVFGZzh2YWZIWDN3alIK",
       "endpoints": [
-        "https://github.com/dev-zyl/LingoPet/releases/latest/download/latest.json"
+        "https://www.lingopet.xyz/latest.json"
       ],
       "windows": {
         "installMode": "passive"

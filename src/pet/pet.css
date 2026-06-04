@@ -38,6 +38,11 @@ body {
   pointer-events: auto !important;
 }
 
+#pet-container.sprite-load-error,
+#pet-container.sprite-load-error #pet-hitbox {
+  pointer-events: none !important;
+}
+
 #pet-container::before,
 #pet-container::after {
   content: "";

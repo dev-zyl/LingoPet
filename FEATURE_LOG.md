@@ -1145,7 +1145,19 @@
 - Updated the displayed current version from `v0.2.0` to `v0.2.1` so the homepage matches the latest published release.
 - Verification: checked the latest `dev-zyl/LingoPet` release assets resolve to the Windows setup `.exe` and macOS `.dmg` direct download URLs.
 
+### 2026-06-04 Pet sprite load fallback and updater endpoint
+- Embedded the built-in Doro manifest in the pet window runtime so the default pet no longer depends on a runtime `pet.json` fetch during startup.
+- Added spritesheet load fallback handling and disabled pointer hitboxes when a pet window cannot render, preventing transparent failed windows from blocking desktop/control-panel clicks.
+- Switched the updater endpoint to `https://www.lingopet.xyz/latest.json` and added a docs-hosted updater manifest to avoid GitHub release redirect failures.
+- Bumped the app version to `0.2.3` for a follow-up patch release.
+- Verification: ran `npm run build` and validated `docs/latest.json` as UTF-8 JSON.
+
 ### 2026-06-04 Docs image loading performance
 - Delayed community pet preview GIF rotation until previews are near the viewport so the homepage no longer starts downloading every animated pet immediately.
 - Added async image decoding hints to homepage preview images.
 - Verification: ran `git diff --check -- docs/index.html`.
+
+### 2026-06-04 Docs asset compression and preview action trimming
+- Compressed docs image assets from about 40.3 MB to about 4.3 MB, including shrinking large PNG/WebP files and heavily reducing animated GIFs.
+- Converted homepage feature preview images to smaller WebP files and removed unused community preview actions, keeping only idle and running-left.
+- Verification: checked image dimensions with Pillow, searched docs for removed action references, and ran `git diff --check` for docs assets and `docs/index.html`.

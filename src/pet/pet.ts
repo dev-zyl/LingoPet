@@ -60,6 +60,22 @@ const MODE_ANIMATION_PRESETS: Record<string, FrameAnimation> = {
   music: { row: 11, frames: 8, frameDurations: [140, 140, 140, 140, 140, 140, 180, 240] },
 };
 
+const FALLBACK_SPRITESHEET_URL = new URL("./spritesheet.webp", import.meta.url).href;
+const BUILTIN_DORO_SPRITESHEET_URL = new URL("../builtin-pets/doro/spritesheet_edited.webp", import.meta.url).href;
+
+const BUILTIN_DORO_MANIFEST: PetManifest = {
+  id: "doro",
+  displayName: "Doro",
+  description: "A tiny white chibi pet with pink hair, purple eyes, and a side rose ribbon.",
+  spritesheetPath: "spritesheet_edited.webp",
+  kind: "creature",
+  animations: {
+    focus: { row: 11, frames: 4, frameDurations: [300, 300, 300, 300] },
+    merit: { row: 9, frames: 4, frameDurations: [150, 150, 150, 300] },
+    music: { row: 10, frames: 8, frameDurations: [140, 140, 140, 140, 140, 140, 140, 140] },
+  },
+};
+
 // ── Audio SFX (HTML5 Audio, no external libs) ──
 
 const LS_PET_VOLUME = "pet-volume";
@@ -288,6 +304,7 @@ class PetEngine {
   private inferAtlasFromSpritesheet(url: string): void {
     const image = new Image();
     image.onload = () => {
+      document.getElementById("pet-container")?.classList.remove("sprite-load-error");
       const rows = Math.floor(image.naturalHeight / this.atlas.cellHeight);
       const inferredFrameCounts = this.inferFrameCountsByRow(image, rows);
       const animations = { ...this.atlas.animations };
@@ -316,6 +333,16 @@ class PetEngine {
       } else if (isMusicRhythmMode && this.hasState("music")) {
         this.applyState("music");
       }
+    };
+    image.onerror = () => {
+      console.warn("Pet spritesheet failed to load:", url);
+      if (url !== FALLBACK_SPRITESHEET_URL) {
+        this.spriteEl.style.backgroundImage = `url("${FALLBACK_SPRITESHEET_URL}")`;
+        this.inferAtlasFromSpritesheet(FALLBACK_SPRITESHEET_URL);
+        this.applyState("idle");
+        return;
+      }
+      document.getElementById("pet-container")?.classList.add("sprite-load-error");
     };
     image.src = url;
   }
@@ -3963,8 +3990,8 @@ async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetM
   const projectPetId = params.get("petId") || summonedPetId || primaryPetId;
   if (projectPetId === "doro") {
     return {
-      spritesheetUrl: new URL("../builtin-pets/doro/spritesheet_edited.webp", import.meta.url).href,
-      manifest: await fetch(new URL("../builtin-pets/doro/pet.json", import.meta.url).href).then((res) => res.json() as Promise<PetManifest>),
+      spritesheetUrl: BUILTIN_DORO_SPRITESHEET_URL,
+      manifest: BUILTIN_DORO_MANIFEST,
     };
   }
   if (projectPetId) {
@@ -4004,7 +4031,7 @@ async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetM
   }
 
   // Fallback: local test spritesheet
-  return { spritesheetUrl: new URL("./spritesheet.webp", import.meta.url).href, manifest: null };
+  return { spritesheetUrl: FALLBACK_SPRITESHEET_URL, manifest: null };
 }
 
 const RECALL_EFFECT_CLASSES = ["recall-puff"] as const;
@@ -4710,4 +4737,7 @@ function setupFileDrop(): void {
   });
 }
 
-main();
+main().catch((err) => {
+  console.error("LingoPet pet window failed to initialize:", err);
+  document.getElementById("pet-container")?.classList.add("sprite-load-error");
+});
