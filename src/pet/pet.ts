@@ -2934,6 +2934,7 @@ function startManualWindowDrag(engine: PetEngine, container: HTMLElement): void 
   let isMoveInFlight = false;
   let lastDragWindowX = Number.NaN;
   let lastDragWindowY = Number.NaN;
+  let lastDragCursorX = Number.NaN;
   let queuedWindowPosition: { x: number; y: number } | null = null;
 
   container.classList.add("is-dragging");
@@ -2985,6 +2986,10 @@ function startManualWindowDrag(engine: PetEngine, container: HTMLElement): void 
         );
         const nextX = nextPosition.x;
         const nextY = nextPosition.y;
+        if (Number.isFinite(lastDragCursorX) && Math.abs(pos.x - lastDragCursorX) > 3) {
+          applyDragRunningState(engine, pos.x < lastDragCursorX ? "left" : "right");
+        }
+        lastDragCursorX = pos.x;
         updateLastKnownCursor(pos.x, pos.y);
         if (dragSessionId !== manualDragSessionId || !isMouseDown || !hasStartedDragging || isExiting) return;
         queuedWindowPosition = { x: nextX, y: nextY };
@@ -3018,6 +3023,28 @@ function applySpriteFacing(facing: "left" | "right"): void {
   if (!spriteEl) return;
   lastSpriteFacing = facing;
   spriteEl.style.transform = facing === "left" ? "scaleX(-1)" : "scaleX(1)";
+}
+
+function applyDragRunningState(engine: PetEngine, facing: "left" | "right"): void {
+  const directionalState = `running-${facing}`;
+  if (engine.hasState(directionalState)) {
+    applySpriteFacing("right");
+    if (engine.currentState !== directionalState) {
+      engine.applyState(directionalState);
+    }
+    return;
+  }
+
+  applySpriteFacing(facing);
+  if (engine.currentState !== "running") {
+    engine.applyState("running");
+  }
+}
+
+function applyRoamMovementState(engine: PetEngine, state: RoamState): void {
+  const facing = state.vx < -1 ? "left" : state.vx > 1 ? "right" : state.facing;
+  state.facing = facing;
+  applyDragRunningState(engine, facing);
 }
 
 function isElementVisible(el: HTMLElement): boolean {
@@ -3277,12 +3304,23 @@ function shouldPauseRoamDecisions(): boolean {
 }
 
 function setRoamAction(engine: PetEngine, state: RoamState, action: RoamAction): void {
-  if (state.action === action && engine.currentState === ROAM_ACTIONS[action]) return;
   state.action = action;
-  engine.applyState(ROAM_ACTIONS[action]);
+  if (action === "walk" || action === "sprint") {
+    applyRoamMovementState(engine, state);
+    return;
+  }
+
+  const nextState = ROAM_ACTIONS[action];
+  if (engine.currentState !== nextState) {
+    engine.applyState(nextState);
+  }
 }
 
-function applyRoamFacing(state: RoamState): void {
+function applyRoamFacing(engine: PetEngine, state: RoamState): void {
+  if (state.action === "walk" || state.action === "sprint") {
+    applyRoamMovementState(engine, state);
+    return;
+  }
   applySpriteFacing(state.facing);
 }
 
@@ -3301,7 +3339,7 @@ async function syncRoamStateFromWindow(engine: PetEngine, state: RoamState, make
   state.width = size.width;
   state.height = size.height;
   state.lastWindowSyncAt = performance.now();
-  clampRoamToBounds(state);
+  clampRoamToBounds(engine, state);
   await applyRoamWindowPosition(state);
 
   if (makeFall && moved && isPetGravityEnabled()) {
@@ -3312,7 +3350,7 @@ async function syncRoamStateFromWindow(engine: PetEngine, state: RoamState, make
   }
 }
 
-function clampRoamToBounds(state: RoamState): void {
+function clampRoamToBounds(engine: PetEngine, state: RoamState): void {
   const visualRect = getPetVisualRectInWindow(state.width, state.height);
   const halfVisualWidth = visualRect.width / 2;
   const minX = state.bounds.left + halfVisualWidth - ROAM_VISUAL_SIDE_OVERHANG;
@@ -3325,7 +3363,7 @@ function clampRoamToBounds(state: RoamState): void {
   if (nextX !== state.x) {
     state.vx = nextX <= minX ? Math.abs(state.vx) * 0.25 : -Math.abs(state.vx) * 0.25;
     state.facing = nextX <= minX ? "right" : "left";
-    applyRoamFacing(state);
+    applyRoamFacing(engine, state);
   }
   if (nextY !== state.y) {
     state.vy = nextY <= minY ? Math.max(120, state.vy) : 0;
@@ -3528,7 +3566,7 @@ function chooseNextRoamAction(engine: PetEngine, state: RoamState, now: number):
       setRoamAction(engine, state, "idle");
   }
 
-  applyRoamFacing(state);
+  applyRoamFacing(engine, state);
   state.nextDecisionAt = now + duration;
 }
 
@@ -3627,8 +3665,8 @@ async function triggerActiveTeleport(engine: PetEngine, state: RoamState): Promi
     state.facing = target.x < previousX ? "left" : "right";
     state.action = "idle";
     state.lastWindowSyncAt = teleportAt;
-    applyRoamFacing(state);
-    clampRoamToBounds(state);
+    applyRoamFacing(engine, state);
+    clampRoamToBounds(engine, state);
     await applyRoamWindowPosition(state);
     engine.applyState("idle");
     return true;
@@ -3719,7 +3757,8 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     if (shouldSyncWindow) await syncRoamStateFromWindow(engine, state, false);
     state.vx = 0;
     state.nextDecisionAt = now + 500;
-    if (!isMeritMode) {
+    const manualDragActive = hasStartedDragging || isDraggingInProgress;
+    if (!isMeritMode && !manualDragActive) {
       const fixedState = activeModeAnimationState(engine) ?? "idle";
       if (engine.currentState !== fixedState) engine.applyState(fixedState);
       state.action = fixedState === "idle" ? "idle" : "review";
@@ -3769,7 +3808,7 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     state.bounds = await getRoamBounds();
     state.platforms = await scanRoamPlatforms(state.bounds);
     state.lastPlatformScanAt = now;
-    clampRoamToBounds(state);
+    clampRoamToBounds(engine, state);
   }
 
   if (!pauseRoamDecisions) {
@@ -3782,8 +3821,7 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
   if (gravityEnabled && !state.grounded) {
     state.vy = Math.min(1400, state.vy + ROAM_GRAVITY * dt);
   } else if (!["walk", "sprint"].includes(state.action)) {
-    state.vx *= 0.85;
-    if (Math.abs(state.vx) < 1) state.vx = 0;
+    state.vx = 0;
   }
 
   const previousY = state.y;
@@ -3799,17 +3837,17 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     nextX = minX;
     state.vx = Math.abs(state.vx) * 0.35;
     state.facing = "right";
-    applyRoamFacing(state);
+    applyRoamFacing(engine, state);
   } else if (nextX >= maxX) {
     nextX = maxX;
     state.vx = -Math.abs(state.vx) * 0.35;
     state.facing = "left";
-    applyRoamFacing(state);
+    applyRoamFacing(engine, state);
   }
 
   state.x = nextX;
   state.y = nextY;
-  clampRoamToBounds(state);
+  clampRoamToBounds(engine, state);
 
   if (gravityEnabled) updateRoamPlatformAttachment(state);
 
@@ -3907,7 +3945,9 @@ async function setupDrag(engine: PetEngine): Promise<void> {
       return;
     }
 
-    if (!isMouseDown || hasStartedDragging || isExiting || isRecallAnimating || isDraggingInProgress) return;
+    if (!isMouseDown || isExiting || isRecallAnimating) return;
+
+    if (hasStartedDragging || isDraggingInProgress) return;
 
     const dx = e.clientX - mouseDownX;
     const dy = e.clientY - mouseDownY;
@@ -3916,7 +3956,7 @@ async function setupDrag(engine: PetEngine): Promise<void> {
     if (distance > dragThreshold) {
       hasStartedDragging = true;
       isDraggingInProgress = true;
-      engine.applyState("running");
+      applyDragRunningState(engine, dx < 0 ? "left" : "right");
       Promise.all([
         cursorPosition(),
         getCurrentWindow().outerPosition(),

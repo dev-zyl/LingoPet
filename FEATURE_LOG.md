@@ -1167,3 +1167,27 @@
 - Restored community pet preview GIFs to their original 192x208 dimensions and recompressed them with lossless `gifsicle -O3` optimization only.
 - Kept the trimmed action set to idle and running-left while preserving transparent corners for browser rendering.
 - Verification: checked all 24 community GIFs for transparency indexes, confirmed RGBA corner alpha is 0 on sample frames, and searched docs for removed action references.
+
+### 2026-06-05 Pet drag directional running
+- Changed manual pet dragging to play `running-left` or `running-right` based on horizontal mouse movement, with fallback to mirrored `running` for pet packages without directional actions.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Pet drag continuous directional running
+- Updated manual dragging so left/right running animations keep following the current drag direction instead of only choosing a direction when dragging starts.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Pet drag animation override fix
+- Prevented the idle roaming freeze loop from resetting the pet animation to idle during manual dragging, allowing `running-left` and `running-right` to remain visible while the window is being moved.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Pet drag direction smoothing
+- Removed conflicting drag direction sources from window-local mouse coordinates and target window position, leaving global cursor movement as the single source for left/right running animation changes.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Roaming directional running
+- Bound automatic roaming walk and sprint movement to `running-left` or `running-right` based on horizontal velocity, and stopped non-moving grounded actions from drifting with idle/waiting animations.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Workshop success dialogs
+- Replaced native success alerts for applying workshop actions and sharing editor actions with styled in-app success dialogs matching the workshop panel.
+- Verification: ran `npm run build`.

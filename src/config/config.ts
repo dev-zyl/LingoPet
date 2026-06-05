@@ -469,6 +469,86 @@ function showMessage(text: string, type: "success" | "error" | "info" = "info"):
   repositionMessages();
 }
 
+function showWorkshopSuccessDialog(title: string, message: string, detail?: string): void {
+  const overlay = document.createElement("div");
+  overlay.className = "workshop-result-overlay";
+
+  const dialog = document.createElement("section");
+  dialog.className = "workshop-result-dialog success";
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-labelledby", "workshop-result-title");
+
+  const icon = document.createElement("div");
+  icon.className = "workshop-result-icon";
+  icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>`;
+
+  const copy = document.createElement("div");
+  copy.className = "workshop-result-copy";
+
+  const eyebrow = document.createElement("p");
+  eyebrow.className = "workshop-result-eyebrow";
+  eyebrow.textContent = "创意工坊";
+
+  const heading = document.createElement("h3");
+  heading.id = "workshop-result-title";
+  heading.textContent = title;
+
+  const body = document.createElement("p");
+  body.textContent = message;
+  copy.append(eyebrow, heading, body);
+
+  if (detail) {
+    const detailEl = document.createElement("p");
+    detailEl.className = "workshop-result-detail";
+    detailEl.textContent = detail;
+    copy.append(detailEl);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "workshop-result-actions";
+
+  const okBtn = document.createElement("button");
+  okBtn.className = "primary-button workshop-result-primary";
+  okBtn.type = "button";
+  okBtn.textContent = "知道了";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "workshop-result-close";
+  closeBtn.type = "button";
+  closeBtn.setAttribute("aria-label", "关闭");
+  closeBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>`;
+
+  const closeDialog = (): void => {
+    overlay.classList.remove("show");
+    overlay.addEventListener("transitionend", () => overlay.remove(), { once: true });
+  };
+
+  const handleKeydown = (event: KeyboardEvent): void => {
+    if (event.key === "Escape") closeDialog();
+  };
+
+  okBtn.addEventListener("click", closeDialog);
+  closeBtn.addEventListener("click", closeDialog);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeDialog();
+  });
+  overlay.addEventListener("transitionend", () => {
+    if (!overlay.classList.contains("show")) {
+      document.removeEventListener("keydown", handleKeydown);
+    }
+  });
+  document.addEventListener("keydown", handleKeydown);
+
+  actions.append(okBtn);
+  dialog.append(closeBtn, icon, copy, actions);
+  overlay.append(dialog);
+  document.body.append(overlay);
+  void overlay.offsetWidth;
+  overlay.classList.add("show");
+  okBtn.focus();
+}
+
 function setStatus(el: HTMLElement, message = "", isError = false): void {
   if (el) {
     el.textContent = message;
@@ -4178,7 +4258,11 @@ async function applyCommunityActionToPet(item: WorkshopItem, pet: ProjectPet): P
       void openSpriteEditor(updatedPet);
     }
 
-    window.alert(`🎉 套用成功！动作「${item.title}」已无缝集成到桌宠 ${pet.displayName} 中！召唤它即可在对应模式下自动播放！`);
+    showWorkshopSuccessDialog(
+      "动作套用成功",
+      `「${item.title}」已集成到「${pet.displayName}」。`,
+      "召唤这只桌宠后，它会在对应模式下自动播放新动作。"
+    );
     setStatus(els.workshopStatus, `成功将「${item.title}」动作套用到 ${pet.displayName}！`);
   } catch (err) {
     console.error(err);
@@ -4455,7 +4539,11 @@ async function shareCurrentActionToCommunity(): Promise<void> {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
 
-    window.alert(`🎉 分享提交成功！\n动作已上传到创意工坊仓库，索引更新后即可在列表中浏览和套用。感谢你的贡献！`);
+    showWorkshopSuccessDialog(
+      "分享提交成功",
+      "动作已上传到创意工坊仓库。",
+      "索引更新后即可在创意工坊列表中浏览和套用，感谢你的贡献。"
+    );
     setStatus(els.editorStatus, "动作分享成功，等待社区索引更新。");
   } catch (err) {
     console.error(err);
