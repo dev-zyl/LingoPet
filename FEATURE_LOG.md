@@ -1334,6 +1334,10 @@
 - Added a shared versioned cache-busting helper for Goku transformation, form, and idle assets so deployed pages do not reuse stale same-name animation files.
 - Verification: compared local and deployed Goku asset hashes, ran inline script syntax check, and checked diff whitespace.
 
+### 2026-06-06 Docs homepage Goku transform preload sync
+- Preloaded Goku charge, idle, and form assets with stable versioned URLs, and waited for the charge/form assets before starting transformation bubbles so online playback stays synchronized with the text.
+- Verification: inline script syntax check and diff whitespace check.
+
 ### 2026-06-06 Docs homepage Doro random action pool
 - Added more existing Doro spritesheet actions to the summoned homepage Doro random behavior pool, including sprint, wave, waiting, review, merit, music, and focus.
 - Verification: ran inline docs script syntax check with Node.

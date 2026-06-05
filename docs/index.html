@@ -2353,12 +2353,30 @@
         return lines[Math.floor(Math.random() * lines.length)];
       }
 
-      function gokuAssetUrl(src, cacheKey) {
-        var url = src + '?v=' + GOKU_ASSET_VERSION;
-        if (cacheKey) {
-          url += '&' + cacheKey + '=' + Date.now();
-        }
-        return url;
+      function gokuAssetUrl(src) {
+        return src + '?v=' + GOKU_ASSET_VERSION;
+      }
+
+      function preloadGokuAsset(src) {
+        return new Promise(function (resolve) {
+          var image = new Image();
+          var done = function () { resolve(); };
+          image.onload = done;
+          image.onerror = done;
+          image.src = gokuAssetUrl(src);
+          if (image.decode) {
+            image.decode().then(done).catch(done);
+          }
+        });
+      }
+
+      function preloadGokuAssets() {
+        var sources = [gokuFormsIdleSrc, gokuFormsChargeSrc].concat(gokuForms.map(function (form) {
+          return form.src;
+        }));
+        sources.forEach(function (src) {
+          preloadGokuAsset(src);
+        });
       }
 
       function randomWarningLine(targetForm) {
@@ -2406,7 +2424,7 @@
         });
       }
 
-      function transformGokuForms(pet) {
+      async function transformGokuForms(pet) {
         if (gokuFormsBusy) return;
         window.clearTimeout(gokuTransformTimer);
         window.clearTimeout(gokuTransformResetTimer);
@@ -2424,7 +2442,12 @@
         var index = 0;
 
         pet.classList.add('transforming');
-        pet.src = gokuAssetUrl(gokuFormsChargeSrc, 'charge');
+        await Promise.all([
+          preloadGokuAsset(gokuFormsChargeSrc),
+          preloadGokuAsset(targetForm.src)
+        ]);
+        if (!gokuFormsBusy) return;
+        pet.src = gokuAssetUrl(gokuFormsChargeSrc);
 
         function nextStep() {
           var bubble = ensureCommunityPetBubble();
@@ -2445,7 +2468,7 @@
           var bubble = ensureCommunityPetBubble();
           var isRepeatSsj4 = targetForm.label === '超级赛亚人4' && gokuFormsHasReachedSsj4;
           bubble.textContent = isRepeatSsj4 ? randomFrom(gokuSsj4RepeatLines) : targetForm.label + '，怕了吧！';
-          pet.src = gokuAssetUrl(targetForm.src, 'burst');
+          pet.src = gokuAssetUrl(targetForm.src);
           showTransformationReactions(targetForm);
           window.clearTimeout(communityPetBubbleTimer);
           positionCommunityBubble(bubble, pet);
@@ -2453,7 +2476,7 @@
           gokuTransformResetTimer = window.setTimeout(resetGokuForms, GOKU_FORM_HOLD_MS);
 
           function resetGokuForms() {
-            pet.src = gokuAssetUrl(gokuFormsIdleSrc, 'idle');
+            pet.src = gokuAssetUrl(gokuFormsIdleSrc);
             pet.classList.remove('transforming');
             bubble.classList.remove('visible');
             gokuFormsBusy = false;
@@ -2489,6 +2512,11 @@
           showCommunityPetBubble(pet);
         });
       });
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(preloadGokuAssets, { timeout: 1800 });
+      } else {
+        window.setTimeout(preloadGokuAssets, 900);
+      }
 
       function setCount(value) {
         countTargets.forEach(function (el) {
