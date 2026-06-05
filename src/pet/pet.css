@@ -2694,12 +2694,14 @@ body {
   border: 1px solid rgba(140, 111, 60, 0.28) !important;
   border-radius: 28px !important;
   background:
-    radial-gradient(circle at 14% 12%, rgba(255, 255, 255, 0.74), transparent 22%),
-    radial-gradient(circle at 85% 16%, rgba(164, 190, 121, 0.16), transparent 26%),
+    radial-gradient(circle at 14% 12%, rgba(255, 255, 255, 0.42), transparent 18%),
+    radial-gradient(circle at 85% 16%, rgba(164, 190, 121, 0.08), transparent 20%),
     linear-gradient(180deg, #f7f1e7 0%, #f1eadc 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   /* 暗金黑底色 */
   box-shadow:
-    0 22px 54px rgba(46, 33, 16, 0.18),
+    0 12px 28px rgba(46, 33, 16, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
   color: #3c2d1d;
   box-sizing: border-box;
