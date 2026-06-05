@@ -1201,3 +1201,139 @@
 ### 2026-06-05 Workshop success dialogs
 - Replaced native success alerts for applying workshop actions and sharing editor actions with styled in-app success dialogs matching the workshop panel.
 - Verification: ran `npm run build`.
+
+### 2026-06-05 Editor preview background removal
+- Removed the editor preview background board controls and fixed the main frame canvas to the transparent checkerboard preview.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Editor content scaling
+- Changed editor zoom controls to scale the pet subject inside each fixed 192x208 frame, with single-frame scaling, whole-action scaling, sync-to-action, and Ctrl+Z undo.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Editor scaling quiet fit
+- Silenced successful frame scaling status messages and clamped subject scaling to the frame bounds so enlarged sprites are not cropped before being scaled back down.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Editor per-frame scale memory
+- Preserved each frame's scale percentage and original scale source while switching frames, preventing scale values from resetting to 100% or affecting other frames unexpectedly.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Merit panel shadow refinement
+- Reduced the merit panel's outer shadow, removed its inherited backdrop blur, and softened the top highlight gradients to clean up the hazy edge.
+- Verification: ran `npm run build`.
+
+### 2026-06-05 Docs homepage Doro summon
+- Added a homepage "Summon Doro" interaction that spawns Doro on the page, lets it fall onto visible page frames/buttons, walk along them, and be dragged/released.
+- Verification: local static preview with browser automation.
+
+### 2026-06-05 Docs homepage Doro behavior fixes
+- Fixed summoned Doro detaching from scrolled-off platforms, corrected movement/drag facing direction, stabilized platform tracking, and added more casual chatter lines.
+- Verification: inline script syntax check and local browser interaction check.
+
+### 2026-06-05 Docs homepage Doro blank-frame fix
+- Moved the homepage Doro idle chatter action off an invalid spritesheet row and reset sprite animation on action changes so transitions do not flash empty frames.
+- Verification: inspected Doro spritesheet frame occupancy and ran inline script syntax check.
+
+### 2026-06-05 Docs homepage hero Doro layout refinement
+- Reduced the hero preview Doro size, softened and repositioned the surrounding HUD cards, and made the "click to summon" prompt more visible.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-05 Docs homepage Doro throw physics
+- Changed Doro drag release to use pointer velocity for an inertial throw, added short throw grace before platform landing, viewport wall bounce, and collision impact effects.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-05 Docs homepage interactive Doro preview and inertia
+- Made the hero preview Doro clickable with an interaction hint bubble, and added drag-release inertia, viewport bounce physics, and collision impact effects for the summoned Doro.
+- Verification: inline script syntax check, diff whitespace check, and local browser interaction check.
+
+### 2026-06-05 Docs homepage preview Doro visibility fix
+- Switched the hero preview Doro sprite to block layout and lifted the preview layer above the floating HUD cards so the Doro image is visible and clickable in the hero.
+- Verification: inline script syntax check.
+
+### 2026-06-05 Docs homepage Doro throw arc tuning
+- Tuned the summoned Doro release physics so it keeps a short airborne grace window after being thrown instead of dropping immediately, with a stronger launch impulse from drag velocity.
+- Verification: inline script syntax check.
+
+### 2026-06-05 Docs homepage Doro throw grace and lift
+- Increased the post-release airborne grace window, biased the launch impulse upward, and deferred platform/floor settling until after the throw window so the pet visibly flies before landing.
+- Verification: inline script syntax check.
+
+### 2026-06-05 Docs homepage Doro airborne pose fix
+- Changed the release pose so Doro stays in a non-fall animation while rising and only switches to fall once the arc turns downward, which makes the throw read as a throw instead of an immediate drop.
+- Verification: inline script syntax check.
+
+### 2026-06-05 Docs homepage Doro physical throw
+- Changed summoned Doro drag release to inherit the pointer's final velocity vector, so upward, downward, and sideways throws follow the user's release direction before gravity and collisions take over.
+- Verification: inline script syntax check.
+
+### 2026-06-05 Docs homepage Doro physics damping
+- Reduced Doro throw impulse and bounce energy, capped release velocity, shortened throw grace, and increased airborne damping for a more physical drag-release feel.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-05 Docs homepage Doro CTA cleanup
+- Removed the standalone hero "Summon Doro" button and kept the hero preview pet as the summon entry point.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-05 Docs homepage community pet bubbles
+- Added lightweight click/keyboard interactions for community pet previews that show a short speech bubble above the selected pet without starting a physics loop.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-05 Docs homepage Goku forms easter egg
+- Added a special Goku Forms community pet interaction with a countdown speech bubble, charge glow, temporary transformation GIF, and automatic return to idle.
+- Verification: copied the transparent full-preview GIF into docs assets, ran inline script syntax check, and checked diff whitespace.
+
+### 2026-06-05 Docs homepage Goku SSJ4 easter egg flow
+- Updated the Goku Forms easter egg so three clicks show warnings, the third warning automatically starts a charge image countdown, then SSJ4 plays for five GIF loops before returning to idle.
+- Verification: inline script syntax check and static asset presence check.
+
+### 2026-06-05 Docs homepage Goku transformation APNG
+- Removed the green-screen background from the four-frame Goku transformation sheet, exported a transparent 3-second APNG charge animation, and wired it before the SSJ4 reveal.
+- Verification: inspected the transparent transformation on a dark background, ran inline script syntax check, and checked static assets.
+
+### 2026-06-05 Docs homepage Goku staged transformations
+- Changed the Goku Forms easter egg into a four-click staged progression through SSJ1, SSJ2, SSJ3, and SSJ4, with warning clicks, transformation countdown, form-specific reveal bubbles, and crowd reactions.
+- Verification: inline script syntax check and static asset presence check.
+
+### 2026-06-05 Docs homepage Goku transformation pacing
+- Extended transformed form display to 10 seconds, randomized Goku warning lines, and staggered longer crowd reaction bubbles for a more theatrical reveal.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-05 Docs homepage summon hint affordance
+- Enhanced the hero preview summon hint with pulsing, shine, ring, and click feedback animations, plus rotating Chinese prompt text that explains the desktop pet is interactive.
+- Verification: ran inline docs script syntax check with Node.
+
+### 2026-06-05 Docs homepage Goku SSJ4 repeat banter
+- Added repeat-SSJ4 state so later Goku transformations stay at SSJ4, suppress next-form warning hints, and show randomized meme banter instead of the first-time reveal line.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-06 Docs homepage Goku charge art swap
+- Rebuilt the Goku transformation charge APNG from the cleaner `goku-bj.png` four-frame sheet and switched the homepage easter egg to use it.
+- Verification: inline script syntax check, static asset presence check, and diff whitespace check.
+
+### 2026-06-06 Docs homepage Goku charge frame alignment
+- Rebuilt the Goku transformation charge APNG with a fixed source-cell coordinate system and shared foot baseline so the four transformation frames no longer jump between positions.
+- Verification: inspected a contact sheet, ran inline script syntax check, static asset presence check, and diff whitespace check.
+
+### 2026-06-06 Docs homepage Goku calibrated charge sheet
+- Rebuilt the Goku transformation charge APNG directly from the calibrated `goku.png` 4-frame sheet without cropping, scaling, or re-centering, then switched the homepage easter egg to that asset.
+- Verification: inspected a contact sheet, ran inline script syntax check, static asset presence check, and diff whitespace check.
+
+### 2026-06-06 Docs homepage community bubble readability
+- Moved community pet speech bubbles higher above each character, widened the bubble text area, extended click bubble durations, and removed obsolete Goku transformation draft assets.
+- Verification: inline script syntax check, static asset reference check, and diff whitespace check.
+
+### 2026-06-06 Docs homepage Goku transform bubble lift
+- Moved Goku transformation countdown and reveal bubbles onto the shared community bubble positioning helper with extra lift so they no longer overlap the transformed character's hair.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-06 Docs homepage transform bubble height reset
+- Restored community and Goku transformation bubbles to the previous in-card top offset so bubbles no longer cover characters in the row above.
+- Verification: inline script syntax check and diff whitespace check.
+
+### 2026-06-06 Docs homepage Doro random action pool
+- Added more existing Doro spritesheet actions to the summoned homepage Doro random behavior pool, including sprint, wave, waiting, review, merit, music, and focus.
+- Verification: ran inline docs script syntax check with Node.
+
+### 2026-06-06 Docs homepage Doro action context menu
+- Added a custom right-click action menu for the summoned homepage Doro, suppressing the browser menu only on Doro and letting users play specific existing spritesheet actions.
+- Verification: ran inline docs script syntax check and diff whitespace check.

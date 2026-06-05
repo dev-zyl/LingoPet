@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
@@ -264,6 +264,8 @@
     }
 
     .doro-sprite {
+      --preview-pet-scale: 0.72;
+      display: block;
       width: 192px;
       height: 208px;
       background-image: url("./assets/doro-spritesheet.webp");
@@ -271,23 +273,304 @@
       background-position: 0 0;
       animation: doroIdle 950ms steps(6) infinite, doroFloat 4.8s ease-in-out infinite;
       image-rendering: auto;
-      filter: drop-shadow(0 24px 28px rgba(0,0,0,0.42));
+      transform-origin: center;
+      filter: drop-shadow(0 18px 22px rgba(0,0,0,0.38));
+    }
+    .summon-preview-pet {
+      position: relative;
+      display: block;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .summon-preview-pet:hover .doro-sprite,
+    .summon-preview-pet:focus-visible .doro-sprite {
+      filter: drop-shadow(0 18px 22px rgba(0,0,0,0.38)) drop-shadow(0 0 18px rgba(57,245,199,0.55));
+    }
+    .summon-preview-pet:focus-visible {
+      outline: 3px solid rgba(57, 245, 199, 0.42);
+      outline-offset: 8px;
+      border-radius: 28px;
+    }
+    .preview-pet-hint {
+      position: absolute;
+      left: 50%;
+      top: -20px;
+      z-index: 4;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 126px;
+      padding: 10px 15px;
+      border: 1px solid rgba(255,255,255,0.24);
+      border-radius: 999px;
+      color: #06131f;
+      background: linear-gradient(135deg, #fff0fa, #ffb7dc 58%, #74f7df);
+      box-shadow: 0 14px 30px rgba(246, 165, 194, 0.28), 0 0 24px rgba(57,245,199,0.22);
+      font-size: 15px;
+      font-weight: 900;
+      line-height: 1;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+      animation: previewHintPulse 2.4s ease-in-out infinite;
+      white-space: nowrap;
+    }
+    .preview-pet-hint::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      margin-right: 8px;
+      border-radius: 999px;
+      background: #39f5c7;
+      box-shadow: 0 0 14px #39f5c7;
+      animation: previewHintDot 1.8s ease-in-out infinite;
+    }
+    .preview-pet-hint::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -5px;
+      width: 10px;
+      height: 10px;
+      border-right: 1px solid rgba(255,255,255,0.24);
+      border-bottom: 1px solid rgba(255,255,255,0.24);
+      background: #ffb7dc;
+      transform: translateX(-50%) rotate(45deg);
+    }
+    .preview-pet-hint .hint-text {
+      position: relative;
+      z-index: 1;
+    }
+    .preview-pet-hint .hint-shine {
+      position: absolute;
+      inset: -40% auto -40% -55%;
+      width: 42%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.72), transparent);
+      transform: skewX(-18deg);
+      animation: previewHintShine 3.1s ease-in-out infinite;
+    }
+    .preview-pet-hint .hint-ring {
+      position: absolute;
+      inset: -8px;
+      border: 1px solid rgba(57,245,199,0.56);
+      border-radius: inherit;
+      opacity: 0;
+      animation: previewHintRing 2.4s ease-out infinite;
+    }
+    .summon-preview-pet.is-summoning .preview-pet-hint {
+      animation: previewHintClick 420ms ease both;
     }
 
     @keyframes doroIdle {
       to { background-position-x: -1152px; }
     }
     @keyframes doroFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-14px); }
+      0%, 100% { transform: translateY(0) scale(var(--preview-pet-scale)); }
+      50% { transform: translateY(-10px) scale(var(--preview-pet-scale)); }
+    }
+    @keyframes previewHintPulse {
+      0%, 100% { transform: translate(-50%, -100%) translateY(0) scale(1); opacity: 0.94; }
+      45% { transform: translate(-50%, -100%) translateY(-6px) scale(1.04); opacity: 1; }
+      58% { transform: translate(-50%, -100%) translateY(-3px) scale(0.99); opacity: 1; }
+    }
+    @keyframes previewHintDot {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 14px #39f5c7; }
+      50% { transform: scale(1.35); box-shadow: 0 0 22px #39f5c7, 0 0 34px rgba(57,245,199,0.5); }
+    }
+    @keyframes previewHintShine {
+      0%, 46% { left: -55%; opacity: 0; }
+      58% { opacity: 1; }
+      76%, 100% { left: 115%; opacity: 0; }
+    }
+    @keyframes previewHintRing {
+      0%, 22% { transform: scale(0.88); opacity: 0; }
+      48% { opacity: 0.66; }
+      100% { transform: scale(1.22); opacity: 0; }
+    }
+    @keyframes previewHintClick {
+      0% { transform: translate(-50%, -100%) scale(1); }
+      42% { transform: translate(-50%, -100%) scale(0.9) rotate(-2deg); }
+      100% { transform: translate(-50%, -100%) scale(1.08); }
+    }
+
+    .site-pet-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .site-pet {
+      --pet-scale: 0.34;
+      --pet-row: 0;
+      --pet-frames: 6;
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: calc(192px * var(--pet-scale));
+      height: calc(208px * var(--pet-scale));
+      pointer-events: auto;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      will-change: transform;
+      filter: drop-shadow(0 16px 18px rgba(0, 0, 0, 0.38));
+    }
+    .site-pet:active {
+      cursor: grabbing;
+    }
+    .site-pet-sprite {
+      width: 192px;
+      height: 208px;
+      background-image: url("./assets/doro-spritesheet.webp");
+      background-repeat: no-repeat;
+      background-position: 0 calc(var(--pet-row) * -208px);
+      animation: sitePetSprite 900ms steps(var(--pet-frames)) infinite;
+      image-rendering: auto;
+      transform: scale(var(--pet-scale));
+      transform-origin: left top;
+    }
+    .site-pet-bubble {
+      position: fixed;
+      z-index: 81;
+      min-width: 92px;
+      max-width: min(180px, calc(100vw - 24px));
+      padding: 8px 11px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      color: #eaf6ff;
+      background: rgba(10, 16, 32, 0.88);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.35;
+      text-align: center;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+    }
+    .site-pet-bubble[hidden] {
+      display: none;
+    }
+    .site-pet-bubble::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -6px;
+      width: 10px;
+      height: 10px;
+      border-right: 1px solid rgba(255, 255, 255, 0.16);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(10, 16, 32, 0.88);
+      transform: translateX(-50%) rotate(45deg);
+    }
+    .site-pet-poof {
+      position: fixed;
+      z-index: 79;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      pointer-events: none;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(246, 165, 194, 0.56) 54%, transparent 72%);
+      box-shadow: 0 0 0 14px rgba(246, 165, 194, 0.16), 0 0 0 28px rgba(57, 245, 199, 0.08);
+      animation: sitePetPoof 520ms ease-out forwards;
+      transform: translate(-50%, -50%) scale(0.45);
+    }
+    .site-pet-impact {
+      position: fixed;
+      z-index: 79;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 2px solid rgba(255, 225, 239, 0.86);
+      pointer-events: none;
+      box-shadow: 0 0 0 0 rgba(57, 245, 199, 0.38), 0 0 20px rgba(246, 165, 194, 0.32);
+      animation: sitePetImpact 420ms ease-out forwards;
+      transform: translate(-50%, -50%) scale(0.45);
+    }
+    .site-pet-action-menu {
+      position: fixed;
+      z-index: 90;
+      display: grid;
+      min-width: 128px;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(12, 20, 36, 0.94), rgba(7, 13, 25, 0.94));
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34), 0 0 22px rgba(57, 245, 199, 0.12);
+      backdrop-filter: blur(14px) saturate(1.15);
+      -webkit-backdrop-filter: blur(14px) saturate(1.15);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(6px) scale(0.96);
+      transform-origin: top left;
+      transition: opacity 140ms ease, transform 140ms ease;
+    }
+    .site-pet-action-menu.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+    .site-pet-action-menu-title {
+      padding: 4px 9px 7px;
+      color: rgba(234, 246, 255, 0.56);
+      font-size: 11px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .site-pet-action-menu button {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      padding: 0 10px 0 7px;
+      border: 0;
+      border-radius: 10px;
+      color: #eaf6ff;
+      background: transparent;
+      cursor: pointer;
+      font: 800 13px/1.2 inherit;
+      text-align: left;
+    }
+    .site-pet-action-menu button:hover,
+    .site-pet-action-menu button:focus-visible {
+      outline: none;
+      color: #06131f;
+      background: linear-gradient(135deg, #fff0fa, #74f7df);
+    }
+    .site-pet-action-menu button span:first-child {
+      color: #39f5c7;
+      font-size: 12px;
+    }
+    .site-pet-action-menu button:hover span:first-child,
+    .site-pet-action-menu button:focus-visible span:first-child {
+      color: #06131f;
+    }
+    @keyframes sitePetSprite {
+      to { background-position-x: calc(var(--pet-frames) * -192px); }
+    }
+    @keyframes sitePetPoof {
+      to {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(3.2);
+      }
+    }
+    @keyframes sitePetImpact {
+      to {
+        opacity: 0;
+        box-shadow: 0 0 0 24px rgba(57, 245, 199, 0), 0 0 28px rgba(246, 165, 194, 0);
+        transform: translate(-50%, -50%) scale(1.8);
+      }
     }
 
     .pet-orbit {
       position: absolute;
       left: 50%;
       top: 54%;
-      width: 360px;
-      height: 360px;
+      width: 330px;
+      height: 330px;
       transform: translate(-50%, -50%);
       border-radius: 999px;
       border: 1px solid rgba(57,245,199,0.18);
@@ -318,22 +601,39 @@
       left: 50%;
       top: 53%;
       transform: translate(-50%, -50%);
-      z-index: 2;
+      z-index: 5;
     }
 
     .hud-card {
       position: absolute;
-      z-index: 3;
+      z-index: 2;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(9, 15, 29, 0.74);
-      box-shadow: 0 18px 46px rgba(0,0,0,0.3);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      animation: hudFloat 5.8s ease-in-out infinite;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(9, 15, 29, 0.54);
+      box-shadow: 0 14px 34px rgba(0,0,0,0.22);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      animation: hudFloat 6.4s ease-in-out infinite;
+    }
+    .hero-hud-left {
+      left: 34px !important;
+      top: 142px !important;
+      width: 168px !important;
+    }
+    .hero-hud-right {
+      right: 34px !important;
+      top: 168px !important;
+      width: 178px !important;
+    }
+    .hero-hud-status {
+      left: 54px !important;
+      right: 54px !important;
+      bottom: 34px !important;
     }
     .hud-card small { color: var(--muted); }
-    .hud-card strong { color: #ffffff; }
+    .hud-card strong { color: #ffffff; letter-spacing: 0; }
+    .hero-hud-left strong { font-size: 24px; }
+    .hero-hud-right strong { font-size: 17px; line-height: 1.4; }
     .hud-card:nth-of-type(2) { animation-delay: -1.5s; }
     .hud-card:nth-of-type(3) { animation-delay: -2.4s; }
 
@@ -365,6 +665,65 @@
       box-shadow: 0 32px 80px rgba(0,0,0,0.28);
     }
     .feature-card:hover::before { opacity: 1; }
+
+    .community-pet-preview {
+      cursor: pointer;
+      transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+    .community-pet-preview:hover,
+    .community-pet-preview:focus-visible {
+      border-color: rgba(57,245,199,0.38);
+      box-shadow: 0 14px 28px rgba(0,0,0,0.2), 0 0 18px rgba(57,245,199,0.12);
+      outline: none;
+      transform: translateY(-3px);
+    }
+    .community-pet-preview.transforming {
+      border-color: rgba(248,193,74,0.7);
+      box-shadow:
+        0 16px 34px rgba(0,0,0,0.24),
+        0 0 22px rgba(248,193,74,0.28),
+        0 0 34px rgba(57,245,199,0.2);
+      animation: transformCharge 560ms ease-in-out infinite alternate;
+    }
+    .community-pet-talk-bubble {
+      position: fixed;
+      z-index: 86;
+      max-width: min(240px, calc(100vw - 24px));
+      padding: 9px 13px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      color: #eafff9;
+      background: rgba(8, 16, 31, 0.9);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.26), 0 0 18px rgba(57,245,199,0.13);
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.35;
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -100%) translateY(8px) scale(0.96);
+      transition: opacity 160ms ease, transform 180ms ease;
+    }
+    .community-pet-talk-bubble.visible {
+      opacity: 1;
+      transform: translate(-50%, -100%) translateY(0) scale(1);
+    }
+    .community-pet-talk-bubble::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -6px;
+      width: 10px;
+      height: 10px;
+      border-right: 1px solid rgba(255,255,255,0.18);
+      border-bottom: 1px solid rgba(255,255,255,0.18);
+      background: rgba(8, 16, 31, 0.9);
+      transform: translateX(-50%) rotate(45deg);
+    }
+    @keyframes transformCharge {
+      from { transform: translateY(-2px) scale(1); filter: saturate(1); }
+      to { transform: translateY(-5px) scale(1.04); filter: saturate(1.35) brightness(1.08); }
+    }
 
     .section-kicker {
       color: var(--mint);
@@ -668,7 +1027,17 @@
     @media (max-width: 960px) {
       .pet-stage { min-height: 560px; }
       .desktop-window { inset: 70px 18px 34px; }
+      .site-pet { --pet-scale: 0.28; }
       .hud-card { position: relative; inset: auto !important; margin: 10px; }
+      .hero-hud-left,
+      .hero-hud-right,
+      .hero-hud-status {
+        width: auto !important;
+        left: auto !important;
+        right: auto !important;
+        top: auto !important;
+        bottom: auto !important;
+      }
       .pet-orbit { width: 300px; height: 300px; }
     }
 
@@ -677,9 +1046,14 @@
       .hero-title { font-size: 44px; line-height: 1.08; }
       .pet-stage { min-height: 500px; border-radius: 24px; }
       .desktop-window { inset: 64px 12px 24px; }
-      .doro-sprite { transform-origin: center; }
+      .doro-sprite { --preview-pet-scale: 0.62; transform-origin: center; }
       .pet-core { top: 56%; }
       .pet-orbit { top: 56%; width: 260px; height: 260px; }
+      .preview-pet-hint {
+        min-width: 112px;
+        padding: 9px 12px;
+        font-size: 13px;
+      }
       .cta { width: 100%; }
       .merit-preview { min-height: 240px; }
       .merit-preview-pet { bottom: 28px; transform: translateX(-50%) scale(0.5); }
@@ -771,22 +1145,29 @@
             <span class="text-xs font-black tracking-[0.28em] text-slate-400">LINGOPET CONTROL SURFACE</span>
           </div>
           <div class="pet-orbit" aria-hidden="true"></div>
-          <div class="pet-core" aria-label="Doro 默认桌宠动画预览">
-            <div class="doro-sprite"></div>
+          <div class="pet-core">
+            <button id="summon-doro-preview" class="summon-preview-pet" type="button" aria-label="Summon Doro to the page">
+              <span class="preview-pet-hint">
+                <span class="hint-ring" aria-hidden="true"></span>
+                <span class="hint-shine" aria-hidden="true"></span>
+                <span class="hint-text">点我召唤</span>
+              </span>
+              <span class="doro-sprite" aria-hidden="true"></span>
+            </button>
           </div>
-          <div class="hud-card left-6 top-24 w-44 p-4">
+          <div class="hud-card hero-hud-left left-6 top-24 w-44 p-4">
             <small>Gravity Mode</small>
             <strong class="mt-1 block text-2xl">自由摆放</strong>
             <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
               <div class="h-full w-2/3 rounded-full bg-mint"></div>
             </div>
           </div>
-          <div class="hud-card right-5 top-32 w-48 p-4">
+          <div class="hud-card hero-hud-right right-5 top-32 w-48 p-4">
             <small>AI Persona</small>
             <strong class="mt-1 block">六种性格 + 自定义</strong>
             <p class="mt-2 text-sm text-slate-400">兼容 OpenAI API</p>
           </div>
-          <div class="hud-card bottom-7 left-8 right-8 p-4">
+          <div class="hud-card hero-hud-status bottom-7 left-8 right-8 p-4">
             <div class="grid grid-cols-3 gap-3 text-center">
               <div>
                 <strong class="text-xl text-mint">25:00</strong>
@@ -1210,6 +1591,896 @@
         });
       });
 
+      var doroPreviewButton = document.getElementById('summon-doro-preview');
+      var doroPreviewHintText = doroPreviewButton ? doroPreviewButton.querySelector('.hint-text') : null;
+      var doroPreviewHints = [
+        '召唤Doro',
+        '点我！点我！',
+        '召唤桌宠'
+      ];
+      var doroPreviewHintIndex = 0;
+      var doroLayer = null;
+      var doroPet = null;
+      var doroActionMenu = null;
+      var doroFrame = 0;
+      var doroLastTick = 0;
+      var doroPlatforms = [];
+      var doroPlatformIds = new WeakMap();
+      var doroPlatformSeed = 0;
+      var doroLastPlatformScan = 0;
+      var doroLastImpactAt = 0;
+      var DORO_BOUNCE = 0.46;
+      var DORO_FLOOR_BOUNCE = 0.28;
+      var DORO_THROW_GRACE_MS = 180;
+      var DORO_MIN_THROW_SPEED = 120;
+      var DORO_THROW_POWER = 0.78;
+      var DORO_MAX_THROW_X = 760;
+      var DORO_MAX_THROW_Y = 680;
+      var DORO_AIR_DRAG = 0.982;
+      var doroManualActionUntil = 0;
+      var doroMessages = [
+        'Doro 已到达',
+        '我会站稳的',
+        '这里可以落脚',
+        '继续工作吧',
+        '摸鱼雷达启动',
+        '听说页面有彩蛋，尊嘟假嘟',
+        '你人还怪好的嘞',
+        '退退退，bug 退退退',
+        '电子搭子上线',
+        '这把高端局',
+        '问题不大，优势在我',
+        '我先浅浅巡逻一下',
+        '别急，我在找落脚点',
+        '稳住，我们能赢',
+        '这很难评，但我会走',
+        '今天也是元气满满',
+        '我宣布这里归 Doro 管',
+        '摸一下，灵感 +1',
+        '代码先别跑，我先跑',
+        '这波属于丝滑小连招'
+      ];
+      var doroActions = {
+        idle: { row: 0, frames: 6, duration: 950 },
+        walk: { row: 1, frames: 8, duration: 720 },
+        wave: { row: 3, frames: 4, duration: 760 },
+        fall: { row: 4, frames: 5, duration: 520 },
+        sit: { row: 5, frames: 8, duration: 1100 },
+        waiting: { row: 6, frames: 6, duration: 980 },
+        sprint: { row: 7, frames: 6, duration: 620 },
+        review: { row: 8, frames: 6, duration: 940 },
+        merit: { row: 9, frames: 4, duration: 800 },
+        music: { row: 10, frames: 8, duration: 1120 },
+        focus: { row: 11, frames: 4, duration: 1200 }
+      };
+      var doroActionLabels = {
+        idle: '待机',
+        walk: '散步',
+        wave: '挥手',
+        sit: '坐下',
+        waiting: '等待',
+        sprint: '快跑',
+        review: '查看',
+        merit: '功德',
+        music: '律动',
+        focus: '专注'
+      };
+      var doroMenuActions = ['idle', 'walk', 'wave', 'sit', 'waiting', 'sprint', 'review', 'merit', 'music', 'focus'];
+      var doroPlatformSelector = [
+        '.glass',
+        '.desktop-window',
+        '.pet-stage',
+        '.hud-card',
+        '.feature-card',
+        '.media-frame',
+        '.community-pet-preview',
+        '.cta',
+        'details',
+        'nav'
+      ].join(',');
+
+      function prefersReducedDoroMotion() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      }
+
+      function doroScale() {
+        return window.innerWidth < 700 ? 0.28 : 0.34;
+      }
+
+      function doroSize() {
+        var scale = doroScale();
+        return {
+          scale: scale,
+          width: 192 * scale,
+          height: 208 * scale
+        };
+      }
+
+      function ensureDoroLayer() {
+        if (doroLayer) return doroLayer;
+        doroLayer = document.createElement('div');
+        doroLayer.className = 'site-pet-layer';
+        doroLayer.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(doroLayer);
+        window.addEventListener('scroll', refreshDoroPlatforms, { passive: true });
+        window.addEventListener('resize', refreshDoroPlatforms);
+        return doroLayer;
+      }
+
+      function randomDoroMessage() {
+        return doroMessages[Math.floor(Math.random() * doroMessages.length)];
+      }
+
+      function rotateDoroPreviewHint() {
+        if (!doroPreviewHintText || prefersReducedDoroMotion()) return;
+        var nextIndex = doroPreviewHintIndex;
+        while (nextIndex === doroPreviewHintIndex && doroPreviewHints.length > 1) {
+          nextIndex = Math.floor(Math.random() * doroPreviewHints.length);
+        }
+        doroPreviewHintIndex = nextIndex;
+        doroPreviewHintText.textContent = doroPreviewHints[doroPreviewHintIndex];
+      }
+
+      function setDoroAction(action) {
+        if (!doroPet || doroPet.action === action) return;
+        var next = doroActions[action] || doroActions.idle;
+        if (!next || next.frames < 1 || next.row < 0) {
+          next = doroActions.idle;
+          action = 'idle';
+        }
+        doroPet.action = action;
+        doroPet.node.style.setProperty('--pet-row', String(next.row));
+        doroPet.node.style.setProperty('--pet-frames', String(next.frames));
+        doroPet.sprite.style.animationName = 'none';
+        doroPet.sprite.offsetHeight;
+        doroPet.sprite.style.animationName = '';
+        doroPet.sprite.style.animationDuration = (prefersReducedDoroMotion() ? next.duration * 1.8 : next.duration) + 'ms';
+      }
+
+      function applyDoroPosition() {
+        if (!doroPet) return;
+        var size = doroSize();
+        doroPet.width = size.width;
+        doroPet.height = size.height;
+        doroPet.node.style.setProperty('--pet-scale', String(size.scale));
+        doroPet.node.style.transform = 'translate3d(' + (doroPet.x - size.width / 2) + 'px,' + (doroPet.y - size.height) + 'px,0) scaleX(' + (doroPet.facing === 'right' ? -1 : 1) + ')';
+        doroPet.bubble.style.left = doroPet.x + 'px';
+        doroPet.bubble.style.top = (doroPet.y - size.height - 12) + 'px';
+      }
+
+      function showDoroBubble(text) {
+        if (!doroPet) return;
+        doroPet.bubble.textContent = text || randomDoroMessage();
+        doroPet.bubble.hidden = false;
+        doroPet.bubbleUntil = performance.now() + 1500;
+      }
+
+      function hideDoroActionMenu() {
+        if (!doroActionMenu) return;
+        doroActionMenu.classList.remove('visible');
+      }
+
+      function playDoroMenuAction(action) {
+        if (!doroPet) return;
+        var config = doroActions[action] || doroActions.idle;
+        hideDoroActionMenu();
+        doroPet.dragging = false;
+        doroPet.vx = 0;
+        doroPet.vy = 0;
+        doroPet.throwGraceUntil = 0;
+        doroManualActionUntil = performance.now() + Math.max(700, config.duration * 1.6);
+        doroPet.nextDecisionAt = doroManualActionUntil + 300;
+        setDoroAction(action);
+        showDoroBubble(doroActionLabels[action] || action);
+        startDoroLoop();
+      }
+
+      function ensureDoroActionMenu() {
+        if (doroActionMenu) return doroActionMenu;
+        doroActionMenu = document.createElement('div');
+        doroActionMenu.className = 'site-pet-action-menu';
+        doroActionMenu.setAttribute('role', 'menu');
+        var title = document.createElement('div');
+        title.className = 'site-pet-action-menu-title';
+        title.textContent = 'Doro 动作';
+        doroActionMenu.appendChild(title);
+        doroMenuActions.forEach(function (action) {
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.setAttribute('role', 'menuitem');
+          button.dataset.action = action;
+          var icon = document.createElement('span');
+          icon.setAttribute('aria-hidden', 'true');
+          icon.textContent = '>';
+          var label = document.createElement('span');
+          label.textContent = doroActionLabels[action] || action;
+          button.append(icon, label);
+          button.addEventListener('click', function () {
+            playDoroMenuAction(action);
+          });
+          doroActionMenu.appendChild(button);
+        });
+        document.body.appendChild(doroActionMenu);
+        return doroActionMenu;
+      }
+
+      function showDoroActionMenu(event) {
+        if (!doroPet) return;
+        var menu = ensureDoroActionMenu();
+        menu.classList.add('visible');
+        var rect = menu.getBoundingClientRect();
+        var left = Math.min(Math.max(8, event.clientX), window.innerWidth - rect.width - 8);
+        var top = Math.min(Math.max(8, event.clientY), window.innerHeight - rect.height - 8);
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+      }
+
+      function doroPlatformIdFor(element) {
+        if (!doroPlatformIds.has(element)) {
+          doroPlatformSeed += 1;
+          doroPlatformIds.set(element, 'doro-platform-' + doroPlatformSeed);
+        }
+        return doroPlatformIds.get(element);
+      }
+
+      function makeDoroFallFromViewportTop() {
+        if (!doroPet || doroPet.dragging) return;
+        doroPet.grounded = false;
+        doroPet.platformId = '';
+        doroPet.y = Math.max(doroPet.y, doroPet.height + 10);
+        doroPet.vy = Math.max(doroPet.vy, 120);
+        setDoroAction('fall');
+        showDoroBubble('换个地方落脚');
+        startDoroLoop();
+      }
+
+      function refreshDoroPlatforms() {
+        scanDoroPlatforms();
+        updateDoroPlatformAttachment();
+        applyDoroPosition();
+      }
+
+      function scanDoroPlatforms() {
+        var viewportWidth = window.innerWidth;
+        var viewportHeight = window.innerHeight;
+        doroPlatforms = Array.prototype.slice.call(document.querySelectorAll(doroPlatformSelector)).filter(function (element) {
+          if (element.closest('.site-pet-layer')) return false;
+          var style = window.getComputedStyle(element);
+          if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
+          var rect = element.getBoundingClientRect();
+          return rect.width >= 36 && rect.height >= 10 && rect.bottom >= -80 && rect.top <= viewportHeight + 80 && rect.right >= -80 && rect.left <= viewportWidth + 80;
+        }).map(function (element, index) {
+          var rect = element.getBoundingClientRect();
+          return {
+            id: doroPlatformIdFor(element),
+            top: rect.top,
+            left: rect.left,
+            right: rect.right
+          };
+        }).sort(function (a, b) {
+          return a.top - b.top;
+        });
+        doroLastPlatformScan = performance.now();
+      }
+
+      function createDoroPoof(x, y) {
+        var poof = document.createElement('div');
+        poof.className = 'site-pet-poof';
+        poof.style.left = x + 'px';
+        poof.style.top = y + 'px';
+        ensureDoroLayer().appendChild(poof);
+        poof.addEventListener('animationend', function () {
+          poof.remove();
+        });
+      }
+
+      function createDoroImpact(x, y) {
+        var now = performance.now();
+        if (!doroLayer || now - doroLastImpactAt < 120) return;
+        doroLastImpactAt = now;
+        var impact = document.createElement('div');
+        impact.className = 'site-pet-impact';
+        impact.style.left = x + 'px';
+        impact.style.top = y + 'px';
+        doroLayer.appendChild(impact);
+        impact.addEventListener('animationend', function () {
+          impact.remove();
+        });
+      }
+
+      function updateDoroDragVelocity(event) {
+        if (!doroPet || !doroPet.dragging) return;
+        if (event.doroDragHandled) return;
+        event.doroDragHandled = true;
+        var now = performance.now();
+        var dx = event.clientX - doroPet.dragX;
+        var dy = event.clientY - doroPet.dragY;
+        var dt = Math.max(16, now - doroPet.dragAt);
+        doroPet.dragX = event.clientX;
+        doroPet.dragY = event.clientY;
+        doroPet.dragAt = now;
+        doroPet.dragVX = Math.max(-DORO_MAX_THROW_X, Math.min(DORO_MAX_THROW_X, dx / dt * 1000));
+        doroPet.dragVY = Math.max(-DORO_MAX_THROW_Y, Math.min(DORO_MAX_THROW_Y, dy / dt * 1000));
+        doroPet.x += dx;
+        doroPet.y += dy;
+        doroPet.facing = dx < 0 ? 'left' : dx > 0 ? 'right' : doroPet.facing;
+        applyDoroPosition();
+      }
+
+      function bounceDoroAt(x, y, axis) {
+        createDoroImpact(x, y);
+        if (axis === 'x') {
+          doroPet.vx = -doroPet.vx * DORO_BOUNCE;
+          doroPet.facing = doroPet.vx < 0 ? 'left' : 'right';
+        } else {
+          doroPet.vy = -doroPet.vy * DORO_BOUNCE;
+        }
+        doroPet.grounded = false;
+        doroPet.platformId = '';
+        setDoroAction('fall');
+      }
+
+      function settleDoro(platform) {
+        doroPet.y = platform.top;
+        doroPet.vy = 0;
+        doroPet.grounded = true;
+        doroPet.platformId = platform.id;
+        setDoroAction(Math.random() > 0.78 ? 'sit' : 'idle');
+      }
+
+      function updateDoroPlatformAttachment() {
+        if (!doroPet.grounded || doroPet.platformId === 'ground') return;
+        if (performance.now() < (doroPet.throwGraceUntil || 0)) return;
+        var platform = doroPlatforms.find(function (item) {
+          return item.id === doroPet.platformId;
+        });
+        if (!platform) {
+          makeDoroFallFromViewportTop();
+          return;
+        }
+        if (platform.top < doroPet.height + 8) {
+          makeDoroFallFromViewportTop();
+          return;
+        }
+        if (doroPet.x + doroPet.width / 2 < platform.left + 4 || doroPet.x - doroPet.width / 2 > platform.right - 4) {
+          doroPet.grounded = false;
+          doroPet.platformId = '';
+          setDoroAction('fall');
+        } else {
+          doroPet.y = platform.top;
+        }
+      }
+
+      function bindDoroDrag() {
+        doroPet.node.addEventListener('pointerdown', function (event) {
+          if (event.button !== 0) return;
+          hideDoroActionMenu();
+          event.preventDefault();
+          try {
+            doroPet.node.setPointerCapture(event.pointerId);
+          } catch (error) {}
+          doroPet.dragging = true;
+          doroPet.grounded = false;
+          doroPet.platformId = '';
+          doroPet.dragX = event.clientX;
+          doroPet.dragY = event.clientY;
+          doroPet.dragAt = performance.now();
+          doroPet.dragVX = 0;
+          doroPet.dragVY = 0;
+          doroPet.throwGraceUntil = 0;
+          doroPet.vx = 0;
+          doroPet.vy = 0;
+          setDoroAction('walk');
+          doroPet.bubble.hidden = true;
+        });
+        doroPet.node.addEventListener('pointermove', function (event) {
+          if (!doroPet.dragging) return;
+          updateDoroDragVelocity(event);
+        });
+        window.addEventListener('pointermove', function (event) {
+          if (!doroPet || !doroPet.dragging) return;
+          if (doroPet.node.contains(event.target)) return;
+          updateDoroDragVelocity(event);
+        });
+        function endDrag(event) {
+          if (!doroPet.dragging) return;
+          try {
+            doroPet.node.releasePointerCapture(event.pointerId);
+          } catch (error) {}
+          doroPet.dragging = false;
+          doroPet.grounded = false;
+          doroPet.platformId = '';
+          var releaseVX = Math.max(-DORO_MAX_THROW_X, Math.min(DORO_MAX_THROW_X, doroPet.dragVX * DORO_THROW_POWER));
+          var releaseVY = Math.max(-DORO_MAX_THROW_Y, Math.min(DORO_MAX_THROW_Y, doroPet.dragVY * DORO_THROW_POWER));
+          var releaseSpeed = Math.sqrt(releaseVX * releaseVX + releaseVY * releaseVY);
+          doroPet.vx = releaseSpeed < DORO_MIN_THROW_SPEED ? 0 : releaseVX;
+          doroPet.vy = releaseSpeed < DORO_MIN_THROW_SPEED ? 80 : releaseVY;
+          doroPet.throwGraceUntil = releaseSpeed < DORO_MIN_THROW_SPEED ? 0 : performance.now() + DORO_THROW_GRACE_MS;
+          doroPet.facing = doroPet.vx < 0 ? 'left' : doroPet.vx > 0 ? 'right' : doroPet.facing;
+          doroPet.nextDecisionAt = performance.now() + 1200;
+          setDoroAction(releaseSpeed < DORO_MIN_THROW_SPEED ? 'fall' : 'idle');
+          if (doroFrame) {
+            window.cancelAnimationFrame(doroFrame);
+            doroFrame = 0;
+          }
+          startDoroLoop();
+        }
+        doroPet.node.addEventListener('pointerup', endDrag);
+        doroPet.node.addEventListener('pointercancel', endDrag);
+        window.addEventListener('pointerup', endDrag);
+        window.addEventListener('pointercancel', endDrag);
+        doroPet.node.addEventListener('mouseenter', function () {
+          showDoroBubble();
+        });
+        doroPet.node.addEventListener('contextmenu', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          showDoroActionMenu(event);
+        });
+      }
+
+      function chooseDoroMovement(now) {
+        if (!doroPet.grounded || now < doroPet.nextDecisionAt) return;
+        var roll = Math.random();
+        if (Math.random() < 0.22) {
+          showDoroBubble();
+        }
+        if (roll < 0.42) {
+          var fast = roll < 0.12;
+          doroPet.facing = roll < 0.27 ? 'left' : 'right';
+          doroPet.vx = (doroPet.facing === 'left' ? -1 : 1) * (fast ? 72 + Math.random() * 54 : 34 + Math.random() * 46);
+          setDoroAction(fast ? 'sprint' : 'walk');
+          doroPet.nextDecisionAt = now + 900 + Math.random() * 1300;
+          return;
+        }
+        doroPet.vx = 0;
+        if (roll < 0.54) {
+          setDoroAction('idle');
+        } else if (roll < 0.63) {
+          setDoroAction('focus');
+        } else if (roll < 0.71) {
+          setDoroAction('wave');
+        } else if (roll < 0.78) {
+          setDoroAction('waiting');
+        } else if (roll < 0.84) {
+          setDoroAction('review');
+        } else if (roll < 0.90) {
+          setDoroAction('merit');
+        } else if (roll < 0.96) {
+          setDoroAction('music');
+        } else {
+          setDoroAction('focus');
+        }
+        doroPet.nextDecisionAt = now + 1100 + Math.random() * 1700;
+      }
+
+      function tickDoro(now) {
+        if (!doroPet) {
+          doroFrame = 0;
+          doroLastTick = 0;
+          return;
+        }
+        if (!doroLastTick) doroLastTick = now;
+        var dt = Math.min(0.08, Math.max(0.001, (now - doroLastTick) / 1000));
+        doroLastTick = now;
+        if (!doroLastPlatformScan || now - doroLastPlatformScan > 300) scanDoroPlatforms();
+
+        if (doroPet.bubbleUntil && now > doroPet.bubbleUntil) {
+          doroPet.bubble.hidden = true;
+          doroPet.bubbleUntil = 0;
+        }
+
+        if (!doroPet.dragging) {
+          if (now >= doroManualActionUntil) {
+            chooseDoroMovement(now);
+          }
+          var previousY = doroPet.y;
+          if (!doroPet.grounded) {
+            var gravity = now < (doroPet.throwGraceUntil || 0) ? 900 : 1600;
+            doroPet.vy = Math.min(1200, doroPet.vy + gravity * dt);
+          } else if (doroPet.action !== 'walk') {
+            doroPet.vx *= 0.86;
+            if (Math.abs(doroPet.vx) < 0.5) doroPet.vx = 0;
+          }
+
+          if (!doroPet.grounded) {
+            doroPet.vx *= Math.pow(DORO_AIR_DRAG, dt * 60);
+            doroPet.vy *= Math.pow(0.992, dt * 60);
+          }
+          doroPet.x += doroPet.vx * dt;
+          doroPet.y += doroPet.vy * dt;
+          if (Math.abs(doroPet.vx) > 18) {
+            doroPet.facing = doroPet.vx < 0 ? 'left' : 'right';
+          }
+
+          if (doroPet.x < doroPet.width / 2) {
+            doroPet.x = doroPet.width / 2;
+            if (Math.abs(doroPet.vx) > 120) bounceDoroAt(doroPet.width / 2, doroPet.y - doroPet.height / 2, 'x');
+            doroPet.vx = Math.abs(doroPet.vx);
+          } else if (doroPet.x > window.innerWidth - doroPet.width / 2) {
+            doroPet.x = window.innerWidth - doroPet.width / 2;
+            if (Math.abs(doroPet.vx) > 120) bounceDoroAt(window.innerWidth - doroPet.width / 2, doroPet.y - doroPet.height / 2, 'x');
+            doroPet.vx = -Math.abs(doroPet.vx);
+          }
+
+          if (doroPet.y < doroPet.height) {
+            doroPet.y = doroPet.height;
+            if (Math.abs(doroPet.vy) > 120) bounceDoroAt(doroPet.x, 10, 'y');
+            doroPet.vy = Math.abs(doroPet.vy);
+          }
+
+          updateDoroPlatformAttachment();
+
+          if (!doroPet.grounded && doroPet.vy >= 0 && now >= (doroPet.throwGraceUntil || 0)) {
+            var left = doroPet.x - doroPet.width / 2;
+            var right = doroPet.x + doroPet.width / 2;
+            for (var i = 0; i < doroPlatforms.length; i += 1) {
+              var platform = doroPlatforms[i];
+              if (previousY <= platform.top && doroPet.y >= platform.top && right > platform.left + 4 && left < platform.right - 4) {
+                settleDoro(platform);
+                break;
+              }
+            }
+          }
+
+          if (!doroPet.grounded && doroPet.y >= window.innerHeight && now >= (doroPet.throwGraceUntil || 0)) {
+            doroPet.y = window.innerHeight;
+            if (Math.abs(doroPet.vy) > 520 || Math.abs(doroPet.vx) > 360) {
+              createDoroImpact(doroPet.x, window.innerHeight - 8);
+              doroPet.vy = -Math.abs(doroPet.vy) * DORO_FLOOR_BOUNCE;
+              doroPet.vx *= 0.62;
+              doroPet.grounded = false;
+              doroPet.platformId = '';
+            } else {
+              doroPet.vy = 0;
+              doroPet.grounded = true;
+              doroPet.platformId = 'ground';
+              setDoroAction('idle');
+            }
+          }
+
+          if (!doroPet.grounded) {
+            if (doroPet.vy > 40 && doroPet.action !== 'fall') setDoroAction('fall');
+            if (doroPet.vy <= 40 && doroPet.action === 'fall') setDoroAction('idle');
+          }
+        }
+
+        applyDoroPosition();
+        doroFrame = window.requestAnimationFrame(tickDoro);
+      }
+
+      function startDoroLoop() {
+        if (!doroFrame) {
+          doroLastTick = 0;
+          doroFrame = window.requestAnimationFrame(tickDoro);
+        }
+      }
+
+      function summonDoro(trigger) {
+        ensureDoroLayer();
+        scanDoroPlatforms();
+        var source = trigger && trigger.getBoundingClientRect ? trigger : doroPreviewButton;
+        if (!source) return;
+        var buttonRect = source.getBoundingClientRect();
+        var size = doroSize();
+        var startX = buttonRect.left + buttonRect.width / 2;
+        var startY = Math.max(size.height + 24, buttonRect.top - 12);
+
+        if (!doroPet) {
+          var node = document.createElement('div');
+          node.className = 'site-pet';
+          node.setAttribute('role', 'img');
+          node.setAttribute('aria-label', 'Doro');
+          var sprite = document.createElement('div');
+          sprite.className = 'site-pet-sprite';
+          var bubble = document.createElement('div');
+          bubble.className = 'site-pet-bubble';
+          bubble.hidden = true;
+          node.appendChild(sprite);
+          doroLayer.appendChild(node);
+          doroLayer.appendChild(bubble);
+          doroPet = {
+            node: node,
+            sprite: sprite,
+            bubble: bubble,
+            x: startX,
+            y: startY,
+            vx: 0,
+            vy: 120,
+            width: size.width,
+            height: size.height,
+            facing: 'right',
+            action: '',
+            grounded: false,
+            platformId: '',
+            nextDecisionAt: performance.now() + 1000,
+            dragging: false
+          };
+          bindDoroDrag();
+        } else {
+          doroPet.x = startX;
+          doroPet.y = startY;
+          doroPet.vx = 0;
+          doroPet.vy = 120;
+          doroPet.grounded = false;
+          doroPet.platformId = '';
+          doroPet.nextDecisionAt = performance.now() + 900;
+        }
+
+        setDoroAction('fall');
+        applyDoroPosition();
+        createDoroPoof(startX, startY - size.height / 2);
+        showDoroBubble('Doro 来啦');
+        startDoroLoop();
+      }
+
+      if (doroPreviewButton) {
+        window.setInterval(rotateDoroPreviewHint, 2600);
+        doroPreviewButton.addEventListener('click', function () {
+          doroPreviewButton.classList.remove('is-summoning');
+          doroPreviewButton.offsetHeight;
+          doroPreviewButton.classList.add('is-summoning');
+          window.setTimeout(function () {
+            doroPreviewButton.classList.remove('is-summoning');
+          }, 460);
+          summonDoro(doroPreviewButton);
+        });
+      }
+
+      window.addEventListener('pointerdown', function (event) {
+        if (!doroActionMenu || !doroActionMenu.classList.contains('visible')) return;
+        if (doroActionMenu.contains(event.target)) return;
+        hideDoroActionMenu();
+      });
+      window.addEventListener('scroll', hideDoroActionMenu, { passive: true });
+      window.addEventListener('resize', hideDoroActionMenu);
+      window.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') hideDoroActionMenu();
+      });
+
+      var communityPetBubble = null;
+      var communityPetBubbleTimer = 0;
+      var gokuTransformTimer = 0;
+      var gokuTransformResetTimer = 0;
+      var gokuFormsWarningCount = 0;
+      var gokuFormsBusy = false;
+      var gokuFormsLevelIndex = 0;
+      var gokuFormsHasReachedSsj4 = false;
+      var GOKU_FORM_HOLD_MS = 10000;
+      var communityPetLines = {
+        qiyi: ['今天也要元气满满', '贴贴一下！', '我在巡逻啦'],
+        'mint-normal': ['喵，收到指令', '摸摸头可以加班吗', '灵感同步中'],
+        'asuka-kklover-20260601': ['同步率上涨中', '别眨眼，看我发挥', '这波我来守护'],
+        ikkun: ['你干嘛哎哟', '篮球给我一下', '小黑子露出马脚了'],
+        goku: ['龟派气功准备中', '今天先热身', '战斗力还在涨'],
+        firefly: ['为你点一盏小灯', '萤火正在闪烁', '我会陪你写完'],
+        'goku-forms': ['变身倒计时', '气已经攒满了', '再点一下试试'],
+        'han-laomo-yuanying': ['道友请留步', '稳健发育中', '这波不亏'],
+        slate: ['保持优雅', '我在认真听', '今天适合摸鱼'],
+        ikunchick: ['鸡你太美', '开练开练', '篮球模式启动'],
+        'gali-boo': ['布灵布灵上线', '别急，我在', '这就很可爱'],
+        xueren: ['冷静一下', '雪地待机中', '给你降降温']
+      };
+      var gokuFormsIdleSrc = './assets/community-pets/goku-forms/goku-forms-idle-transparent.gif';
+      var gokuFormsChargeSrc = './assets/community-pets/goku-forms/goku-transform.png';
+      var gokuForms = [
+        { label: '超级赛亚人1', src: './assets/community-pets/goku-forms/goku-forms-ssj01.gif', duration: 640 },
+        { label: '超级赛亚人2', src: './assets/community-pets/goku-forms/goku-forms-ssj02.gif', duration: 640 },
+        { label: '超级赛亚人3', src: './assets/community-pets/goku-forms/goku-forms-ssj03.gif', duration: 640 },
+        { label: '超级赛亚人4', src: './assets/community-pets/goku-forms/goku-forms-ssj04.gif', duration: 640 }
+      ];
+      var communitySurpriseLines = [
+        '哇哦！',
+        '握草！',
+        '什么情况！',
+        '气场都变了！',
+        '好强的压迫感',
+        '这也太帅了',
+        '战斗力爆表',
+        '我先后退半步',
+        '这波不简单',
+        '燃起来了',
+        '真的假的！'
+      ];
+      var communitySsj4Lines = [
+        'Σ(°ロ°) 是超四！',
+        '爷青回！',
+        '红毛悟空来了！',
+        '全体起立！',
+        '压迫感拉满！',
+        '感觉自己都变强了',
+        '这就是传说中的超四吗?',
+      ];
+      var gokuWarningLines = [
+        '别点我，小心我变身了呦',
+        '再点一下我可就不装了',
+        '我体内的气已经开始涨了',
+        '你确定还要继续吗',
+        '别闹，我真的会变身',
+        '警告一次，气场正在变化',
+        '你再点，我就认真了',
+        '小心，赛亚人的怒气值在上涨',
+        '现在收手还来得及',
+        '我已经听见战斗 BGM 了',
+        '感觉自己都变强了',
+        '这是最后一次警告了',
+        '再点一下试试'
+      ];
+      var gokuSsj4RepeatLines = [
+        '你在期待什么？没有超5了',
+        '龙珠超，狗都不看！',
+        '龙珠GT才是正史！',
+        '想看超蓝？GitHub 点个 Star，我变给你看~',
+        '再点也是超四，预算到这了',
+        '别催了，尾巴都长出来了'
+      ];
+
+      function ensureCommunityPetBubble() {
+        if (communityPetBubble) return communityPetBubble;
+        communityPetBubble = document.createElement('div');
+        communityPetBubble.className = 'community-pet-talk-bubble';
+        communityPetBubble.setAttribute('role', 'status');
+        document.body.appendChild(communityPetBubble);
+        return communityPetBubble;
+      }
+
+      function communityLineFor(slug) {
+        var lines = communityPetLines[slug] || ['你好呀', '我在这里', '点到我啦'];
+        return lines[Math.floor(Math.random() * lines.length)];
+      }
+
+      function positionCommunityBubble(bubble, pet) {
+        var rect = pet.getBoundingClientRect();
+        var centerX = rect.left + rect.width / 2;
+        var headY = rect.top + rect.height * 0.04;
+        bubble.style.left = Math.min(Math.max(12, centerX), window.innerWidth - 12) + 'px';
+        bubble.style.top = Math.max(12, headY) + 'px';
+      }
+
+      function showCommunityPetBubble(pet, text) {
+        var bubble = ensureCommunityPetBubble();
+        bubble.textContent = text || communityLineFor(pet.dataset.petSlug);
+        positionCommunityBubble(bubble, pet);
+        bubble.classList.add('visible');
+        window.clearTimeout(communityPetBubbleTimer);
+        communityPetBubbleTimer = window.setTimeout(function () {
+          bubble.classList.remove('visible');
+        }, 3600);
+      }
+
+      function randomFrom(lines) {
+        return lines[Math.floor(Math.random() * lines.length)];
+      }
+
+      function randomWarningLine(targetForm) {
+        var line = randomFrom(gokuWarningLines);
+        if (gokuFormsWarningCount === 3 && !gokuFormsHasReachedSsj4) {
+          return line + '，' + targetForm.label + ' 要来了';
+        }
+        return line;
+      }
+
+      function shuffled(items) {
+        return items.slice().sort(function () {
+          return Math.random() - 0.5;
+        });
+      }
+
+      function showTemporaryPetBubble(pet, text, duration, delay) {
+        window.setTimeout(function () {
+          var bubble = document.createElement('div');
+          bubble.className = 'community-pet-talk-bubble';
+          bubble.textContent = text;
+          document.body.appendChild(bubble);
+          positionCommunityBubble(bubble, pet);
+          window.requestAnimationFrame(function () {
+            bubble.classList.add('visible');
+          });
+          window.setTimeout(function () {
+            bubble.classList.remove('visible');
+            window.setTimeout(function () {
+              bubble.remove();
+            }, 220);
+          }, duration);
+        }, delay);
+      }
+
+      function showTransformationReactions(form) {
+        var pets = Array.prototype.slice.call(document.querySelectorAll('.community-pet-preview')).filter(function (pet) {
+          return pet.dataset.petSlug !== 'goku-forms';
+        });
+        var isSsj4 = form.label === '超级赛亚人4';
+        var targets = isSsj4 ? pets : shuffled(pets).slice(0, 4);
+        var lines = isSsj4 ? communitySsj4Lines : communitySurpriseLines;
+        targets.forEach(function (pet, index) {
+          showTemporaryPetBubble(pet, randomFrom(lines), isSsj4 ? 5600 : 4400, isSsj4 ? index * 320 : index * 520);
+        });
+      }
+
+      function transformGokuForms(pet) {
+        if (gokuFormsBusy) return;
+        window.clearTimeout(gokuTransformTimer);
+        window.clearTimeout(gokuTransformResetTimer);
+        var targetForm = gokuForms[Math.min(gokuFormsLevelIndex, gokuForms.length - 1)];
+        if (gokuFormsWarningCount < 3) {
+          gokuFormsWarningCount += 1;
+          showCommunityPetBubble(pet, randomWarningLine(targetForm));
+          return;
+        }
+
+        gokuFormsBusy = true;
+        gokuFormsWarningCount = 0;
+        window.clearTimeout(communityPetBubbleTimer);
+        var steps = ['はああああ……', 'うおおおお……', 'バリバリバリ……'];
+        var index = 0;
+
+        pet.classList.add('transforming');
+        pet.src = gokuFormsChargeSrc + '?charge=' + Date.now();
+
+        function nextStep() {
+          var bubble = ensureCommunityPetBubble();
+          bubble.textContent = steps[index];
+          positionCommunityBubble(bubble, pet);
+          bubble.classList.add('visible');
+          index += 1;
+
+          if (index < steps.length) {
+            gokuTransformTimer = window.setTimeout(nextStep, 1000);
+            return;
+          }
+
+          gokuTransformTimer = window.setTimeout(showSsj4, 1000);
+        }
+
+        function showSsj4() {
+          var bubble = ensureCommunityPetBubble();
+          var isRepeatSsj4 = targetForm.label === '超级赛亚人4' && gokuFormsHasReachedSsj4;
+          bubble.textContent = isRepeatSsj4 ? randomFrom(gokuSsj4RepeatLines) : targetForm.label + '，怕了吧！';
+          pet.src = targetForm.src + '?burst=' + Date.now();
+          showTransformationReactions(targetForm);
+          window.clearTimeout(communityPetBubbleTimer);
+          positionCommunityBubble(bubble, pet);
+          bubble.classList.add('visible');
+          gokuTransformResetTimer = window.setTimeout(resetGokuForms, GOKU_FORM_HOLD_MS);
+
+          function resetGokuForms() {
+            pet.src = gokuFormsIdleSrc;
+            pet.classList.remove('transforming');
+            bubble.classList.remove('visible');
+            gokuFormsBusy = false;
+            if (gokuFormsLevelIndex < gokuForms.length - 1) {
+              gokuFormsLevelIndex += 1;
+            } else {
+              gokuFormsHasReachedSsj4 = true;
+            }
+          }
+        }
+
+        nextStep();
+      }
+
+      document.querySelectorAll('.community-pet-preview').forEach(function (pet) {
+        pet.tabIndex = 0;
+        pet.setAttribute('role', 'button');
+        pet.setAttribute('aria-label', (pet.alt || 'Community pet') + ' 互动');
+        pet.addEventListener('click', function () {
+          if (pet.dataset.petSlug === 'goku-forms') {
+            transformGokuForms(pet);
+            return;
+          }
+          showCommunityPetBubble(pet);
+        });
+        pet.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          if (pet.dataset.petSlug === 'goku-forms') {
+            transformGokuForms(pet);
+            return;
+          }
+          showCommunityPetBubble(pet);
+        });
+      });
+
       function setCount(value) {
         countTargets.forEach(function (el) {
           el.textContent = value;
@@ -1229,10 +2500,10 @@
               }
             });
           }
-          setCount(total > 0 ? total.toLocaleString() : '待发布');
+          setCount(total > 0 ? total.toLocaleString() : '0');
         })
         .catch(function () {
-          setCount('待发布');
+          setCount('0');
         });
     })();
   </script>
