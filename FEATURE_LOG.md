@@ -1168,6 +1168,16 @@
 - Kept the trimmed action set to idle and running-left while preserving transparent corners for browser rendering.
 - Verification: checked all 24 community GIFs for transparency indexes, confirmed RGBA corner alpha is 0 on sample frames, and searched docs for removed action references.
 
+### 2026-06-04 Docs community GIF request throttling
+- Changed community pet GIF rotation to wait for the current image to finish loading before switching to the next action.
+- Paused community pet preview timers when preview images leave the viewport, preventing repeated cancelled GIF requests in browser DevTools.
+- Verification: ran `git diff --check -- docs/index.html FEATURE_LOG.md`.
+
+### 2026-06-05 Docs community idle-only previews
+- Removed community pet GIF action switching from the homepage so preview cards only display each character's idle animation.
+- Deleted the unused community `running-left` GIF assets now that the homepage no longer swaps actions.
+- Verification: searched docs for `running-left` and community preview rotation helpers, and ran `git diff --check` for the touched docs files.
+
 ### 2026-06-05 Pet drag directional running
 - Changed manual pet dragging to play `running-left` or `running-right` based on horizontal mouse movement, with fallback to mirrored `running` for pet packages without directional actions.
 - Verification: ran `npm run build`.
