@@ -2261,6 +2261,7 @@
         'gali-boo': ['布灵布灵上线', '别急，我在', '这就很可爱'],
         xueren: ['冷静一下', '雪地待机中', '给你降降温']
       };
+      var GOKU_ASSET_VERSION = '20260606-goku-calibrated';
       var gokuFormsIdleSrc = './assets/community-pets/goku-forms/goku-forms-idle-transparent.gif';
       var gokuFormsChargeSrc = './assets/community-pets/goku-forms/goku-transform.png';
       var gokuForms = [
@@ -2352,6 +2353,14 @@
         return lines[Math.floor(Math.random() * lines.length)];
       }
 
+      function gokuAssetUrl(src, cacheKey) {
+        var url = src + '?v=' + GOKU_ASSET_VERSION;
+        if (cacheKey) {
+          url += '&' + cacheKey + '=' + Date.now();
+        }
+        return url;
+      }
+
       function randomWarningLine(targetForm) {
         var line = randomFrom(gokuWarningLines);
         if (gokuFormsWarningCount === 3 && !gokuFormsHasReachedSsj4) {
@@ -2415,7 +2424,7 @@
         var index = 0;
 
         pet.classList.add('transforming');
-        pet.src = gokuFormsChargeSrc + '?charge=' + Date.now();
+        pet.src = gokuAssetUrl(gokuFormsChargeSrc, 'charge');
 
         function nextStep() {
           var bubble = ensureCommunityPetBubble();
@@ -2436,7 +2445,7 @@
           var bubble = ensureCommunityPetBubble();
           var isRepeatSsj4 = targetForm.label === '超级赛亚人4' && gokuFormsHasReachedSsj4;
           bubble.textContent = isRepeatSsj4 ? randomFrom(gokuSsj4RepeatLines) : targetForm.label + '，怕了吧！';
-          pet.src = targetForm.src + '?burst=' + Date.now();
+          pet.src = gokuAssetUrl(targetForm.src, 'burst');
           showTransformationReactions(targetForm);
           window.clearTimeout(communityPetBubbleTimer);
           positionCommunityBubble(bubble, pet);
@@ -2444,7 +2453,7 @@
           gokuTransformResetTimer = window.setTimeout(resetGokuForms, GOKU_FORM_HOLD_MS);
 
           function resetGokuForms() {
-            pet.src = gokuFormsIdleSrc;
+            pet.src = gokuAssetUrl(gokuFormsIdleSrc, 'idle');
             pet.classList.remove('transforming');
             bubble.classList.remove('visible');
             gokuFormsBusy = false;

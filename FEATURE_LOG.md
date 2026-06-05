@@ -1330,6 +1330,10 @@
 - Restored community and Goku transformation bubbles to the previous in-card top offset so bubbles no longer cover characters in the row above.
 - Verification: inline script syntax check and diff whitespace check.
 
+### 2026-06-06 Docs homepage Goku asset cache bust
+- Added a shared versioned cache-busting helper for Goku transformation, form, and idle assets so deployed pages do not reuse stale same-name animation files.
+- Verification: compared local and deployed Goku asset hashes, ran inline script syntax check, and checked diff whitespace.
+
 ### 2026-06-06 Docs homepage Doro random action pool
 - Added more existing Doro spritesheet actions to the summoned homepage Doro random behavior pool, including sprint, wave, waiting, review, merit, music, and focus.
 - Verification: ran inline docs script syntax check with Node.
