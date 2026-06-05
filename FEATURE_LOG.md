@@ -1337,3 +1337,7 @@
 ### 2026-06-06 Docs homepage Doro action context menu
 - Added a custom right-click action menu for the summoned homepage Doro, suppressing the browser menu only on Doro and letting users play specific existing spritesheet actions.
 - Verification: ran inline docs script syntax check and diff whitespace check.
+
+### 2026-06-06 Config editor frame scaling
+- Reworked editor zoom controls to scale pet subjects inside fixed 192x208 frames, removed preview background board controls, preserved per-frame scale values while switching frames, and prevented enlarged sprites from being cropped before scaling back down.
+- Verification: ran `npm run build`.

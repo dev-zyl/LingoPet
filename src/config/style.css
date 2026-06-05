@@ -787,6 +787,14 @@ textarea:focus {
 #editor-frame-canvas {
   width: 288px;
   height: 312px;
+  background:
+    linear-gradient(45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e2e2 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e2e2 75%),
+    #fff;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
   image-rendering: pixelated;
 }
 
@@ -3202,161 +3210,6 @@ textarea {
   flex-shrink: 0;
 }
 
-/* ==========================================
-   动作编辑画布 原始正方形预览背景板样式 (Zoom 级) 与 Swatches 选择器样式
-   ========================================== */
-
-.preview-background-tools {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid #eee2cc;
-}
-
-.preview-background-tools strong {
-  color: #342c22;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.preview-background-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: flex-start;
-  margin-top: 4px;
-}
-
-.preview-background-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  width: 56px;
-  user-select: none;
-}
-
-/* 隐藏原生 Radio 输入框 */
-.preview-background-option input[type="radio"] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  margin: 0;
-}
-
-/* 颜色色块 (Swatch) */
-.preview-background-swatch {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid #dfd1b5;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-/* 悬停微动特效 */
-.preview-background-option:hover .preview-background-swatch {
-  transform: scale(1.08);
-  border-color: #cbb998;
-}
-
-/* 选中状态 Swatch 效果 - 苔藓绿外边框与高颜值发光 */
-.preview-background-option input[type="radio"]:checked + .preview-background-swatch {
-  transform: scale(1.18);
-  border-color: #78b957 !important;
-  box-shadow: 0 0 0 2px rgba(120, 185, 87, 0.25), 0 4px 8px rgba(120, 185, 87, 0.2);
-}
-
-/* 文本标签：10px 细致字 */
-.preview-background-option span:last-child {
-  font-size: 10px;
-  color: #8c8273;
-  font-weight: 700;
-  transition: color 0.25s ease;
-  text-align: center;
-  white-space: nowrap;
-}
-
-/* 选中状态文字高亮 */
-.preview-background-option input[type="radio"]:checked ~ span:last-child {
-  color: #342c22;
-  font-weight: 800;
-}
-
-/* 各种 Swatches 色块背景 */
-.preview-background-checker {
-  background-color: #ffffff;
-  background-image:
-    linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
-    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
-    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
-  background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
-}
-
-.preview-background-paper {
-  background: #fbf6ea !important;
-}
-
-.preview-background-gray {
-  background: #ebebeb !important;
-}
-
-.preview-background-ink {
-  background: #151515 !important;
-  border-color: #333333;
-}
-
-.preview-background-mint {
-  background: #e5f7f0 !important;
-}
-
-.preview-background-sky {
-  background: #e7f1ff !important;
-}
-
-/* 提示文字 */
-.preview-background-tools small {
-  color: #817667;
-  font-size: 11px;
-  line-height: 1.4;
-  margin-top: 2px;
-}
-
-/* ==========================================================================
-   #editor-frame-canvas 预览背景设置
-   ========================================================================== */
-#editor-frame-canvas[data-preview-bg="checker"] {
-  background: transparent !important;
-}
-
-#editor-frame-canvas[data-preview-bg="paper"] {
-  background: #fbf6ea !important;
-}
-
-#editor-frame-canvas[data-preview-bg="gray"] {
-  background: #ebebeb !important;
-}
-
-#editor-frame-canvas[data-preview-bg="ink"] {
-  background: #151515 !important;
-}
-
-#editor-frame-canvas[data-preview-bg="mint"] {
-  background: #e5f7f0 !important;
-}
-
-#editor-frame-canvas[data-preview-bg="sky"] {
-  background: #e7f1ff !important;
-}
-
 /* 一行放两个的帧操作网格 */
 .editor-buttons-grid {
   display: grid;
@@ -3379,6 +3232,25 @@ textarea {
   gap: 8px;
   width: 100%;
   align-items: end;
+}
+
+.frame-scale-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.frame-scale-actions button {
+  min-height: 34px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 8px;
+}
+
+.frame-scale-actions button:last-child {
+  grid-column: 1 / -1;
 }
 
 .action-strip-frame-count-field {
@@ -3626,4 +3498,3 @@ textarea {
 .bubble-style-card[data-style="9"] .preview-inner-text {
   color: #ffe9ff;
 }
-

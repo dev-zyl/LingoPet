@@ -181,49 +181,18 @@
               <div class="frame-zoom-tools" aria-label="动作画面缩放">
                 <strong>画面缩放</strong>
                 <div class="zoom-slider-row">
-                  <input id="editor-zoom-slider" type="range" min="50" max="150" value="100" aria-label="画面缩放比例" />
+                  <input id="editor-zoom-slider" type="range" min="25" max="300" value="100" aria-label="宠物主体缩放比例" />
                   <label class="zoom-number-field">
-                    <input id="editor-zoom-input" type="number" min="50" max="150" value="100" />
+                    <input id="editor-zoom-input" type="number" min="25" max="300" value="100" />
                     <span>%</span>
                   </label>
                 </div>
-                <small>拖动滑块或输入数值直接实时缩放。Ctrl+Z 可完美撤销。</small>
-              </div>
-              <div class="preview-background-tools" aria-label="纯色背景板预览">
-                <strong>预览背景板</strong>
-                <div class="preview-background-options" role="radiogroup" aria-label="切换预览背景板">
-                  <label class="preview-background-option">
-                    <input type="radio" name="editor-preview-background" value="checker" checked />
-                    <span class="preview-background-swatch preview-background-checker"></span>
-                    <span>透明棋盘</span>
-                  </label>
-                  <label class="preview-background-option">
-                    <input type="radio" name="editor-preview-background" value="paper" />
-                    <span class="preview-background-swatch preview-background-paper"></span>
-                    <span>米白</span>
-                  </label>
-                  <label class="preview-background-option">
-                    <input type="radio" name="editor-preview-background" value="gray" />
-                    <span class="preview-background-swatch preview-background-gray"></span>
-                    <span>浅灰</span>
-                  </label>
-                  <label class="preview-background-option">
-                    <input type="radio" name="editor-preview-background" value="ink" />
-                    <span class="preview-background-swatch preview-background-ink"></span>
-                    <span>墨黑</span>
-                  </label>
-                  <label class="preview-background-option">
-                    <input type="radio" name="editor-preview-background" value="mint" />
-                    <span class="preview-background-swatch preview-background-mint"></span>
-                    <span>薄荷绿</span>
-                  </label>
-                  <label class="preview-background-option">
-                    <input type="radio" name="editor-preview-background" value="sky" />
-                    <span class="preview-background-swatch preview-background-sky"></span>
-                    <span>天空蓝</span>
-                  </label>
+                <div class="frame-scale-actions">
+                  <button id="editor-scale-action-btn" class="secondary-button" type="button">整行动作缩放</button>
+                  <button id="editor-scale-sync-btn" class="secondary-button" type="button">同步到本动作</button>
+                  <button id="editor-scale-reset-btn" class="secondary-button" type="button">重置滑块</button>
                 </div>
-                <small>仅用于预览，背景色仅限制在中间原始正方形帧内。</small>
+                <small>画框尺寸不变，只缩放帧内宠物主体。Ctrl+Z 可撤销上次缩放。</small>
               </div>
             </div>
             <div class="editor-card">

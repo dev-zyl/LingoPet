@@ -22,6 +22,8 @@ interface EditorAction {
   key?: ModeActionKey;
   frameDurations?: number[];
   frames: (HTMLCanvasElement | null)[];
+  frameScales?: number[];
+  frameScaleSources?: (HTMLCanvasElement | null)[];
   stripSource?: HTMLCanvasElement;
   stripFrameCount?: number;
   stripOffsets?: { x: number; y: number }[];
@@ -180,9 +182,6 @@ interface SummonedPetWindow {
 type ViewName = "mine" | "recall" | "market" | "settings" | "editor" | "workshop";
 type SortName = "hot" | "latest" | "downloads";
 
-type EditorPreviewBackground = "checker" | "paper" | "gray" | "ink" | "mint" | "sky";
-const LS_EDITOR_PREVIEW_BACKGROUND = "pet_editor_preview_background";
-
 const els = {
   title: document.getElementById("view-title") as HTMLHeadingElement,
   subtitle: document.getElementById("view-subtitle") as HTMLParagraphElement,
@@ -279,7 +278,9 @@ const els = {
   editorEraserCursor: document.getElementById("editor-eraser-cursor") as HTMLDivElement,
   editorZoomSlider: document.getElementById("editor-zoom-slider") as HTMLInputElement,
   editorZoomInput: document.getElementById("editor-zoom-input") as HTMLInputElement,
-  editorPreviewBackgroundRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="editor-preview-background"]')],
+  editorScaleAction: document.getElementById("editor-scale-action-btn") as HTMLButtonElement,
+  editorScaleSync: document.getElementById("editor-scale-sync-btn") as HTMLButtonElement,
+  editorScaleReset: document.getElementById("editor-scale-reset-btn") as HTMLButtonElement,
   editorClear: document.getElementById("editor-clear-btn") as HTMLButtonElement,
   editorCopy: document.getElementById("editor-copy-btn") as HTMLButtonElement,
   editorPaste: document.getElementById("editor-paste-btn") as HTMLButtonElement,
@@ -340,7 +341,13 @@ const state = {
   editorMoveChanged: false,
   editorDirty: false,
   editorZoomScale: 1.0,
-  editorPreviewBackground: (localStorage.getItem(LS_EDITOR_PREVIEW_BACKGROUND) as EditorPreviewBackground) || "checker",
+  editorScaleSourceFrame: null as HTMLCanvasElement | null,
+  editorScaleSourceRow: 0,
+  editorScaleSourceCol: 0,
+  editorTransformUndoFrames: null as (HTMLCanvasElement | null)[] | null,
+  editorTransformUndoScales: null as number[] | null,
+  editorTransformUndoScaleSources: null as (HTMLCanvasElement | null)[] | null,
+  editorTransformUndoRow: 0,
 
   // 创意工坊
   workshopItems: [] as WorkshopItem[],
@@ -583,28 +590,12 @@ function setStatus(el: HTMLElement, message = "", isError = false): void {
   }
 }
 
-function applyEditorCssZoom(scale: number): void {
-  state.editorZoomScale = scale;
-  if (els.editorFrameCanvas) {
-    els.editorFrameCanvas.style.width = `${Math.round(288 * scale)}px`;
-    els.editorFrameCanvas.style.height = `${Math.round(312 * scale)}px`;
-  }
-}
-
 function updateEditorZoomControls(percent: number): void {
-  const next = Math.min(150, Math.max(50, Math.round(percent)));
+  const next = Math.min(300, Math.max(25, Math.round(percent)));
   state.editorZoomScale = next / 100;
   if (els.editorZoomSlider) els.editorZoomSlider.value = String(next);
   if (els.editorZoomInput) els.editorZoomInput.value = String(next);
-  applyEditorCssZoom(state.editorZoomScale);
-}
-
-function applyEditorPreviewBackground(background: EditorPreviewBackground): void {
-  state.editorPreviewBackground = background;
-  localStorage.setItem(LS_EDITOR_PREVIEW_BACKGROUND, background);
-  if (els.editorFrameCanvas) {
-    els.editorFrameCanvas.dataset.previewBg = background;
-  }
+  applyCurrentFrameContentScale(next);
 }
 
 function setApiConfigStatus(message = "", isError = false): void {
@@ -2093,11 +2084,6 @@ async function loadSettings(): Promise<void> {
   els.apiKey.value = await getApiKey().catch(() => "");
   updateApiConfigVisibility();
   updatePersonaVisibility();
-  const editorPreviewBackground = (localStorage.getItem(LS_EDITOR_PREVIEW_BACKGROUND) as EditorPreviewBackground) || "checker";
-  for (const radio of els.editorPreviewBackgroundRadios) {
-    radio.checked = radio.value === editorPreviewBackground;
-  }
-  applyEditorPreviewBackground(editorPreviewBackground);
   void loadPetsPath();
   void loadCurrentVersion();
 }
@@ -2266,11 +2252,25 @@ els.musicRhythmSyncRadios.forEach((radio) => {
   });
 });
 if (els.editorZoomSlider) {
+  els.editorZoomSlider.addEventListener("pointerdown", () => {
+    const frame = z();
+    if (frame && frameHasContent(frame)) {
+      recordEditorTransformUndo();
+      ensureEditorScaleSource(frame, false);
+    }
+  });
   els.editorZoomSlider.addEventListener("input", () => {
     updateEditorZoomControls(Number(els.editorZoomSlider.value));
   });
 }
 if (els.editorZoomInput) {
+  els.editorZoomInput.addEventListener("focus", () => {
+    const frame = z();
+    if (frame && frameHasContent(frame)) {
+      recordEditorTransformUndo();
+      ensureEditorScaleSource(frame, false);
+    }
+  });
   const applyEditorZoomInput = (): void => {
     updateEditorZoomControls(Number(els.editorZoomInput.value));
   };
@@ -2282,11 +2282,16 @@ if (els.editorZoomInput) {
     }
   });
 }
-els.editorPreviewBackgroundRadios.forEach((radio) => {
-  radio.addEventListener("change", () => {
-    if (!radio.checked) return;
-    applyEditorPreviewBackground(radio.value as EditorPreviewBackground);
-  });
+els.editorScaleAction.addEventListener("click", () => {
+  const percent = currentEditorScalePercent();
+  scaleCurrentAction(percent, true);
+});
+els.editorScaleSync.addEventListener("click", () => {
+  const percent = currentEditorScalePercent();
+  scaleCurrentAction(percent, false);
+});
+els.editorScaleReset.addEventListener("click", () => {
+  updateEditorZoomControls(100);
 });
 els.sizePresets.forEach((button) => {
   button.addEventListener("click", () => {
@@ -2570,6 +2575,8 @@ window.addEventListener("keydown", (event) => {
       event.preventDefault();
       if (state.editorEraserUndoFrame) {
         undoEditorEraser();
+      } else if (state.editorTransformUndoFrames) {
+        undoEditorTransform();
       } else if (state.editorMoveUndoFrame) {
         undoFrameNudge();
       }
@@ -2688,12 +2695,86 @@ function clearEditorUndoStates(): void {
   updateEditorEraserUi();
 }
 
+function clearEditorScaleSource(): void {
+  state.editorScaleSourceFrame = null;
+  state.editorScaleSourceRow = state.editorSelectedRow;
+  state.editorScaleSourceCol = state.editorSelectedCol;
+}
+
+function setEditorScaleControlsValue(percent: number): void {
+  const next = Math.min(300, Math.max(25, Math.round(percent)));
+  state.editorZoomScale = next / 100;
+  if (els.editorZoomSlider) els.editorZoomSlider.value = String(next);
+  if (els.editorZoomInput) els.editorZoomInput.value = String(next);
+}
+
+function selectedFrameScalePercent(): number {
+  const action = state.editorActions[state.editorSelectedRow];
+  return action?.frameScales?.[state.editorSelectedCol] || 100;
+}
+
+function syncEditorScaleControlsToSelection(): void {
+  setEditorScaleControlsValue(selectedFrameScalePercent());
+  clearEditorScaleSource();
+}
+
+function resetEditorScaleControls(): void {
+  setEditorScaleControlsValue(100);
+  clearEditorScaleSource();
+}
+
+function updateEditorScaleControls(): void {
+  const action = state.editorActions[state.editorSelectedRow];
+  const hasSelectedFrame = state.editorPreviewMode === "frame" && frameHasContent(z());
+  const hasActionFrames = !!action && action.frames.some((frame) => frameHasContent(frame));
+  els.editorScaleAction.disabled = !hasActionFrames;
+  els.editorScaleSync.disabled = !hasActionFrames || !hasSelectedFrame;
+  els.editorScaleReset.disabled = Number(els.editorZoomSlider.value || 100) === 100;
+}
+
+function clearEditorTransformUndoStates(): void {
+  state.editorTransformUndoFrames = null;
+  state.editorTransformUndoScales = null;
+  state.editorTransformUndoScaleSources = null;
+  state.editorTransformUndoRow = 0;
+}
+
+function recordEditorTransformUndo(row = state.editorSelectedRow): void {
+  clearEditorUndoStates();
+  clearEditorMoveUndoStates();
+  const action = state.editorActions[row];
+  state.editorTransformUndoFrames = action ? action.frames.map((frame) => P(frame)) : null;
+  state.editorTransformUndoScales = action?.frameScales ? [...action.frameScales] : null;
+  state.editorTransformUndoScaleSources = action?.frameScaleSources ? action.frameScaleSources.map((frame) => P(frame)) : null;
+  state.editorTransformUndoRow = row;
+}
+
+function undoEditorTransform(): void {
+  const action = state.editorActions[state.editorTransformUndoRow];
+  if (!action || !state.editorTransformUndoFrames) return;
+  action.frames = state.editorTransformUndoFrames.map((frame) => P(frame) || createEmptyFrameCanvas());
+  action.frameScales = state.editorTransformUndoScales ? [...state.editorTransformUndoScales] : undefined;
+  action.frameScaleSources = state.editorTransformUndoScaleSources ? state.editorTransformUndoScaleSources.map((frame) => P(frame)) : undefined;
+  state.editorSelectedRow = state.editorTransformUndoRow;
+  clearStripImageSource(action);
+  clearEditorTransformUndoStates();
+  syncEditorScaleControlsToSelection();
+  if (action.key && action.key in MODE_ACTION_PRESETS) {
+    action.pendingFramePngSave = true;
+  }
+  state.editorDirty = true;
+  renderSpriteEditorGrid();
+  drawSelectedEditorFrame();
+  setStatus(els.editorStatus, "已撤销上次画面缩放。");
+}
+
 function updateEditorMoveControls(): void {
   const allowed = state.editorPreviewMode === "frame" && !!z() && !state.editorEraserEnabled;
   els.editorFrameCanvas.classList.toggle("move-active", allowed);
   els.editorFrameCanvas.classList.toggle("move-dragging", state.editorMoving);
   for (const btn of els.editorNudgeButtons) btn.disabled = !allowed;
   els.editorMoveUndo.disabled = !(state.editorMoveUndoFrame && state.editorMoveUndoRow === state.editorSelectedRow && state.editorMoveUndoCol === state.editorSelectedCol);
+  updateEditorScaleControls();
 }
 
 function clearEditorMoveUndoStates(): void {
@@ -2706,6 +2787,7 @@ function clearEditorMoveUndoStates(): void {
 
 function recordEditorMoveUndo(frame: HTMLCanvasElement): void {
   clearEditorUndoStates();
+  clearEditorTransformUndoStates();
   const action = state.editorActions[state.editorSelectedRow];
   state.editorMoveUndoFrame = P(frame);
   state.editorMoveUndoRow = state.editorSelectedRow;
@@ -2762,6 +2844,8 @@ function finishEditorCanvasDragging(saveMessage = true): void {
   state.editorMoveChanged = false;
   updateEditorMoveControls();
   if (changed) {
+    const action = state.editorActions[state.editorSelectedRow];
+    if (action) clearActionFrameScale(action, state.editorSelectedCol);
     renderSpriteEditorGrid();
     drawSelectedEditorFrame();
     if (saveMessage) setStatus(els.editorStatus, "已拖动调整当前帧位置，保存后生效。");
@@ -2770,6 +2854,7 @@ function finishEditorCanvasDragging(saveMessage = true): void {
 
 function recordEditorEraserUndo(frame: HTMLCanvasElement): void {
   clearEditorMoveUndoStates();
+  clearEditorTransformUndoStates();
   state.editorEraserUndoFrame = P(frame);
   state.editorEraserUndoRow = state.editorSelectedRow;
   state.editorEraserUndoCol = state.editorSelectedCol;
@@ -2842,6 +2927,9 @@ function finishEditorCanvasErasing(saveMessage = true): void {
     saveCanvasFrame(null);
     const viewCtx = els.editorFrameCanvas.getContext("2d");
     viewCtx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+  } else {
+    const action = state.editorActions[state.editorSelectedRow];
+    if (action) clearActionFrameScale(action, state.editorSelectedCol);
   }
   renderSpriteEditorGrid();
   if (saveMessage) setStatus(els.editorStatus, "已擦除当前帧，保存后生效。");
@@ -2850,6 +2938,8 @@ function finishEditorCanvasErasing(saveMessage = true): void {
 function saveCanvasFrame(canvas: HTMLCanvasElement | null): void {
   const action = state.editorActions[state.editorSelectedRow];
   if (action) {
+    clearEditorTransformUndoStates();
+    clearActionFrameScale(action, state.editorSelectedCol);
     clearStripImageSource(action);
     action.frames[state.editorSelectedCol] = P(canvas);
     if (action.key && action.key in MODE_ACTION_PRESETS) {
@@ -3324,6 +3414,7 @@ function drawSelectedEditorFrame(): void {
   els.editorFrameTitle.textContent = action ? `帧编辑：${action.name} · 第 ${state.editorSelectedCol + 1} 帧` : "帧编辑";
   els.editorPaste.disabled = !state.editorClipboard;
   updateEditorEraserUi();
+  updateEditorScaleControls();
 }
 
 function playSelectedEditorAction(frameIndex = 0): void {
@@ -3333,6 +3424,7 @@ function playSelectedEditorAction(frameIndex = 0): void {
   if (!action) {
     const ctx = els.editorFrameCanvas.getContext("2d");
     ctx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+    updateEditorScaleControls();
     return;
   }
   const validIndices = action.frames.map((fr, idx) => frameHasContent(fr) ? idx : -1).filter((idx) => idx >= 0);
@@ -3342,6 +3434,7 @@ function playSelectedEditorAction(frameIndex = 0): void {
   if (validIndices.length === 0) {
     const ctx = els.editorFrameCanvas.getContext("2d");
     ctx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+    updateEditorScaleControls();
     return;
   }
 
@@ -3352,6 +3445,7 @@ function playSelectedEditorAction(frameIndex = 0): void {
   ctx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
   const frame = action.frames[state.editorSelectedCol];
   if (frameHasContent(frame)) ctx?.drawImage(frame!, 0, 0);
+  updateEditorScaleControls();
 
   const duration = action.frameDurations?.[state.editorSelectedCol] || 120;
   state.editorPreviewTimer = window.setTimeout(() => {
@@ -3548,6 +3642,127 @@ function calculateOptimalOffset(templateFeatures: { x: number; y: number; r: num
   return { dx: best.dx, dy: best.dy };
 }
 
+function scaleFrameContent(frame: HTMLCanvasElement, scale: number): HTMLCanvasElement {
+  const sourceCtx = frame.getContext("2d", { willReadFrequently: true });
+  if (!sourceCtx) return P(frame)!;
+  const imageData = sourceCtx.getImageData(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+  const bounds = getBoundingBox(imageData);
+  if (!bounds) return P(frame)!;
+
+  const sourceWidth = bounds.right - bounds.left + 1;
+  const sourceHeight = bounds.bottom - bounds.top + 1;
+  const anchorX = bounds.left + sourceWidth / 2;
+  const anchorY = bounds.bottom + 1;
+  const maxScaleByLeft = (anchorX * 2) / sourceWidth;
+  const maxScaleByRight = ((ATLAS_CELL_WIDTH - anchorX) * 2) / sourceWidth;
+  const maxScaleByTop = anchorY / sourceHeight;
+  const fitScale = Math.max(0.01, Math.min(maxScaleByLeft, maxScaleByRight, maxScaleByTop));
+  const safeScale = Math.min(scale, fitScale);
+  const scaledWidth = Math.max(1, Math.round(sourceWidth * safeScale));
+  const scaledHeight = Math.max(1, Math.round(sourceHeight * safeScale));
+  const targetX = Math.round(anchorX - scaledWidth / 2);
+  const targetY = Math.round(anchorY - scaledHeight);
+
+  const crop = document.createElement("canvas");
+  crop.width = sourceWidth;
+  crop.height = sourceHeight;
+  const cropCtx = crop.getContext("2d");
+  cropCtx?.drawImage(frame, bounds.left, bounds.top, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+
+  const canvas = createEmptyFrameCanvas();
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(crop, 0, 0, sourceWidth, sourceHeight, targetX, targetY, scaledWidth, scaledHeight);
+  return canvas;
+}
+
+function currentEditorScalePercent(): number {
+  return Math.min(300, Math.max(25, Math.round(Number(els.editorZoomInput.value || els.editorZoomSlider.value || 100))));
+}
+
+function ensureEditorScaleSource(frame: HTMLCanvasElement, recordUndo = true): HTMLCanvasElement {
+  const action = state.editorActions[state.editorSelectedRow];
+  if (!action) return frame;
+  action.frameScaleSources ||= Array.from({ length: ATLAS_COLS }, () => null);
+  if (!action.frameScaleSources[state.editorSelectedCol]) {
+    if (recordUndo) {
+      recordEditorTransformUndo();
+    }
+    action.frameScaleSources[state.editorSelectedCol] = P(frame);
+  }
+  state.editorScaleSourceFrame = action.frameScaleSources[state.editorSelectedCol];
+  state.editorScaleSourceRow = state.editorSelectedRow;
+  state.editorScaleSourceCol = state.editorSelectedCol;
+  return action.frameScaleSources[state.editorSelectedCol] || frame;
+}
+
+function ensureActionFrameScaleSource(action: EditorAction, col: number, frame: HTMLCanvasElement): HTMLCanvasElement {
+  action.frameScaleSources ||= Array.from({ length: ATLAS_COLS }, () => null);
+  if (!action.frameScaleSources[col]) {
+    action.frameScaleSources[col] = P(frame);
+  }
+  return action.frameScaleSources[col] || frame;
+}
+
+function setActionFrameScale(action: EditorAction, col: number, percent: number): void {
+  action.frameScales ||= Array.from({ length: ATLAS_COLS }, () => 100);
+  action.frameScales[col] = percent;
+}
+
+function clearActionFrameScale(action: EditorAction, col: number): void {
+  if (action.frameScales) action.frameScales[col] = 100;
+  if (action.frameScaleSources) action.frameScaleSources[col] = null;
+  clearEditorScaleSource();
+}
+
+function markActionFramesChanged(action: EditorAction): void {
+  clearStripImageSource(action);
+  if (action.key && action.key in MODE_ACTION_PRESETS) {
+    action.pendingFramePngSave = true;
+  }
+  state.editorDirty = true;
+}
+
+function applyCurrentFrameContentScale(percent: number): void {
+  const action = state.editorActions[state.editorSelectedRow];
+  const frame = z();
+  if (!action || !frame || !frameHasContent(frame) || state.editorPreviewMode !== "frame") {
+    updateEditorScaleControls();
+    return;
+  }
+  const source = ensureEditorScaleSource(frame);
+  action.frames[state.editorSelectedCol] = percent === 100 ? P(source) || createEmptyFrameCanvas() : scaleFrameContent(source, percent / 100);
+  setActionFrameScale(action, state.editorSelectedCol, percent);
+  markActionFramesChanged(action);
+  renderSpriteEditorGrid();
+  drawSelectedEditorFrame();
+}
+
+function scaleCurrentAction(percent: number, includeSelectedFrame: boolean): void {
+  const action = state.editorActions[state.editorSelectedRow];
+  if (!action) return;
+  const validIndices = action.frames.map((frame, idx) => frameHasContent(frame) ? idx : -1).filter((idx) => idx >= 0);
+  if (validIndices.length === 0) {
+    setStatus(els.editorStatus, "当前动作没有可缩放的有效帧。", true);
+    return;
+  }
+
+  recordEditorTransformUndo();
+  for (const idx of validIndices) {
+    if (!includeSelectedFrame && idx === state.editorSelectedCol) continue;
+    const frame = action.frames[idx];
+    if (!frame) continue;
+    const source = ensureActionFrameScaleSource(action, idx, frame);
+    action.frames[idx] = percent === 100 ? P(source) || createEmptyFrameCanvas() : scaleFrameContent(source, percent / 100);
+    setActionFrameScale(action, idx, percent);
+  }
+  markActionFramesChanged(action);
+  clearEditorScaleSource();
+  renderSpriteEditorGrid();
+  drawSelectedEditorFrame();
+}
+
 function moveFrameOffset(frame: HTMLCanvasElement, dx: number, dy: number): HTMLCanvasElement {
   if (dx === 0 && dy === 0) return P(frame)!;
   const canvas = createEmptyFrameCanvas();
@@ -3669,6 +3884,7 @@ function at(dx: number, dy: number, frame: HTMLCanvasElement): boolean {
   } else {
     action.frames[state.editorSelectedCol] = moveFrameOffset(frame, dx, dy);
   }
+  clearActionFrameScale(action, state.editorSelectedCol);
   if (action.key && action.key in MODE_ACTION_PRESETS) {
     action.pendingFramePngSave = true;
   }
@@ -4569,10 +4785,7 @@ async function openSpriteEditor(pet: ProjectPet): Promise<void> {
     state.editorClipboard = null;
     state.editorSelectionType = "cell";
     state.editorPreviewMode = "frame";
-    state.editorZoomScale = 1.0;
-    if (els.editorZoomSlider) els.editorZoomSlider.value = "100";
-    if (els.editorZoomInput) els.editorZoomInput.value = "100";
-    applyEditorCssZoom(1.0);
+    resetEditorScaleControls();
     state.editorEraserEnabled = false;
     state.editorErasing = false;
     state.editorErasePointerId = null;
@@ -4590,6 +4803,8 @@ async function openSpriteEditor(pet: ProjectPet): Promise<void> {
     state.editorMoveSourceFrame = null;
     state.editorMoveSourceOffset = null;
     state.editorMoveChanged = false;
+    state.editorTransformUndoFrames = null;
+    state.editorTransformUndoRow = 0;
     state.editorDirty = false;
 
     stopEditorActionPreview();
@@ -4662,6 +4877,7 @@ function renderSpriteEditorGrid(): void {
       state.editorSelectedCol = 0;
       state.editorSelectionType = "action";
       state.editorPreviewMode = "action";
+      syncEditorScaleControlsToSelection();
       updateActionPromptPreview();
       renderSpriteEditorGrid();
       setStatus(els.editorStatus, `正在预览「${action.name}」。`);
@@ -4693,6 +4909,7 @@ function renderSpriteEditorGrid(): void {
         state.editorSelectedCol = colIndex;
         state.editorSelectionType = "cell";
         state.editorPreviewMode = "frame";
+        syncEditorScaleControlsToSelection();
         updateActionPromptPreview();
         renderSpriteEditorGrid();
         drawSelectedEditorFrame();
