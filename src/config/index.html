@@ -575,8 +575,18 @@
               </svg>
               <h3>存储位置</h3>
             </div>
-            <p id="settings-pets-path" class="path-text"></p>
-            <button id="settings-open-pets-dir" class="primary-button" type="button">打开目录</button>
+            <div class="setting-row storage-path-row">
+              <span>
+                <strong>本地宠物目录</strong>
+                <small id="settings-pets-path" class="path-text"></small>
+              </span>
+              <button id="settings-open-pets-dir" class="ghost-button storage-open-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7h7l2 2h9v10H3V7Z"></path>
+                </svg>
+                <span>打开目录</span>
+              </button>
+            </div>
           </div>
 
           <div class="setting-group update-settings">

@@ -604,8 +604,6 @@ const LS_API_MODEL = "pet_api_model";
 const LS_CHAT_MODE = "pet_chat_mode";
 const LS_PERSONA_MODE = "pet_persona_mode";
 const LS_CUSTOM_PERSONA = "pet_custom_persona_text";
-const LS_GITHUB_USERNAME = "pet_github_username";
-const LS_GITHUB_LAST_PUSH = "pet_github_last_push_time";
 const LS_TODOS = "pet_todos";
 const LS_PRIMARY_PET_ID = "pet_primary_project_id";
 const DEFAULT_PRIMARY_PET_ID = "doro";
@@ -2247,63 +2245,6 @@ function setupCustomPersonaPanel(): void {
   });
 }
 
-function setupGitHubSettingsPanel(): void {
-  const panel = document.getElementById("github-settings-panel");
-  const saveBtn = document.getElementById("github-settings-save");
-  const cancelBtn = document.getElementById("github-settings-cancel");
-  const testBtn = document.getElementById("github-settings-test");
-  if (!panel || !saveBtn || !cancelBtn || !testBtn) return;
-
-  const usernameInput = document.getElementById("github-username-input") as HTMLInputElement | null;
-
-  if (usernameInput) {
-    usernameInput.addEventListener("input", () => {
-      usernameInput.classList.remove("success-status");
-    });
-  }
-
-  testBtn.addEventListener("click", async () => {
-    const username = usernameInput?.value.trim();
-    if (!username) {
-      showSpeech("请先输入用户名", 3000);
-      usernameInput?.classList.remove("success-status");
-      return;
-    }
-    try {
-      const resp = await fetch(`https://api.github.com/users/${username}`);
-      if (resp.ok) {
-        showSpeech("关联成功！已锁定账号。", 3000);
-        usernameInput?.classList.add("success-status");
-      } else if (resp.status === 404) {
-        showSpeech("查无此人，请检查拼写。", 3000);
-        usernameInput?.classList.remove("success-status");
-      } else {
-        showSpeech("网络异常，无法连接 GitHub。", 3000);
-        usernameInput?.classList.remove("success-status");
-      }
-    } catch {
-      showSpeech("网络异常，无法连接 GitHub。", 3000);
-      usernameInput?.classList.remove("success-status");
-    }
-  });
-
-  saveBtn.addEventListener("click", () => {
-    const input = document.getElementById("github-username-input") as HTMLInputElement | null;
-    if (input) {
-      const username = input.value.trim();
-      if (username) {
-        localStorage.setItem(LS_GITHUB_USERNAME, username);
-        localStorage.removeItem(LS_GITHUB_LAST_PUSH);
-      }
-    }
-    panel.style.display = "none";
-  });
-
-  cancelBtn.addEventListener("click", () => {
-    panel.style.display = "none";
-  });
-}
-
 // ── Todo And Reminder Panels ──
 
 let taskPanelJustOpened = false;
@@ -2775,32 +2716,6 @@ function setupTodoPanel(): void {
   writeTodoItems(kept);
 }
 
-async function checkGitHubStatus(): Promise<void> {
-  const username = localStorage.getItem(LS_GITHUB_USERNAME);
-  if (!username) return;
-
-  try {
-    const resp = await fetch(`https://api.github.com/users/${username}/events/public`);
-    if (!resp.ok) return;
-    const events = await resp.json();
-
-    const pushEvent = events.find((e: any) => e.type === "PushEvent");
-    if (!pushEvent) return;
-
-    const pushTime = pushEvent.created_at as string;
-    const lastPush = localStorage.getItem(LS_GITHUB_LAST_PUSH);
-
-    if (!lastPush || pushTime > lastPush) {
-      localStorage.setItem(LS_GITHUB_LAST_PUSH, pushTime);
-      if (lastPush) {
-        showSpeech("捕捉到新 Commit！主人的绿点保住了！", 4000);
-      }
-    }
-  } catch {
-    // 静默失败，不干扰用户
-  }
-}
-
 async function triggerSmartSpeech(): Promise<void> {
   const mode = localStorage.getItem(LS_CHAT_MODE) || "basic";
   const nowTs = Date.now();
@@ -3070,7 +2985,6 @@ function isBlockingPetPanelOpen(): boolean {
     "merit-panel",
     "api-settings-panel",
     "custom-persona-panel",
-    "github-settings-panel",
     "todo-panel",
     "reminder-panel",
   ];
@@ -3092,7 +3006,6 @@ function isPointOverInteractivePetArea(x: number, y: number): boolean {
     "merit-panel",
     "api-settings-panel",
     "custom-persona-panel",
-    "github-settings-panel",
     "todo-panel",
     "reminder-panel",
   ].some((id) => {
@@ -4687,12 +4600,10 @@ async function main(): Promise<void> {
   setupMeritPanel(engine);
   setupApiSettingsPanel();
   setupCustomPersonaPanel();
-  setupGitHubSettingsPanel();
   setupFileDrop();
   setupTodoPanel();
   void restoreSavedSummonedPets();
 
-  // GitHub 贡献度监控：启动 3 秒后初检，之后每 5 分钟轮询
   const stopActivitiesOnWindowExit = () => {
     stopCurrentPetActivitiesImmediately();
     engine.destroy();
@@ -4701,9 +4612,6 @@ async function main(): Promise<void> {
   };
   window.addEventListener("pagehide", stopActivitiesOnWindowExit);
   window.addEventListener("beforeunload", stopActivitiesOnWindowExit);
-
-  setTimeout(() => checkGitHubStatus(), 3000);
-  setInterval(() => checkGitHubStatus(), 5 * 60 * 1000);
   console.log("LingoPet engine initialized");
 }
 

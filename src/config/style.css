@@ -2628,6 +2628,42 @@ textarea {
   color: var(--text-muted);
 }
 
+.storage-path-row {
+  align-items: center;
+  border-top: 0;
+}
+
+.storage-path-row > span:first-child {
+  min-width: 0;
+}
+
+.storage-path-row .path-text {
+  display: block;
+  max-width: min(680px, 58vw);
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.storage-open-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.storage-open-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 @media (max-width: 1180px) {
   #app {
     grid-template-columns: 204px minmax(0, 1fr);
@@ -2858,6 +2894,10 @@ textarea {
 
   .settings-panel textarea {
     min-height: 82px;
+  }
+
+  .storage-path-row .path-text {
+    max-width: min(520px, 50vw);
   }
 }
 

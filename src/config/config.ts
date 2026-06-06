@@ -55,7 +55,7 @@ interface FrameAnimation {
   frameDurations: number[];
 }
 
-const WORKSHOP_SHARE_API = "https://api.1024588.xyz/api/share";
+const WORKSHOP_SHARE_API = "https://api.lingopet.xyz/api/share";
 const EMPTY_PETS_IMAGE = new URL("./empty-pets.png", import.meta.url).href;
 
 const LS_PET_ASSETS_VERSION = "pet_assets_version";

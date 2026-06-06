@@ -65,7 +65,6 @@ The installer is only 5MB. Background residence has zero impact on system perfor
 
 - Windows system audio sensing -- when system audio output is detected, the pet bops and floats music-note particles automatically
 - File drop to recycle bin -- drag files onto the pet to delete
-- GitHub commit monitoring -- bind your account and the pet cheers on new commits
 - Auto-start on boot (Tauri autostart plugin)
 - Always-on-top (preference persisted across sessions)
 
@@ -77,7 +76,7 @@ Right-click the pet to open a feature menu with everything at a glance.
 
 **Install**
 
-Download the latest installer (`.msi`, `setup.exe`, or macOS build artifact) from the [Releases](https://github.com/dev-zyl/DesktopPet/releases) page. Launch after installation.
+Download the latest installer (`.msi`, `setup.exe`, or macOS build artifact) from the [Releases](https://github.com/dev-zyl/LingoPet/releases) page. Launch after installation.
 
 **Configure API (Optional)**
 
@@ -145,3 +144,12 @@ Right-click > Settings > Import Pet (.zip) to swap. Detailed tutorial: [Import G
 ## License
 
 MIT
+
+## Open Source Notes
+
+- Security reporting and security-sensitive behavior are documented in [SECURITY.md](SECURITY.md).
+- Local build, pull request, and pet asset contribution guidance is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+- Local storage, external requests, file drop behavior, and Windows audio sensing are documented in [PRIVACY.md](PRIVACY.md).
+- Source code is MIT licensed. Images, audio, pets, and community GIF assets may have separate licensing requirements; verify [ATTRIBUTIONS.md](ATTRIBUTIONS.md) before redistribution.
+
+The GitHub Actions release workflow requires `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets for Tauri updater artifacts. Forks can still run local development builds without these secrets, but publishing from `v*` tags will fail at the signing-key validation step until they are configured.

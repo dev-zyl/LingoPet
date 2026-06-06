@@ -1349,3 +1349,29 @@
 ### 2026-06-06 Config editor frame scaling
 - Reworked editor zoom controls to scale pet subjects inside fixed 192x208 frames, removed preview background board controls, preserved per-frame scale values while switching frames, and prevented enlarged sprites from being cropped before scaling back down.
 - Verification: ran `npm run build`.
+
+### 2026-06-06 Open source readiness metadata cleanup
+- Added a root MIT license file, updated npm and Cargo package metadata for the public `dev-zyl/LingoPet` repository, removed the tracked development diff residue, and corrected README release links from `DesktopPet` to `LingoPet`.
+- Verification: ran `npm install --package-lock-only`, `npm run build`, `cargo check`, and reviewed the final git diff.
+
+### 2026-06-06 Workshop share API domain update
+- Switched the config editor community share endpoint from `https://api.1024588.xyz/api/share` to `https://api.lingopet.xyz/api/share`.
+- Verification: ran `npm run build`.
+
+### 2026-06-06 Open source policy documentation
+- Added security, contributing, privacy, and asset attribution documents; linked them from README files; documented updater signing secrets in the release workflow.
+- Verification: ran `npm run build`, `cargo check`, and `git diff --check`.
+
+### 2026-06-06 README feature overview refresh
+- Rewrote the Chinese README to match the current LingoPet desktop pet, manager, market, workshop, sprite editor, AI chat, reminder, focus, merit, music rhythm, system integration, updater, and pet package behavior.
+- Verification: reviewed current `src/pet`, `src/config`, and `src-tauri` feature entry points and ran `git diff --check` for the touched documentation files.
+
+### 2026-06-06 Settings GitHub monitor entry
+- Added a GitHub public push monitor setting to the manager settings page with username testing, save, and clear actions wired to the existing pet-side polling keys.
+- Restyled the GitHub monitor into a compact control card and the storage directory control into a compact path row with a ghost folder button so both match the settings surface.
+- Verification: ran `npm run build`.
+
+### 2026-06-06 GitHub monitor removal
+- Removed the GitHub public push monitor feature, including the manager settings UI, pet-window hidden panel, polling logic, storage keys, and README feature mentions.
+- Kept unrelated GitHub release/workflow and workshop raw-asset references intact.
+- Verification: ran `npm run build`.
