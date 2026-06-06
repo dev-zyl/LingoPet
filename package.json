@@ -1,6 +1,6 @@
 {
   "name": "lingo-pet",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "A lightweight Tauri desktop pet companion.",
   "author": "dev-zyl",
   "license": "MIT",

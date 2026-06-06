@@ -432,7 +432,23 @@ function spawnParticles(x: number, y: number): void {
 const LS_MUSIC_RHYTHM_ENABLED = "pet_music_rhythm_enabled";
 const LS_MUSIC_RHYTHM_SYNC_MODE = "pet_music_rhythm_sync_mode";
 const MUSIC_NOTE_CHARS = ["♪", "♫", "♬", "♩"];
-let isMusicRhythmAutoEnabled = localStorage.getItem(LS_MUSIC_RHYTHM_ENABLED) !== "false";
+function isMacOSRuntime(): boolean {
+  const platform = navigator.platform || "";
+  const userAgent = navigator.userAgent || "";
+  return platform.toLowerCase().includes("mac") || userAgent.toLowerCase().includes("mac os");
+}
+
+function shouldUseManualMusicRhythm(): boolean {
+  return isMacOSRuntime();
+}
+
+function getInitialMusicRhythmEnabled(): boolean {
+  const saved = localStorage.getItem(LS_MUSIC_RHYTHM_ENABLED);
+  if (saved !== null) return saved === "true";
+  return !shouldUseManualMusicRhythm();
+}
+
+let isMusicRhythmAutoEnabled = getInitialMusicRhythmEnabled();
 let isMusicRhythmMode = false;
 let musicRhythmTimerId: number | null = null;
 let musicRhythmPollTimerId: number | null = null;
@@ -498,8 +514,9 @@ function updateMusicRhythmButton(): void {
   const musicButton = document.getElementById("context-music") as HTMLButtonElement | null;
   if (!musicButton) return;
 
-  musicButton.classList.toggle("is-active", isMusicRhythmAutoEnabled);
-  musicButton.setAttribute("aria-pressed", String(isMusicRhythmAutoEnabled));
+  const isActive = shouldUseManualMusicRhythm() ? isMusicRhythmMode : isMusicRhythmAutoEnabled;
+  musicButton.classList.toggle("is-active", isActive);
+  musicButton.setAttribute("aria-pressed", String(isActive));
   const label = musicButton.querySelector("span:last-child");
   if (label) {
     label.textContent = isMusicRhythmAutoEnabled ? "音乐律动" : "律动关闭";
@@ -508,6 +525,7 @@ function updateMusicRhythmButton(): void {
 
 async function pollSystemAudioState(): Promise<void> {
   if (!isMusicRhythmAutoEnabled) return;
+  if (shouldUseManualMusicRhythm()) return;
   if (!isTauriRuntime()) return;
 
   try {
@@ -524,6 +542,13 @@ async function pollSystemAudioState(): Promise<void> {
 function setMusicRhythmAutoEnabled(enabled: boolean, announce = true): void {
   isMusicRhythmAutoEnabled = enabled;
   localStorage.setItem(LS_MUSIC_RHYTHM_ENABLED, enabled ? "true" : "false");
+
+  if (shouldUseManualMusicRhythm()) {
+    setMusicRhythmMode(enabled, announce);
+    updateMusicRhythmButton();
+    return;
+  }
+
   updateMusicRhythmButton();
 
   if (!enabled) {
@@ -539,10 +564,20 @@ function setMusicRhythmAutoEnabled(enabled: boolean, announce = true): void {
 }
 
 function setupMusicRhythmMode(): void {
-  updateMusicRhythmButton();
   if (musicRhythmPollTimerId !== null) {
     window.clearInterval(musicRhythmPollTimerId);
+    musicRhythmPollTimerId = null;
   }
+
+  if (shouldUseManualMusicRhythm()) {
+    if (isMusicRhythmAutoEnabled) {
+      setMusicRhythmMode(true, false);
+    }
+    updateMusicRhythmButton();
+    return;
+  }
+
+  updateMusicRhythmButton();
   void pollSystemAudioState();
   musicRhythmPollTimerId = window.setInterval(() => {
     void pollSystemAudioState();
