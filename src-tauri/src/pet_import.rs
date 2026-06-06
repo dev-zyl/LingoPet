@@ -5,6 +5,7 @@ use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
+use reqwest::header::{ACCEPT_ENCODING, USER_AGENT};
 use tauri::AppHandle;
 use tauri::Manager;
 
@@ -79,21 +80,32 @@ fn pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn repo_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
-        let root = PathBuf::from(manifest_dir)
-            .parent()
-            .map(Path::to_path_buf)
-            .filter(|path| path.exists());
-        if let Some(root) = root {
-            return Ok(root);
-        }
+    #[cfg(not(debug_assertions))]
+    {
+        app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e))
     }
 
-    std::env::current_dir()
-        .ok()
-        .filter(|path| path.join("package.json").exists())
-        .or_else(|| app.path().app_data_dir().ok())
-        .ok_or_else(|| "Failed to resolve project directory".to_string())
+    #[cfg(debug_assertions)]
+    {
+        if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
+            let root = PathBuf::from(manifest_dir)
+                .parent()
+                .map(Path::to_path_buf)
+                .filter(|path| path.exists());
+            if let Some(root) = root {
+                return Ok(root);
+            }
+        }
+
+        std::env::current_dir()
+            .ok()
+            .filter(|path| path.join("package.json").exists())
+            .or_else(|| app.path().app_data_dir().ok())
+            .ok_or_else(|| "Failed to resolve project directory".to_string())
+    }
 }
 
 fn project_pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -370,6 +382,10 @@ pub async fn download_pet_to_project(
     download_url: String,
 ) -> Result<ProjectPet, String> {
     let pet_id = sanitize_id(&pet_id)?;
+    let existing_dir = project_pets_dir(&app)?.join(&pet_id);
+    if existing_dir.is_dir() {
+        return project_pet_from_dir(existing_dir);
+    }
     let url = reqwest::Url::parse(&download_url)
         .map_err(|e| format!("Invalid download URL: {}", e))?;
     if !matches!(url.scheme(), "http" | "https") {
@@ -383,6 +399,8 @@ pub async fn download_pet_to_project(
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     let mut response = client
         .get(url)
+        .header(ACCEPT_ENCODING, "identity")
+        .header(USER_AGENT, "LingoPet/0.2.4")
         .send()
         .await
         .map_err(|e| format!("Failed to download pet: {}", e))?;
@@ -435,8 +453,8 @@ pub async fn download_pet_to_project(
         let final_id = sanitize_id(&manifest.id)?;
         let dest = pets.join(&final_id);
         if dest.exists() {
-            fs::remove_dir_all(&dest)
-                .map_err(|e| format!("Failed to replace existing pet: {}", e))?;
+            let _ = fs::remove_dir_all(&tmp);
+            return project_pet_from_dir(dest);
         }
         fs::rename(&tmp, &dest).map_err(|e| format!("Failed to finalize download: {}", e))?;
         project_pet_from_dir(dest)

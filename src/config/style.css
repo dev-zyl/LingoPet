@@ -199,6 +199,10 @@ p {
   animation: none;
 }
 
+.online-pet-avatar .sprite-preview.is-loaded {
+  animation: none;
+}
+
 .online-pet-more {
   display: inline-grid;
   min-width: 32px;
@@ -673,12 +677,54 @@ textarea:focus {
 }
 
 .sprite-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 58px;
   height: 62px;
   background-repeat: no-repeat;
   background-size: 464px auto;
   image-rendering: pixelated;
+}
+
+.sprite-preview.is-loaded {
   animation: sprite-idle 900ms steps(5) infinite;
+}
+
+.sprite-preview::before {
+  content: attr(data-fallback);
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(88, 70, 35, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 249, 225, 0.86);
+  color: #6e5b32;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sprite-preview.is-loading::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(109, 91, 50, 0.18);
+  border-top-color: #f0b733;
+  border-radius: 999px;
+  background: transparent;
+  animation: sprite-loading-spin 760ms linear infinite;
+}
+
+.sprite-preview.is-loaded::before {
+  content: none;
+}
+
+@keyframes sprite-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes sprite-idle {

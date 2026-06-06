@@ -619,6 +619,10 @@ function getPrimaryPetId(): string {
   return saved && saved !== "ikun-pet" ? saved : DEFAULT_PRIMARY_PET_ID;
 }
 
+function rememberPrimaryPetId(petId: string): void {
+  localStorage.setItem(LS_PRIMARY_PET_ID, petId);
+}
+
 function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
 }
@@ -3963,6 +3967,13 @@ async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetM
       return { spritesheetUrl: url, manifest: content };
     } catch (e) {
       console.warn("Project pet failed to load, using fallback:", e);
+      if (projectPetId === primaryPetId) {
+        rememberPrimaryPetId(DEFAULT_PRIMARY_PET_ID);
+        return {
+          spritesheetUrl: BUILTIN_DORO_SPRITESHEET_URL,
+          manifest: BUILTIN_DORO_MANIFEST,
+        };
+      }
     }
   }
 
@@ -3983,8 +3994,10 @@ async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetM
     console.warn("No imported pets found, using fallback:", e);
   }
 
-  // Fallback: local test spritesheet
-  return { spritesheetUrl: FALLBACK_SPRITESHEET_URL, manifest: null };
+  return {
+    spritesheetUrl: BUILTIN_DORO_SPRITESHEET_URL,
+    manifest: BUILTIN_DORO_MANIFEST,
+  };
 }
 
 const RECALL_EFFECT_CLASSES = ["recall-puff"] as const;

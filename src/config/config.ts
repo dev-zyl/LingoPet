@@ -8,6 +8,7 @@ import style7Ornaments from "../assets/ui/speech-bubble-style-7-ornaments.png";
 import style8Ornaments from "../assets/ui/speech-bubble-style-8-ornaments.png";
 import style9Ornaments from "../assets/ui/speech-bubble-style-9-ornaments.png";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { open } from "@tauri-apps/plugin-dialog";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -100,6 +101,7 @@ const DEFAULT_PREVIEW_ANIMATIONS: FrameAnimation[] = [
 
 
 const API_BASE = "https://codexpet.xyz";
+const DEEP_LINK_INSTALL_EVENT = "lingopet-install-result";
 const PAGE_SIZE = 30;
 const LS_PET_SIZE_SCALE = "pet_size_scale";
 const LS_API_ENDPOINT = "pet_api_endpoint";
@@ -151,12 +153,16 @@ const BUILTIN_PROJECT_PETS = [BUILTIN_DORO_PET];
 interface MarketPet {
   slug: string;
   display_name?: string;
+  displayName?: string;
   description?: string;
   author_name?: string;
   version?: string;
   download_count?: number;
+  downloadCount?: number;
   downloadUrl?: string;
+  download_url?: string;
   spritesheetUrl?: string;
+  spritesheet_url?: string;
   kind?: string;
 }
 
@@ -177,6 +183,14 @@ interface SummonedPetWindow {
   label: string;
   petId: string;
   primary?: boolean;
+}
+
+interface DeepLinkInstallResult {
+  status: "pending" | "installed" | "already-installed" | "error";
+  petId: string;
+  displayName?: string;
+  message: string;
+  source?: string;
 }
 
 type ViewName = "mine" | "recall" | "market" | "settings" | "editor" | "workshop";
@@ -373,6 +387,17 @@ function getMarketFilterKey(): string {
 
 function getMarketTotalCount(): number {
   return state.marketTotal || state.marketPets.length;
+}
+
+function readMarketTotal(data: any): number | null {
+  const total = Number(
+    data?.pagination?.totalItems ??
+    data?.pagination?.total ??
+    data?.totalItems ??
+    data?.total ??
+    data?.count
+  );
+  return Number.isFinite(total) && total > 0 ? total : null;
 }
 
 function isTauriRuntime(): boolean {
@@ -804,20 +829,28 @@ async function testApiConfig(): Promise<void> {
 }
 
 function petTitle(pet: MarketPet | ProjectPet): string {
-  if ("slug" in pet) return pet.display_name || pet.slug;
+  if ("slug" in pet) return pet.display_name || pet.displayName || pet.slug;
   return pet.displayName || pet.id;
 }
 
 function marketDownloadUrl(pet: MarketPet): string {
-  return pet.downloadUrl || `${API_BASE}/api/pets/${pet.slug}/download`;
+  return pet.downloadUrl || pet.download_url || `${API_BASE}/api/pets/${pet.slug}/download`;
 }
 
 function marketSpriteUrl(pet: MarketPet): string {
-  return pet.spritesheetUrl || `${API_BASE}/api/pets/${pet.slug}/spritesheet`;
+  return pet.spritesheetUrl || pet.spritesheet_url || `${API_BASE}/api/pets/${pet.slug}/spritesheet`;
+}
+
+function marketDownloadCount(pet: MarketPet): number {
+  return pet.download_count ?? pet.downloadCount ?? 0;
+}
+
+function projectPetById(petId: string): ProjectPet | undefined {
+  return state.projectPets.find((pet) => pet.id === petId);
 }
 
 function isDownloaded(slug: string): boolean {
-  return state.projectPets.some((pet) => pet.id === slug);
+  return Boolean(projectPetById(slug));
 }
 
 function confirmDiscardEditorChanges(): boolean {
@@ -859,17 +892,65 @@ function setView(view: ViewName): void {
   if (view === "settings") void loadSettings();
 }
 
-function createSprite(url: string, title: string): HTMLDivElement {
+function spriteFallbackText(title: string): string {
+  const trimmed = title.trim();
+  return (trimmed.match(/[A-Za-z0-9]/)?.[0] || trimmed[0] || "?").toUpperCase();
+}
+
+function createSprite(url: string, title: string, options: { lazy?: boolean } = {}): HTMLDivElement {
   const sprite = document.createElement("div");
   sprite.className = "sprite-preview";
-  sprite.style.backgroundImage = `url("${url}")`;
+  sprite.dataset.fallback = spriteFallbackText(title);
   sprite.setAttribute("role", "img");
   sprite.setAttribute("aria-label", title);
+  if (url) {
+    sprite.classList.add("is-loading");
+  }
+
+  const load = (): void => {
+    if (!url) {
+      sprite.classList.add("is-fallback");
+      return;
+    }
+
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      sprite.style.backgroundImage = `url("${url}")`;
+      sprite.classList.add("is-loaded");
+      sprite.classList.remove("is-loading", "is-fallback");
+    };
+    image.onerror = () => {
+      sprite.classList.remove("is-loading");
+      sprite.classList.add("is-fallback");
+    };
+    image.src = url;
+  };
+
+  if (options.lazy && "IntersectionObserver" in window) {
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      load();
+    }, { rootMargin: "160px" });
+    observer.observe(sprite);
+  } else {
+    load();
+  }
+
   return sprite;
 }
 
 function projectPetSpriteUrl(pet: ProjectPet): string {
   return pet.builtin ? new URL("../builtin-pets/doro/spritesheet_edited.webp", import.meta.url).href : convertFileSrc(pet.spritesheetFile);
+}
+
+function marketPreviewSprite(pet: MarketPet): { url: string; lazy: boolean } {
+  const localPet = projectPetById(pet.slug);
+  if (localPet) {
+    return { url: projectPetSpriteUrl(localPet), lazy: false };
+  }
+  return { url: marketSpriteUrl(pet), lazy: true };
 }
 
 function pageItems<T>(items: T[], page: number): T[] {
@@ -982,6 +1063,7 @@ function renderListRow(options: {
   title: string;
   subtitle: string;
   spriteUrl: string;
+  lazySprite?: boolean;
   actions: HTMLElement[];
   titleExtra?: HTMLElement; // 新增的可选参数
   metaExtra?: HTMLElement;
@@ -1002,7 +1084,7 @@ function renderListRow(options: {
     preview.style.background = "none";
     preview.style.overflow = "hidden"; // 强力防溢出双保险
   } else {
-    preview.append(createSprite(options.spriteUrl, options.title));
+    preview.append(createSprite(options.spriteUrl, options.title, { lazy: options.lazySprite }));
   }
 
   const info = document.createElement("div");
@@ -1071,7 +1153,7 @@ function preserveScroll(fn: () => void): void {
   }
 }
 
-function renderMarket(totalPets: number = state.marketPets.length): void {
+function renderMarket(totalPets: number = getMarketTotalCount()): void {
   preserveScroll(() => {
     els.marketGrid.replaceChildren();
 
@@ -1089,12 +1171,13 @@ function renderMarket(totalPets: number = state.marketPets.length): void {
       button.type = "button";
       const downloaded = isDownloaded(pet.slug);
       const downloading = state.downloading.has(pet.slug);
+      const preview = marketPreviewSprite(pet);
       button.className = downloaded ? "summon-button" : "download-button";
       button.textContent = downloaded ? "召唤" : downloading ? "下载中..." : "下载";
       button.disabled = downloading;
       button.addEventListener("click", () => {
         if (downloaded) {
-          void summonPet(pet.slug, button, els.marketStatus);
+          void summonPet(pet.slug, button, null);
           return;
         }
         void downloadPet(pet);
@@ -1102,8 +1185,9 @@ function renderMarket(totalPets: number = state.marketPets.length): void {
 
       fragment.append(renderListRow({
         title: petTitle(pet),
-        subtitle: `${pet.version || "v1.0.0"} · 下载 ${pet.download_count || 0}`,
-        spriteUrl: marketSpriteUrl(pet),
+        subtitle: `${pet.version || "v1.0.0"} · 下载 ${marketDownloadCount(pet)}`,
+        spriteUrl: preview.url,
+        lazySprite: preview.lazy,
         actions: [button],
       }));
     }
@@ -1211,7 +1295,7 @@ function renderMyPets(): void {
       summon.className = "summon-button";
       summon.type = "button";
       summon.textContent = "召唤";
-      summon.addEventListener("click", () => void summonPet(pet.id, summon));
+      summon.addEventListener("click", () => void summonPet(pet.id, summon, null));
 
       const edit = document.createElement("button");
       edit.className = "secondary-button";
@@ -1814,13 +1898,13 @@ async function fetchMarketPets(page = 1): Promise<void> {
     });
     if (requestSeq !== marketRequestSeq) return;
     state.marketPets = Array.isArray(data.pets) ? data.pets : [];
-    const reportedTotal = Number(data.pagination?.totalItems);
+    const reportedTotal = readMarketTotal(data);
     const knownPageTotal = (page - 1) * PAGE_SIZE + state.marketPets.length;
-    if (Number.isFinite(reportedTotal) && reportedTotal > 0) {
+    if (reportedTotal !== null) {
       state.marketTotal = reportedTotal;
       state.marketFilterKey = filterKey;
     } else if (state.marketFilterKey !== filterKey) {
-      state.marketTotal = knownPageTotal;
+      state.marketTotal = state.marketTotal || knownPageTotal;
       state.marketFilterKey = filterKey;
     } else {
       state.marketTotal = Math.max(state.marketTotal, knownPageTotal);
@@ -1851,6 +1935,31 @@ async function loadProjectPets(): Promise<void> {
     console.error(err);
     setStatus(els.mineStatus, `读取本地宠物失败：${err}`, true);
   }
+}
+
+async function handleDeepLinkInstallResult(result: DeepLinkInstallResult): Promise<void> {
+  const isError = result.status === "error";
+  if (result.status === "pending") {
+    setStatus(els.marketStatus, result.message);
+    showMessage(result.message, "info");
+    return;
+  }
+
+  await loadProjectPets();
+  if (!isError) {
+    setView("mine");
+  }
+
+  const message = result.message || (isError ? "安装失败。" : "安装完成。");
+  setStatus(isError ? els.marketStatus : els.mineStatus, message, isError);
+  showMessage(message, isError ? "error" : "success");
+}
+
+function setupDeepLinkInstallListener(): void {
+  if (!isTauriRuntime()) return;
+  void listen<DeepLinkInstallResult>(DEEP_LINK_INSTALL_EVENT, (event) => {
+    void handleDeepLinkInstallResult(event.payload);
+  });
 }
 
 async function loadActivePets(): Promise<void> {
@@ -1948,7 +2057,7 @@ async function downloadPet(pet: MarketPet): Promise<void> {
   }
 }
 
-async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTMLElement = els.mineStatus): Promise<void> {
+async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTMLElement | null = els.mineStatus): Promise<void> {
   const original = button.textContent || "召唤";
   button.disabled = true;
   button.textContent = "召唤中...";
@@ -1962,7 +2071,9 @@ async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTM
       rememberPrimaryPet(petId);
       await invoke("show_primary_pet_window");
       button.textContent = "已切换";
-      setStatus(statusEl, `已切换为「${petNameById(petId)}」。`);
+      const message = `桌宠已切换为「${petNameById(petId)}」。`;
+      if (statusEl) setStatus(statusEl, message);
+      else showMessage(message, "success");
       window.setTimeout(() => void loadActivePets(), 300);
       window.setTimeout(() => {
         button.textContent = original;
@@ -1973,7 +2084,9 @@ async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTM
     await invoke<string>("summon_pet_window", { petId });
     addSavedSummonedPetId(petId);
     button.textContent = "已召唤";
-    setStatus(statusEl, "已召唤一个新的桌宠实例。");
+    const message = `已召唤「${petNameById(petId)}」。`;
+    if (statusEl) setStatus(statusEl, message);
+    else showMessage(message, "success");
     window.setTimeout(() => void loadActivePets(), 300);
     window.setTimeout(() => {
       button.textContent = original;
@@ -1982,7 +2095,9 @@ async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTM
   } catch (err) {
     console.error(err);
     button.textContent = "失败";
-    setStatus(statusEl, `召唤失败：${err instanceof Error ? err.message : String(err)}`, true);
+    const message = `召唤失败：${err instanceof Error ? err.message : String(err)}`;
+    if (statusEl) setStatus(statusEl, message, true);
+    else showMessage(message, "error");
     window.setTimeout(() => {
       button.textContent = original;
       button.disabled = false;
@@ -1996,6 +2111,7 @@ async function deletePet(pet: ProjectPet): Promise<void> {
     await invoke("delete_project_pet", { petId: pet.id });
     await loadProjectPets();
     renderMyPets();
+    showMessage(`已成功删除「${pet.displayName}」`, "success");
   } catch (err) {
     setStatus(els.mineStatus, `删除失败：${err}`, true);
   }
@@ -2596,6 +2712,7 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("paste", (event) => void At(event));
 
+setupDeepLinkInstallListener();
 void loadPetsPath();
 void loadProjectPets();
 void fetchMarketPets();

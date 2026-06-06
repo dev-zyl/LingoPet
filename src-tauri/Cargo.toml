@@ -27,6 +27,8 @@ tauri-plugin-dialog = "2"
 zip = "2"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-autostart = "2"
+tauri-plugin-deep-link = "2.4.9"
+tauri-plugin-single-instance = { version = "2.4.2", features = ["deep-link"] }
 trash = "3.1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 keyring = { version = "3", features = ["windows-native"] }

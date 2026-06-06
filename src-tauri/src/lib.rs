@@ -2,13 +2,15 @@ mod pet_import;
 
 use serde::Serialize;
 use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{
+    Emitter,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_deep_link::DeepLinkExt;
 
 #[cfg(windows)]
 use windows::{
@@ -26,6 +28,8 @@ use windows::{
 
 const API_KEY_SERVICE: &str = "LingoPet";
 const API_KEY_ACCOUNT: &str = "pet_api_key";
+const CODEXPET_API_BASE: &str = "https://codexpet.xyz";
+const DEEP_LINK_INSTALL_EVENT: &str = "lingopet-install-result";
 #[cfg(windows)]
 const RPC_E_CHANGED_MODE: HRESULT = HRESULT(0x80010106u32 as i32);
 #[cfg(windows)]
@@ -68,6 +72,181 @@ fn delete_api_key() -> Result<(), String> {
 #[tauri::command]
 fn move_to_trash(paths: Vec<String>) -> Result<(), String> {
     trash::delete_all(&paths).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone)]
+struct DeepLinkInstallRequest {
+    slug: String,
+    download_url: String,
+    source: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DeepLinkInstallEvent {
+    status: String,
+    #[serde(rename = "petId")]
+    pet_id: String,
+    #[serde(rename = "displayName")]
+    display_name: Option<String>,
+    message: String,
+    source: Option<String>,
+}
+
+fn parse_install_deep_link(raw_url: &str) -> Result<Option<DeepLinkInstallRequest>, String> {
+    let url = reqwest::Url::parse(raw_url).map_err(|e| format!("Invalid deep link URL: {e}"))?;
+    if url.scheme() != "lingopet" {
+        return Ok(None);
+    }
+
+    let action = url
+        .host_str()
+        .filter(|host| !host.is_empty())
+        .or_else(|| url.path().trim_start_matches('/').split('/').next())
+        .unwrap_or("");
+    if action != "install" {
+        return Ok(None);
+    }
+
+    let mut slug = None;
+    let mut download_url = None;
+    let mut source = None;
+    for (key, value) in url.query_pairs() {
+        match key.as_ref() {
+            "slug" | "petId" | "id" => slug = Some(value.to_string()),
+            "url" | "downloadUrl" => download_url = Some(value.to_string()),
+            "source" => source = Some(value.to_string()),
+            _ => {}
+        }
+    }
+
+    let slug = slug.ok_or_else(|| "Install link is missing slug".to_string())?;
+    let safe_slug = sanitize_deep_link_slug(&slug)?;
+    let download_url = download_url
+        .unwrap_or_else(|| format!("{CODEXPET_API_BASE}/api/pets/{safe_slug}/download"));
+    let parsed_download_url = reqwest::Url::parse(&download_url)
+        .map_err(|e| format!("Invalid pet download URL: {e}"))?;
+    if !matches!(parsed_download_url.scheme(), "http" | "https") {
+        return Err("Pet download URL must use http or https".to_string());
+    }
+
+    Ok(Some(DeepLinkInstallRequest {
+        slug: safe_slug,
+        download_url,
+        source,
+    }))
+}
+
+fn sanitize_deep_link_slug(slug: &str) -> Result<String, String> {
+    let cleaned: String = slug
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+        .collect();
+    if cleaned.is_empty() {
+        Err("Install link has an invalid slug".to_string())
+    } else {
+        Ok(cleaned)
+    }
+}
+
+fn emit_deep_link_install_event(app: &tauri::AppHandle, event: DeepLinkInstallEvent) {
+    if let Err(error) = app.emit(DEEP_LINK_INSTALL_EVENT, event) {
+        log::warn!("Failed to emit deep link install event: {error}");
+    }
+}
+
+fn handle_install_deep_link(app: tauri::AppHandle, raw_url: String) {
+    let request = match parse_install_deep_link(&raw_url) {
+        Ok(Some(request)) => request,
+        Ok(None) => return,
+        Err(error) => {
+            log::warn!("Ignoring invalid LingoPet deep link: {error}");
+            return;
+        }
+    };
+
+    let app_for_window = app.clone();
+    if let Err(error) = open_manager_window(app_for_window) {
+        log::warn!("Failed to open manager window for deep link install: {error}");
+    }
+
+    emit_deep_link_install_event(&app, DeepLinkInstallEvent {
+        status: "pending".to_string(),
+        pet_id: request.slug.clone(),
+        display_name: None,
+        message: format!("正在安装「{}」...", request.slug),
+        source: request.source.clone(),
+    });
+
+    tauri::async_runtime::spawn(async move {
+        let _ = tauri::async_runtime::spawn_blocking(|| thread::sleep(Duration::from_millis(700))).await;
+
+        match pet_import::read_project_pet_manifest(app.clone(), request.slug.clone()) {
+            Ok(existing) => {
+                emit_deep_link_install_event(&app, DeepLinkInstallEvent {
+                    status: "already-installed".to_string(),
+                    pet_id: existing.id,
+                    display_name: Some(existing.display_name.clone()),
+                    message: format!(
+                        "「{}」已经安装，已保留本地自定义内容。",
+                        existing.display_name
+                    ),
+                    source: request.source,
+                });
+                return;
+            }
+            Err(_) => {}
+        }
+
+        match pet_import::download_pet_to_project(
+            app.clone(),
+            request.slug.clone(),
+            request.download_url.clone(),
+        )
+        .await
+        {
+            Ok(pet) => {
+                emit_deep_link_install_event(&app, DeepLinkInstallEvent {
+                    status: "installed".to_string(),
+                    pet_id: pet.manifest.id,
+                    display_name: Some(pet.manifest.display_name.clone()),
+                    message: format!("「{}」安装成功。", pet.manifest.display_name),
+                    source: request.source,
+                });
+            }
+            Err(error) => {
+                emit_deep_link_install_event(&app, DeepLinkInstallEvent {
+                    status: "error".to_string(),
+                    pet_id: request.slug,
+                    display_name: None,
+                    message: format!("安装失败：{error}"),
+                    source: request.source,
+                });
+            }
+        }
+    });
+}
+
+fn setup_deep_link_install_handler(app: &tauri::App) {
+    let app_handle = app.handle().clone();
+    app.deep_link().on_open_url(move |event| {
+        for url in event.urls() {
+            handle_install_deep_link(app_handle.clone(), url.to_string());
+        }
+    });
+
+    match app.deep_link().get_current() {
+        Ok(Some(urls)) => {
+            for url in urls {
+                handle_install_deep_link(app.handle().clone(), url.to_string());
+            }
+        }
+        Ok(None) => {}
+        Err(error) => log::warn!("Failed to read current deep link URL: {error}"),
+    }
+
+    if let Err(error) = app.deep_link().register_all() {
+        log::warn!("Failed to register deep link schemes: {error}");
+    }
 }
 
 #[cfg(windows)]
@@ -431,6 +610,12 @@ fn list_desktop_platforms() -> Result<Vec<DesktopPlatform>, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Err(error) = open_manager_window(app.clone()) {
+                log::warn!("Failed to focus manager window from single instance callback: {error}");
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
@@ -447,6 +632,7 @@ pub fn run() {
                 )?;
             }
             setup_system_tray(app)?;
+            setup_deep_link_install_handler(app);
             Ok(())
         })
         .on_window_event(|window, event| {
