@@ -1,7 +1,13 @@
 {
   "name": "lingo-pet",
-  "private": true,
   "version": "0.2.4",
+  "description": "A lightweight Tauri desktop pet companion.",
+  "author": "dev-zyl",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dev-zyl/LingoPet.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

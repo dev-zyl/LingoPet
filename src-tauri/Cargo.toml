@@ -1,10 +1,10 @@
 [package]
 name = "lingo-pet"
 version = "0.2.4"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "A lightweight Tauri desktop pet companion."
+authors = ["dev-zyl"]
+license = "MIT"
+repository = "https://github.com/dev-zyl/LingoPet"
 edition = "2021"
 rust-version = "1.77.2"
 

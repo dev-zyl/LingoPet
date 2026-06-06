@@ -25,6 +25,8 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     env:
+      # Forks must configure these repository secrets before publishing signed updater artifacts.
+      # Regular local builds (`npm run build`, `cargo check`) do not require these secrets.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
