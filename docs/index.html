@@ -2265,10 +2265,10 @@
       var gokuFormsIdleSrc = './assets/community-pets/goku-forms/goku-forms-idle-transparent.gif';
       var gokuFormsChargeSrc = './assets/community-pets/goku-forms/goku-transform.png';
       var gokuForms = [
-        { label: '超级赛亚人1', src: './assets/community-pets/goku-forms/goku-forms-ssj01.gif', duration: 640 },
-        { label: '超级赛亚人2', src: './assets/community-pets/goku-forms/goku-forms-ssj02.gif', duration: 640 },
-        { label: '超级赛亚人3', src: './assets/community-pets/goku-forms/goku-forms-ssj03.gif', duration: 640 },
-        { label: '超级赛亚人4', src: './assets/community-pets/goku-forms/goku-forms-ssj04.gif', duration: 640 }
+        { label: '超级赛亚人1', stage: 0, src: './assets/community-pets/goku-forms/goku-forms-ssj01.gif', duration: 640 },
+        { label: '超级赛亚人2', stage: 1, src: './assets/community-pets/goku-forms/goku-forms-ssj02.gif', duration: 640 },
+        { label: '超级赛亚人3', stage: 2, src: './assets/community-pets/goku-forms/goku-forms-ssj03.gif', duration: 640 },
+        { label: '超级赛亚人4', stage: 3, src: './assets/community-pets/goku-forms/goku-forms-ssj04.gif', duration: 640 }
       ];
       var communitySurpriseLines = [
         '哇哦！',
@@ -2292,20 +2292,48 @@
         '感觉自己都变强了',
         '这就是传说中的超四吗?',
       ];
-      var gokuWarningLines = [
-        '别点我，小心我变身了呦',
-        '再点一下我可就不装了',
-        '我体内的气已经开始涨了',
-        '你确定还要继续吗',
-        '别闹，我真的会变身',
-        '警告一次，气场正在变化',
-        '你再点，我就认真了',
-        '小心，赛亚人的怒气值在上涨',
-        '现在收手还来得及',
-        '我已经听见战斗 BGM 了',
-        '感觉自己都变强了',
-        '这是最后一次警告了',
-        '再点一下试试'
+      var gokuFormDialogues = [
+        {
+          warnings: [
+            ['嗯？你也想和我切磋一下吗？', '嘿嘿，我能感觉到你的气。', '你看起来挺强的嘛！'],
+            ['好久没有这么兴奋了！', '那我稍微认真一点吧。', '先说好，我可不会放水哦！'],
+            ['这股力量……开始沸腾了！', '准备好了吗？我要提升气了！', '小心了，接下来气场会有点强！']
+          ],
+          steps: ['はああああ……', '力が湧いてくる……', 'うおおおお！'],
+          reveals: ['这就是超级赛亚人！', '现在的我，和刚才可不一样了！', '怎么样，要继续切磋吗？']
+        },
+        {
+          warnings: [
+            ['你还想看看更强的力量？', '不错嘛，你居然没有被吓跑。', '看来刚才的力量还不够。'],
+            ['接下来可要认真看好了！', '这次的气，会更猛烈一些。', '我的力量还远不止这些！'],
+            ['空气都开始颤抖了……', '接下来，连空气都会开始颤抖！', '那我就突破超级赛亚人！']
+          ],
+          steps: ['はああああ……！', 'もっと強く……！', 'うおおおお！'],
+          reveals: ['超级赛亚人2！', '感觉到了吗？这股更强的气！', '嘿嘿，现在更有意思了！']
+        },
+        {
+          warnings: [
+            ['还要继续？你还真有胆量！', '接下来的变化会有点大哦。', '这个形态，维持起来可不轻松。'],
+            ['别眨眼，头发马上就要变长了。', '这股力量，比超二强得多！', '我要把气一次性释放出来！'],
+            ['准备好了吗？这次会震得很厉害！', '我要超越超级赛亚人2！', '接下来，就是我的全力！']
+          ],
+          steps: ['はああああああ……！', 'まだまだ……！', 'うおおおおおお！'],
+          reveals: ['这就是超级赛亚人3！', '头发长了一点，力量可不只多一点！', '这个形态很强，就是有点费气。']
+        },
+        {
+          warnings: [
+            ['你居然还想继续？', '这股力量，和之前完全不同。', '接下来可不是普通的超级赛亚人。'],
+            ['体内的赛亚人力量正在苏醒！', '我已经开始期待了！', '这次，我要拿出真正的本事！'],
+            ['好久没用过这股力量了。', '抓紧了，真正的压迫感要来了！', '接下来，就是最后的变身！']
+          ],
+          steps: ['はああああああ……！', 'サイヤ人の力を全部出す！', 'うおおおおおお！'],
+          reveals: ['这就是超级赛亚人4，怕了吧！', '怎么样？这股力量够不够强？', '这才是赛亚人真正的力量！']
+        }
+      ];
+      var gokuSsj4RepeatWarningLines = [
+        ['嗯？我已经是超四了。', '你还在期待什么？', '怎么又点我？'],
+        ['再点也不会突然冒出超五哦。', '你是不是在等什么新形态？', '我都说了，这已经是压轴了！'],
+        ['好吧，再给你表演一次。', '最后一次哦，真的最后一次！', '看来不再变一次，你是不会停手的。']
       ];
       var gokuSsj4RepeatLines = [
         '你在期待什么？没有超5了',
@@ -2313,7 +2341,11 @@
         '龙珠GT才是正史！',
         '想看超蓝？GitHub 点个 Star，我变给你看~',
         '再点也是超四，预算到这了',
-        '别催了，尾巴都长出来了'
+        '别催了，尾巴都长出来了',
+        '超五在梦里，超四在这里',
+        '你以为我会变超蓝？导演没准备素材',
+        '新的变身动画还在修炼中',
+        '这就是爷青回的含金量！'
       ];
 
       function ensureCommunityPetBubble() {
@@ -2379,12 +2411,23 @@
         });
       }
 
+      function gokuDialogueFor(targetForm) {
+        return gokuFormDialogues[targetForm.stage] || gokuFormDialogues[0];
+      }
+
       function randomWarningLine(targetForm) {
-        var line = randomFrom(gokuWarningLines);
-        if (gokuFormsWarningCount === 3 && !gokuFormsHasReachedSsj4) {
-          return line + '，' + targetForm.label + ' 要来了';
+        var warningIndex = Math.max(0, Math.min(2, gokuFormsWarningCount - 1));
+        if (gokuFormsHasReachedSsj4) {
+          return randomFrom(gokuSsj4RepeatWarningLines[warningIndex]);
         }
-        return line;
+        return randomFrom(gokuDialogueFor(targetForm).warnings[warningIndex]);
+      }
+
+      function randomRevealLine(targetForm) {
+        if (targetForm.label === '超级赛亚人4' && gokuFormsHasReachedSsj4) {
+          return randomFrom(gokuSsj4RepeatLines);
+        }
+        return randomFrom(gokuDialogueFor(targetForm).reveals);
       }
 
       function shuffled(items) {
@@ -2438,7 +2481,7 @@
         gokuFormsBusy = true;
         gokuFormsWarningCount = 0;
         window.clearTimeout(communityPetBubbleTimer);
-        var steps = ['はああああ……', 'うおおおお……', 'バリバリバリ……'];
+        var steps = gokuDialogueFor(targetForm).steps;
         var index = 0;
 
         pet.classList.add('transforming');
@@ -2466,8 +2509,7 @@
 
         function showSsj4() {
           var bubble = ensureCommunityPetBubble();
-          var isRepeatSsj4 = targetForm.label === '超级赛亚人4' && gokuFormsHasReachedSsj4;
-          bubble.textContent = isRepeatSsj4 ? randomFrom(gokuSsj4RepeatLines) : targetForm.label + '，怕了吧！';
+          bubble.textContent = randomRevealLine(targetForm);
           pet.src = gokuAssetUrl(targetForm.src);
           showTransformationReactions(targetForm);
           window.clearTimeout(communityPetBubbleTimer);
