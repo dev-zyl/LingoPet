@@ -48,3 +48,5 @@ Thumbs.db
 *.deb
 
 remotion-video/
+
+FEATURE_LOG.md
