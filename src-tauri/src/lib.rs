@@ -1,6 +1,7 @@
 mod pet_import;
 
 use serde::Serialize;
+use std::fs;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{
@@ -73,6 +74,14 @@ fn delete_api_key() -> Result<(), String> {
 #[tauri::command]
 fn move_to_trash(paths: Vec<String>) -> Result<(), String> {
     trash::delete_all(&paths).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_export_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Err("Export file is empty".to_string());
+    }
+    fs::write(path, bytes).map_err(|e| format!("Failed to write export file: {e}"))
 }
 
 #[derive(Debug, Clone)]
@@ -757,6 +766,7 @@ pub fn run() {
             has_api_key,
             delete_api_key,
             move_to_trash,
+            write_export_file,
             is_system_audio_playing,
             list_desktop_platforms,
             open_manager_window,

@@ -23,6 +23,7 @@
     "core:window:allow-set-size",
     "dialog:default",
     "dialog:allow-open",
+    "dialog:allow-save",
     "opener:allow-default-urls",
     "opener:allow-open-url",
     "process:allow-exit",

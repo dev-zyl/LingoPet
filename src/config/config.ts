@@ -10,7 +10,7 @@ import style9Ornaments from "../assets/ui/speech-bubble-style-9-ornaments.png";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
@@ -2862,6 +2862,7 @@ els.workshopActionFilter.addEventListener("change", () => {
 });
 
 document.addEventListener("click", (event) => {
+  closeActionContextMenu();
   const tab = (event.target as HTMLElement).closest("#workshop-tags-list .tag-tab");
   if (tab) {
     const parent = document.getElementById("workshop-tags-list");
@@ -2880,6 +2881,7 @@ document.addEventListener("click", (event) => {
 els.actionStripShare.addEventListener("click", () => void shareCurrentActionToCommunity());
 
 window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeActionContextMenu();
   if (state.view !== "editor") return;
   const isEditingText = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement;
   if (isEditingText) return;
@@ -2958,6 +2960,269 @@ function P(canvas: HTMLCanvasElement | null): HTMLCanvasElement | null {
   const copy = createEmptyFrameCanvas();
   copy.getContext("2d")?.drawImage(canvas, 0, 0);
   return copy;
+}
+
+function safeFileName(value: string, fallback = "action"): string {
+  const cleaned = value
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[. ]+$/g, "")
+    .slice(0, 64);
+  return cleaned || fallback;
+}
+
+function actionFrameCount(action: EditorAction): number {
+  const contentCount = action.frames.reduce((count, frame, index) => frameHasContent(frame) ? index + 1 : count, 0);
+  const presetCount = action.key && action.key in MODE_ACTION_PRESETS ? MODE_ACTION_PRESETS[action.key as ModeActionKey].frames : 0;
+  return Math.min(ATLAS_COLS, Math.max(1, contentCount, action.stripFrameCount || 0, contentCount > 0 ? presetCount : 0));
+}
+
+function actionFrameDuration(action: EditorAction): number {
+  const first = action.frameDurations?.find((duration) => Number.isFinite(duration) && duration > 0);
+  return Math.min(2000, Math.max(20, Math.round(first || 120)));
+}
+
+function setActionFrameDuration(action: EditorAction, duration: number): void {
+  const safeDuration = Math.min(2000, Math.max(20, Math.round(duration)));
+  action.frameDurations = Array.from({ length: actionFrameCount(action) }, () => safeDuration);
+  if (action.key && action.key in MODE_ACTION_PRESETS) {
+    action.pendingFramePngSave = true;
+  }
+  state.editorDirty = true;
+}
+
+function buildActionStripCanvas(action: EditorAction): HTMLCanvasElement {
+  const count = actionFrameCount(action);
+  const canvas = document.createElement("canvas");
+  canvas.width = count * ATLAS_CELL_WIDTH;
+  canvas.height = ATLAS_CELL_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  action.frames.slice(0, count).forEach((frame, index) => {
+    if (frameHasContent(frame)) {
+      ctx.drawImage(frame!, index * ATLAS_CELL_WIDTH, 0);
+    }
+  });
+  return canvas;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("图像导出失败")), type, quality);
+  });
+}
+
+async function writeBytesToUserFile(bytes: Uint8Array, defaultPath: string, filters: { name: string; extensions: string[] }[]): Promise<string | null> {
+  if (isTauriRuntime()) {
+    const path = await save({ defaultPath, filters });
+    if (!path) return null;
+    await invoke("write_export_file", { path, bytes: Array.from(bytes) });
+    return path;
+  }
+
+  const fallbackBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(fallbackBuffer).set(bytes);
+  const blob = new Blob([fallbackBuffer]);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = defaultPath;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return defaultPath;
+}
+
+function pushLe16(bytes: number[], value: number): void {
+  bytes.push(value & 0xff, (value >> 8) & 0xff);
+}
+
+function pushAscii(bytes: number[], value: string): void {
+  for (let i = 0; i < value.length; i++) bytes.push(value.charCodeAt(i) & 0xff);
+}
+
+function paletteIndexForPixel(data: Uint8ClampedArray, offset: number): number {
+  if (data[offset + 3] < 16) return 255;
+  const r = data[offset] >> 5;
+  const g = data[offset + 1] >> 5;
+  const b = data[offset + 2] >> 6;
+  const index = (r << 5) | (g << 2) | b;
+  return index === 255 ? 254 : index;
+}
+
+function buildGifPalette(): number[] {
+  const palette: number[] = [];
+  for (let i = 0; i < 256; i++) {
+    if (i === 255) {
+      palette.push(0, 0, 0);
+      continue;
+    }
+    const r = Math.round(((i >> 5) & 7) * 255 / 7);
+    const g = Math.round(((i >> 2) & 7) * 255 / 7);
+    const b = Math.round((i & 3) * 255 / 3);
+    palette.push(r, g, b);
+  }
+  return palette;
+}
+
+function lzwEncode(indices: number[]): number[] {
+  const minCodeSize = 8;
+  const clearCode = 1 << minCodeSize;
+  const endCode = clearCode + 1;
+  const codeSize = minCodeSize + 1;
+  const output: number[] = [];
+  let bitBuffer = 0;
+  let bitCount = 0;
+
+  const writeCode = (code: number): void => {
+    bitBuffer |= code << bitCount;
+    bitCount += codeSize;
+    while (bitCount >= 8) {
+      output.push(bitBuffer & 0xff);
+      bitBuffer >>= 8;
+      bitCount -= 8;
+    }
+  };
+
+  for (const index of indices) {
+    writeCode(clearCode);
+    writeCode(index);
+  }
+  writeCode(endCode);
+  if (bitCount > 0) output.push(bitBuffer & 0xff);
+  return output;
+}
+
+function appendGifSubBlocks(bytes: number[], data: number[]): void {
+  for (let offset = 0; offset < data.length; offset += 255) {
+    const chunk = data.slice(offset, offset + 255);
+    bytes.push(chunk.length, ...chunk);
+  }
+  bytes.push(0);
+}
+
+function encodeActionGif(action: EditorAction): Uint8Array {
+  const count = actionFrameCount(action);
+  const bytes: number[] = [];
+  pushAscii(bytes, "GIF89a");
+  pushLe16(bytes, ATLAS_CELL_WIDTH);
+  pushLe16(bytes, ATLAS_CELL_HEIGHT);
+  bytes.push(0xf7, 0, 0);
+  bytes.push(...buildGifPalette());
+  pushAscii(bytes, "!\xff\x0bNETSCAPE2.0\x03\x01");
+  pushLe16(bytes, 0);
+  bytes.push(0);
+
+  for (let frameIndex = 0; frameIndex < count; frameIndex++) {
+    const frame = action.frames[frameIndex] || createEmptyFrameCanvas();
+    const ctx = frame.getContext("2d", { willReadFrequently: true });
+    const data = ctx?.getImageData(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT).data;
+    const indices: number[] = [];
+    if (data) {
+      for (let offset = 0; offset < data.length; offset += 4) {
+        indices.push(paletteIndexForPixel(data, offset));
+      }
+    } else {
+      indices.push(...Array.from({ length: ATLAS_CELL_WIDTH * ATLAS_CELL_HEIGHT }, () => 255));
+    }
+
+    const delay = Math.max(2, Math.round((action.frameDurations?.[frameIndex] || actionFrameDuration(action)) / 10));
+    pushAscii(bytes, "!\xf9\x04");
+    bytes.push(0x09);
+    pushLe16(bytes, delay);
+    bytes.push(255, 0);
+    bytes.push(0x2c);
+    pushLe16(bytes, 0);
+    pushLe16(bytes, 0);
+    pushLe16(bytes, ATLAS_CELL_WIDTH);
+    pushLe16(bytes, ATLAS_CELL_HEIGHT);
+    bytes.push(0);
+    bytes.push(8);
+    appendGifSubBlocks(bytes, lzwEncode(indices));
+  }
+
+  bytes.push(0x3b);
+  return new Uint8Array(bytes);
+}
+
+async function exportActionStrip(action: EditorAction): Promise<void> {
+  if (!actionHasContent(action)) {
+    setStatus(els.editorStatus, "当前动作没有可导出的有效帧。", true);
+    return;
+  }
+  const canvas = buildActionStripCanvas(action);
+  const blob = await canvasToBlob(canvas, "image/png");
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const petName = safeFileName(state.editorPet?.displayName || "pet");
+  const path = await writeBytesToUserFile(bytes, `${petName}_${safeFileName(action.name)}_动作图.png`, [{ name: "PNG 图片", extensions: ["png"] }]);
+  if (path) setStatus(els.editorStatus, `已导出「${action.name}」横版动作图。`);
+}
+
+async function exportActionGif(action: EditorAction): Promise<void> {
+  if (!actionHasContent(action)) {
+    setStatus(els.editorStatus, "当前动作没有可导出的有效帧。", true);
+    return;
+  }
+  const bytes = encodeActionGif(action);
+  const petName = safeFileName(state.editorPet?.displayName || "pet");
+  const path = await writeBytesToUserFile(bytes, `${petName}_${safeFileName(action.name)}.gif`, [{ name: "GIF 动图", extensions: ["gif"] }]);
+  if (path) setStatus(els.editorStatus, `已按当前帧率导出「${action.name}」GIF。`);
+}
+
+function closeActionContextMenu(): void {
+  document.querySelector(".action-context-menu")?.remove();
+}
+
+function showActionContextMenu(event: MouseEvent, rowIndex: number): void {
+  event.preventDefault();
+  event.stopPropagation();
+  closeActionContextMenu();
+  const action = state.editorActions[rowIndex];
+  if (!action) return;
+
+  const menu = document.createElement("div");
+  menu.className = "action-context-menu";
+  menu.setAttribute("role", "menu");
+
+  const makeButton = (label: string, detail: string, onClick: () => void | Promise<void>): HTMLButtonElement => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "menuitem");
+    button.innerHTML = `<span>${label}</span><small>${detail}</small>`;
+    button.addEventListener("click", () => {
+      closeActionContextMenu();
+      void onClick();
+    });
+    return button;
+  };
+
+  menu.append(
+    makeButton("调整播放帧率", `${actionFrameDuration(action)} ms/帧`, () => {
+      const nextValue = window.prompt("请输入每帧播放时长（毫秒，20-2000）：", String(actionFrameDuration(action)));
+      if (nextValue === null) return;
+      const duration = Number(nextValue);
+      if (!Number.isFinite(duration)) {
+        setStatus(els.editorStatus, "帧率数值无效。", true);
+        return;
+      }
+      setActionFrameDuration(action, duration);
+      renderSpriteEditorGrid();
+      if (state.editorSelectedRow === rowIndex && state.editorPreviewMode === "action") playSelectedEditorAction();
+      setStatus(els.editorStatus, `已将「${action.name}」播放帧率调整为 ${actionFrameDuration(action)} ms/帧，保存后生效。`);
+    }),
+    makeButton("导出动作图", `${actionFrameCount(action)} 帧 PNG`, () => exportActionStrip(action)),
+    makeButton("导出 GIF", `${actionFrameDuration(action)} ms/帧`, () => exportActionGif(action)),
+  );
+
+  document.body.append(menu);
+  const rect = menu.getBoundingClientRect();
+  const left = Math.min(event.clientX, window.innerWidth - rect.width - 8);
+  const top = Math.min(event.clientY, window.innerHeight - rect.height - 8);
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
 }
 
 function updateEditorEraserUi(): void {
@@ -5285,6 +5550,7 @@ function renderSpriteEditorGrid(): void {
     labelBtn.textContent = action.name;
     labelBtn.classList.toggle("active", rowIndex === state.editorSelectedRow && state.editorPreviewMode === "action");
     labelBtn.addEventListener("pointerdown", (event) => event.preventDefault());
+    labelBtn.addEventListener("contextmenu", (event) => showActionContextMenu(event, rowIndex));
     labelBtn.addEventListener("click", () => {
       state.editorSelectedRow = rowIndex;
       state.editorSelectedCol = 0;
