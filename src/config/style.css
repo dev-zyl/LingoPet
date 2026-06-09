@@ -273,6 +273,22 @@ p {
   background: var(--surface-page);
 }
 
+body[data-view="workshop"] .content {
+  overflow-x: hidden;
+}
+
+body[data-view="mine"] .content,
+body[data-view="editor"] .content,
+body[data-view="recall"] .content,
+body[data-view="market"] .content,
+body[data-view="settings"] .content {
+  overflow-x: hidden;
+}
+
+body[data-view="workshop"] .topbar {
+  display: none;
+}
+
 .topbar,
 .panel-head,
 .toolbar {
@@ -284,6 +300,24 @@ p {
 
 .topbar {
   margin-bottom: 25px;
+}
+
+body[data-view="mine"] .topbar,
+body[data-view="editor"] .topbar,
+body[data-view="recall"] .topbar,
+body[data-view="market"] .topbar,
+body[data-view="settings"] .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  margin-bottom: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(216, 201, 173, 0.45);
+  background: var(--surface-page);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 -64px 0 64px var(--surface-page),
+    0 14px 22px rgba(250, 247, 239, 0.9);
 }
 
 .topbar h2 {
@@ -333,6 +367,31 @@ p {
 
 .view.active {
   display: block;
+}
+
+.view-sticky-controls {
+  position: sticky;
+  top: 92px;
+  z-index: 70;
+  margin-bottom: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background: var(--surface-page);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 -18px 0 18px var(--surface-page),
+    0 18px 26px rgba(250, 247, 239, 0.9);
+}
+
+.view-sticky-controls .panel-head,
+.view-sticky-controls .toolbar,
+.view-sticky-controls .tags-section,
+.view-sticky-controls .market-meta {
+  margin-bottom: 10px;
+}
+
+.view-sticky-controls > :last-child {
+  margin-bottom: 0;
 }
 
 .toolbar {
@@ -1735,6 +1794,70 @@ textarea {
   border-color: #86b967 !important;
 }
 
+.workshop-sticky-controls {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  margin-bottom: 12px;
+  padding-top: 0;
+  padding-bottom: 8px;
+  background: var(--surface-page);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 -64px 0 64px var(--surface-page),
+    0 18px 26px rgba(250, 247, 239, 0.94);
+}
+
+.workshop-local-topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(216, 201, 173, 0.45);
+}
+
+.workshop-local-topbar h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.workshop-local-topbar p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+#workshop-view .toolbar {
+  margin-bottom: 8px;
+}
+
+#workshop-view .tags-section {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+#workshop-view .tags-tabs {
+  flex: 0 0 auto;
+}
+
+#workshop-status {
+  margin: 0 !important;
+  color: #556c40;
+  font-size: 15px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 /* 社区精选元数据提示条美化 */
 .market-meta {
   background: rgba(216, 201, 173, 0.15);
@@ -1758,21 +1881,242 @@ textarea {
 
 /* 创意工坊专属动图预览框 - 彻底解决滑动/定位 Bug，保证原地逐帧闪烁动作 */
 .workshop-sprite-preview {
-  width: 56px;
-  height: 60px;
+  width: 88px;
+  height: 95px;
   border-radius: 6px;
   background-repeat: no-repeat !important;
   image-rendering: pixelated;
-  border: 1px solid #eadfc8;
-  background-color: #fff6dc;
-  background-image:
-    linear-gradient(#f3e4bf 1px, transparent 1px) 0 0 / 12px 12px;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.04);
-  margin-right: 10px;
+  border: 1px solid #e5d7bb;
+  background-color: #fff8e9;
+  box-shadow: inset 0 2px 8px rgba(75, 55, 24, 0.06);
   flex-shrink: 0;
   overflow: hidden; /* 终极裁剪防护 */
   transition: none !important;
   animation: none !important;
+}
+
+#workshop-grid.workshop-board {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  justify-items: center;
+  overflow-x: hidden;
+  padding-top: 4px;
+}
+
+.workshop-pet-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(248px, 360px));
+  gap: 12px;
+  align-items: stretch;
+  justify-content: center;
+  width: min(100%, 1120px);
+  min-width: 0;
+}
+
+.workshop-loose-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 360px));
+  gap: 12px;
+  justify-content: center;
+  width: min(100%, 1120px);
+  min-width: 0;
+}
+
+.workshop-action-card {
+  container-type: inline-size;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e3d4b8;
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.95);
+  box-shadow: 0 8px 18px rgba(62, 48, 27, 0.06);
+}
+
+.workshop-card-body {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+
+.workshop-card-body .workshop-sprite-preview {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.workshop-card-info {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workshop-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.workshop-card-title-row h3 {
+  margin: 0;
+  min-width: 0;
+  color: #302b23;
+  font-size: 16px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.workshop-mode-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.workshop-mode-badge.focus {
+  background: #e7f0ff;
+  border: 1px solid #bdd4ff;
+  color: #24518f;
+}
+
+.workshop-mode-badge.music {
+  background: #e7f6ea;
+  border: 1px solid #bddfbd;
+  color: #2f6d38;
+}
+
+.workshop-mode-badge.merit {
+  background: #fff1d7;
+  border: 1px solid #e9c983;
+  color: #7b5614;
+}
+
+.workshop-meta-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  color: #6d665b;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.workshop-meta-label {
+  color: #415b32;
+  font-weight: 900;
+}
+
+.workshop-meta-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workshop-card-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.workshop-card-button {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d2bd8d;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #334325;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.workshop-card-button:hover {
+  transform: translateY(-1px);
+  border-color: #9abf78;
+  background: #f7f3e9;
+}
+
+.workshop-card-button.primary {
+  background: #e6bd5b;
+  border-color: #dbad4c;
+  color: #263126;
+}
+
+@container (max-width: 300px) {
+  .workshop-action-card {
+    grid-template-rows: auto auto;
+  }
+
+  .workshop-card-body {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 8px;
+  }
+
+  .workshop-card-info {
+    grid-column: 1;
+    grid-row: 1;
+    display: grid;
+    justify-items: center;
+    width: 100%;
+  }
+
+  .workshop-card-body .workshop-sprite-preview {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .workshop-card-title-row {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+
+  .workshop-card-title-row h3 {
+    font-size: 15px;
+  }
+
+  .workshop-meta-row {
+    display: none;
+  }
+}
+
+@media (max-width: 1160px) {
+  .workshop-pet-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workshop-loose-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .workshop-sticky-controls {
+    top: 0;
+  }
+
+  .workshop-pet-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workshop-loose-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* 宠物标题包装器 */

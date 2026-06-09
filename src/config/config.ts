@@ -106,6 +106,8 @@ const DEFAULT_PREVIEW_ANIMATIONS: FrameAnimation[] = [
 const API_BASE = "https://codexpet.xyz";
 const DEEP_LINK_INSTALL_EVENT = "lingopet-install-result";
 const PAGE_SIZE = 30;
+const WORKSHOP_GROUPS_PER_PAGE = 6;
+const WORKSHOP_ACTION_ORDER = ["focus", "music", "merit"];
 const LS_PET_SIZE_SCALE = "pet_size_scale";
 const LS_API_ENDPOINT = "pet_api_endpoint";
 const LS_API_KEY = "pet_api_key";
@@ -283,6 +285,7 @@ const els = {
 
   // 创意工坊
   workshopGrid: document.getElementById("workshop-grid") as HTMLDivElement,
+  workshopPagination: document.getElementById("workshop-pagination") as HTMLDivElement,
   workshopSearch: document.getElementById("workshop-search-input") as HTMLInputElement,
   workshopActionFilter: document.getElementById("workshop-action-filter") as HTMLSelectElement,
   workshopStatus: document.getElementById("workshop-status") as HTMLParagraphElement,
@@ -381,6 +384,7 @@ const state = {
   workshopItems: [] as WorkshopItem[],
   workshopSearchQuery: "",
   workshopFilterType: "all",
+  workshopPage: 1,
   availableUpdate: null as Update | null,
 
 };
@@ -867,6 +871,18 @@ function isDownloaded(slug: string): boolean {
   return Boolean(projectPetById(slug));
 }
 
+function personalActionCount(pet: ProjectPet): number {
+  const animations = pet.animations || {};
+  return (["focus", "music", "merit"] as ModeActionKey[]).reduce((count, key) => count + (animations[key] ? 1 : 0), 0);
+}
+
+function sortPetsByPersonalActions(pets: ProjectPet[]): ProjectPet[] {
+  return pets
+    .map((pet, index) => ({ pet, index, actionCount: personalActionCount(pet) }))
+    .sort((a, b) => b.actionCount - a.actionCount || a.index - b.index)
+    .map(({ pet }) => pet);
+}
+
 function confirmDiscardEditorChanges(): boolean {
   if (state.view !== "editor" || !state.editorDirty) return true;
   return window.confirm("当前编辑内容尚未保存，是否放弃本次修改？");
@@ -875,6 +891,7 @@ function confirmDiscardEditorChanges(): boolean {
 function setView(view: ViewName): void {
   if (view !== "editor" && !confirmDiscardEditorChanges()) return;
   state.view = view;
+  document.body.dataset.view = view;
   for (const item of els.navItems) {
     item.classList.toggle("active", item.dataset.view === view);
   }
@@ -883,12 +900,12 @@ function setView(view: ViewName): void {
   }
 
   const copy = {
-    mine: ["我的桌宠", "管理本地宠物并召唤多个桌面实例。"],
-    editor: ["编辑桌宠", "自定义宠物动作。打造宠物专属技能。"],
-    recall: ["宠物召回", "查看当前存在的宠物，并支持单独或批量召回。"],
-    market: ["宠物市场", "下载新角色并保存到项目 pets 文件夹。"],
-    workshop: ["创意工坊", "下载并一键套用社区精选的功德、专注及律动扩展动作。"],
-    settings: ["设置", "配置开机自启动、置顶、尺寸和对话模式。"],
+    mine: ["我的桌宠", "管理本地宠物，召唤、编辑、删除、分组。"],
+    editor: ["编辑桌宠", "自定义宠物动作。打造宠物专属技能"],
+    recall: ["宠物召回", "查看当前存在的宠物，并支持单独或批量召回"],
+    market: ["宠物市场", "海量线上社区桌宠，一键免费下载"],
+    workshop: ["创意工坊", "一键套用创意工坊精选的个性动作"],
+    settings: ["设置", "桌宠设置、应用更新"],
   }[view];
   els.title.textContent = copy[0];
   els.subtitle.textContent = copy[1];
@@ -971,9 +988,9 @@ function pageItems<T>(items: T[], page: number): T[] {
   return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 }
 
-function renderPagination(root: HTMLElement, total: number, page: number, onPage: (page: number) => void): void {
+function renderPagination(root: HTMLElement, total: number, page: number, onPage: (page: number) => void, pageSize = PAGE_SIZE): void {
   root.replaceChildren();
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   if (pages <= 1) return;
 
   const goToPage = (value: number): void => {
@@ -1031,8 +1048,8 @@ function filteredProjectPets(): ProjectPet[] {
     pets = pets.filter((pet) => pet.displayName.toLowerCase().includes(query) || pet.id.toLowerCase().includes(query));
   }
 
-  // 3. 保持原数组自然顺序，不进行收藏置顶排序
-  return pets;
+  // 3. 优先展示已安装自定义模式动作的桌宠；同优先级保持原始顺序
+  return sortPetsByPersonalActions(pets);
 }
 
 function mineTagPetCount(tagName: string): number {
@@ -2834,11 +2851,13 @@ els.editorFrameCanvas.addEventListener("pointerleave", () => {
 // 创意工坊搜索与过滤事件
 els.workshopSearch.addEventListener("input", () => {
   state.workshopSearchQuery = els.workshopSearch.value;
+  state.workshopPage = 1;
   renderWorkshop();
 });
 
 els.workshopActionFilter.addEventListener("change", () => {
   state.workshopFilterType = els.workshopActionFilter.value;
+  state.workshopPage = 1;
   renderWorkshop();
 });
 
@@ -2851,6 +2870,7 @@ document.addEventListener("click", (event) => {
       tabs.forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
       state.currentWorkshopTag = tab.getAttribute("data-tag") || "all";
+      state.workshopPage = 1;
       renderWorkshop();
     }
   }
@@ -4200,11 +4220,154 @@ function V(canvas: HTMLCanvasElement | null): void {
 }
 let activePreviewIntervals: number[] = [];
 
+interface WorkshopGroup {
+  petId: string;
+  itemsByAction: Record<string, WorkshopItem | undefined>;
+  complete: boolean;
+  firstIndex: number;
+}
+
+function workshopActionLabel(actionType: string): string {
+  if (actionType === "focus") return "专注模式";
+  if (actionType === "music") return "音乐律动";
+  if (actionType === "merit") return "功德模式";
+  return actionType || "未知模式";
+}
+
+function workshopDisplayName(item: WorkshopItem): string {
+  const modePattern = new RegExp(`\\s*[-–—]\\s*(${WORKSHOP_ACTION_ORDER.map(workshopActionLabel).join("|")})\\s*$`);
+  return item.title.replace(modePattern, "").trim() || item.title;
+}
+
+function groupWorkshopItems(items: WorkshopItem[]): WorkshopGroup[] {
+  const buckets = new Map<string, { petId: string; firstIndex: number; byAction: Record<string, WorkshopItem[]> }>();
+
+  items.forEach((item, index) => {
+    const petId = (item.petId || "unknown").toLowerCase();
+    const group = buckets.get(petId) || { petId, firstIndex: index, byAction: {} };
+    group.byAction[item.actionType] = group.byAction[item.actionType] || [];
+    group.byAction[item.actionType].push(item);
+    group.firstIndex = Math.min(group.firstIndex, index);
+    buckets.set(petId, group);
+  });
+
+  const groups: WorkshopGroup[] = [];
+  for (const bucket of buckets.values()) {
+    const queues: Record<string, WorkshopItem[]> = {};
+    for (const actionType of Object.keys(bucket.byAction)) {
+      queues[actionType] = [...bucket.byAction[actionType]];
+    }
+
+    while (WORKSHOP_ACTION_ORDER.some((actionType) => (queues[actionType]?.length || 0) > 0)) {
+      const itemsByAction: Record<string, WorkshopItem | undefined> = {};
+      for (const actionType of WORKSHOP_ACTION_ORDER) {
+        itemsByAction[actionType] = queues[actionType]?.shift();
+      }
+
+      const usedItems = Object.values(itemsByAction).filter((item): item is WorkshopItem => Boolean(item));
+      groups.push({
+        petId: bucket.petId,
+        itemsByAction,
+        complete: WORKSHOP_ACTION_ORDER.every((actionType) => Boolean(itemsByAction[actionType])),
+        firstIndex: usedItems.length > 0 ? Math.min(...usedItems.map((item) => items.indexOf(item))) : bucket.firstIndex,
+      });
+    }
+  }
+
+  return groups
+    .sort((a, b) => Number(b.complete) - Number(a.complete) || a.firstIndex - b.firstIndex);
+}
+
+function createWorkshopPreview(item: WorkshopItem): HTMLDivElement {
+  const previewContainer = document.createElement("div");
+  previewContainer.className = "workshop-sprite-preview";
+  previewContainer.style.backgroundImage = `url("${item.imageUrl}")`;
+  previewContainer.style.backgroundRepeat = "no-repeat";
+  previewContainer.style.backgroundPosition = "0px 0px";
+  previewContainer.style.backgroundSize = `${item.framesCount * 88}px 95px`;
+  previewContainer.style.imageRendering = "pixelated";
+  previewContainer.style.transition = "none";
+  previewContainer.style.animation = "none";
+
+  let currentFrame = 0;
+  const interval = window.setInterval(() => {
+    currentFrame = (currentFrame + 1) % item.framesCount;
+    previewContainer.style.backgroundPositionX = `${-currentFrame * 88}px`;
+  }, item.frameDuration || 120);
+  activePreviewIntervals.push(interval);
+
+  return previewContainer;
+}
+
+function createWorkshopMetaRow(label: string, value: string, title?: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "workshop-meta-row";
+
+  const labelEl = document.createElement("span");
+  labelEl.className = "workshop-meta-label";
+  labelEl.textContent = label;
+
+  const valueEl = document.createElement("span");
+  valueEl.className = "workshop-meta-value";
+  valueEl.textContent = value;
+  if (title || value) valueEl.title = title || value;
+
+  row.append(labelEl, valueEl);
+  return row;
+}
+
+function createWorkshopActionCard(item: WorkshopItem): HTMLElement {
+  const card = document.createElement("article");
+  card.className = `workshop-action-card ${item.actionType}`;
+
+  const body = document.createElement("div");
+  body.className = "workshop-card-body";
+
+  const info = document.createElement("div");
+  info.className = "workshop-card-info";
+
+  const titleRow = document.createElement("div");
+  titleRow.className = "workshop-card-title-row";
+
+  const title = document.createElement("h3");
+  title.textContent = workshopDisplayName(item);
+  title.title = item.title;
+
+  const modeBadge = document.createElement("span");
+  modeBadge.className = `workshop-mode-badge ${item.actionType}`;
+  modeBadge.textContent = workshopActionLabel(item.actionType);
+
+  titleRow.append(title, modeBadge);
+
+  info.append(
+    titleRow,
+    createWorkshopMetaRow("宠物ID", item.petId || "unknown"),
+    createWorkshopMetaRow("作者", item.author || "anonymous"),
+    createWorkshopMetaRow("帧数", `${item.framesCount} 帧`)
+  );
+
+  body.append(info, createWorkshopPreview(item));
+
+  const actions = document.createElement("div");
+  actions.className = "workshop-card-actions";
+
+  const applyBtn = document.createElement("button");
+  applyBtn.type = "button";
+  applyBtn.className = "workshop-card-button primary";
+  applyBtn.textContent = "一键套用";
+  applyBtn.addEventListener("click", () => void choosePetToApply(item));
+
+  actions.append(applyBtn);
+  card.append(body, actions);
+  return card;
+}
+
 // 2. 创意工坊核心动作列表渲染
 function renderWorkshop(): void {
   activePreviewIntervals.forEach(clearInterval);
   activePreviewIntervals = [];
   els.workshopGrid.replaceChildren();
+  els.workshopPagination.replaceChildren();
 
   const query = state.workshopSearchQuery.trim().toLowerCase();
   const filterType = state.workshopFilterType;
@@ -4234,109 +4397,57 @@ function renderWorkshop(): void {
     return;
   }
 
+  const groups = groupWorkshopItems(filtered);
+  const completeGroups = groups.filter((group) => group.complete);
+  const incompleteGroups = groups.filter((group) => !group.complete);
+  const incompleteItems = incompleteGroups
+    .flatMap((group) => WORKSHOP_ACTION_ORDER.map((actionType) => group.itemsByAction[actionType]).filter((item): item is WorkshopItem => Boolean(item)))
+    .sort((a, b) => filtered.indexOf(a) - filtered.indexOf(b));
+  const completePages = Math.ceil(completeGroups.length / WORKSHOP_GROUPS_PER_PAGE);
+  const incompletePage = incompleteItems.length > 0 ? completePages + 1 : 0;
+  const pages = Math.max(1, completePages + (incompleteItems.length > 0 ? 1 : 0));
+  state.workshopPage = Math.min(state.workshopPage, pages);
+  const visibleGroups = state.workshopPage <= completePages
+    ? completeGroups.slice((state.workshopPage - 1) * WORKSHOP_GROUPS_PER_PAGE, state.workshopPage * WORKSHOP_GROUPS_PER_PAGE)
+    : [];
+  const visibleLooseItems = state.workshopPage === incompletePage || completePages === 0 ? incompleteItems : [];
+
   // 动态更新筛选计数值！支持在切换选项卡时立即呈现精确的当前可用条数与差异化高特征提示！
   if (state.currentWorkshopTag === "downloaded") {
-    setStatus(els.workshopStatus, `已展示 ${filtered.length} 个已下载桌宠的动作扩展包。`);
+    setStatus(els.workshopStatus, `已展示 ${filtered.length} 个已下载桌宠的动作扩展包`);
   } else {
-    setStatus(els.workshopStatus, `共 ${filtered.length} 个动作扩展包。`);
+    setStatus(els.workshopStatus, `共 ${filtered.length} 个动作扩展包`);
   }
 
+  els.workshopGrid.classList.add("workshop-board");
   const fragment = document.createDocumentFragment();
 
-  for (const item of filtered) {
-    // 动作帧预览图盒子 (左侧，56x60 等比例精致缩减显示，完美对齐 72px 列并防止任何溢出与重叠)
-    const previewContainer = document.createElement("div");
-    previewContainer.className = "workshop-sprite-preview";
-    previewContainer.style.width = "56px";
-    previewContainer.style.height = "60px";
-    previewContainer.style.borderRadius = "6px";
-    previewContainer.style.overflow = "hidden";
+  for (const group of visibleGroups) {
+    const row = document.createElement("section");
+    row.className = `workshop-pet-row${group.complete ? " complete" : " incomplete"}`;
+    row.setAttribute("aria-label", `${group.petId} 的社区动作`);
 
-    // 使用精细背景子属性单独赋值，彻底避免 background 简写重置并失效为 auto auto 的渲染 Bug
-    previewContainer.style.backgroundImage = `url("${item.imageUrl}")`;
-    previewContainer.style.backgroundRepeat = "no-repeat";
-    previewContainer.style.backgroundPosition = "0px 0px";
-    previewContainer.style.backgroundSize = `${item.framesCount * 56}px 60px`;
-    previewContainer.style.border = "1px solid rgba(180,160,140,0.15)";
-    previewContainer.style.imageRendering = "pixelated";
-    previewContainer.style.transition = "none";
-    previewContainer.style.animation = "none";
-
-    // 使用 JS 定时器进行极其平滑的原地帧图逐帧播放，防滑行 Bug
-    let currentFrame = 0;
-    const interval = window.setInterval(() => {
-      currentFrame = (currentFrame + 1) % item.framesCount;
-      previewContainer.style.backgroundPositionX = `${-currentFrame * 56}px`;
-    }, item.frameDuration || 120);
-    activePreviewIntervals.push(interval);
-
-    // 模式徽章 (titleExtra)
-    const badgeSpan = document.createElement("span");
-    badgeSpan.className = "pet-tag-badge";
-    if (item.actionType === "focus") {
-      badgeSpan.textContent = "专注";
-      badgeSpan.style.background = "rgba(59, 130, 246, 0.12)";
-      badgeSpan.style.color = "#1e40af";
-      badgeSpan.style.borderColor = "rgba(59, 130, 246, 0.25)";
-    } else if (item.actionType === "music") {
-      badgeSpan.textContent = "律动";
-      badgeSpan.style.background = "rgba(16, 185, 129, 0.12)";
-      badgeSpan.style.color = "#065f46";
-      badgeSpan.style.borderColor = "rgba(16, 185, 129, 0.25)";
-    } else if (item.actionType === "merit") {
-      badgeSpan.textContent = "功德";
-      badgeSpan.style.background = "rgba(139, 92, 246, 0.12)";
-      badgeSpan.style.color = "#5b21b6";
-      badgeSpan.style.borderColor = "rgba(139, 92, 246, 0.25)";
+    for (const actionType of WORKSHOP_ACTION_ORDER) {
+      const item = group.itemsByAction[actionType];
+      if (item) row.append(createWorkshopActionCard(item));
     }
 
-    const titleExtra = document.createElement("div");
-    titleExtra.className = "pet-title-extra";
-    titleExtra.append(badgeSpan);
+    fragment.append(row);
+  }
 
-    // 右侧一键套用按钮
-    const applyBtn = document.createElement("button");
-    applyBtn.className = "summon-button";
-    applyBtn.type = "button";
-    applyBtn.textContent = "一键套用";
-    applyBtn.addEventListener("click", () => void choosePetToApply(item));
-
-    // 调用 renderListRow 生成卡片行
-    const rowEl = renderListRow({
-      title: item.title,
-      subtitle: `作者：${item.author || "匿名大佬"} · 共 ${item.framesCount} 帧 · 帧率 ${item.frameDuration}ms`,
-      spriteUrl: item.imageUrl,
-      actions: [applyBtn],
-      titleExtra,
-      customPreview: previewContainer,
-    });
-
-    // 动态在 info 区域附加 AI Prompt 容器
-    const infoContainer = rowEl.querySelector(".pet-info");
-    if (infoContainer) {
-      const promptDiv = document.createElement("div");
-      promptDiv.style.fontSize = "12px";
-      promptDiv.style.color = "rgba(129, 118, 103, 0.65)";
-      promptDiv.style.marginTop = "6px";
-      promptDiv.style.cursor = "pointer";
-      promptDiv.style.textOverflow = "ellipsis";
-      promptDiv.style.whiteSpace = "nowrap";
-      promptDiv.style.overflow = "hidden";
-      promptDiv.style.maxWidth = "350px";
-      promptDiv.title = "点击复制该动作的 AI Prompt 描述词";
-      promptDiv.textContent = `Prompt: ${item.promptUsed || "暂无描述"}`;
-      promptDiv.addEventListener("click", () => {
-        void copyTextToClipboard(item.promptUsed || "").then(() => {
-          setStatus(els.workshopStatus, "已成功复制动作 Prompt 提示词到剪贴板！");
-        });
-      });
-      infoContainer.append(promptDiv);
-    }
-
-    fragment.append(rowEl);
+  if (visibleLooseItems.length > 0) {
+    const looseGrid = document.createElement("section");
+    looseGrid.className = "workshop-loose-grid";
+    looseGrid.setAttribute("aria-label", "缺少部分模式的社区动作");
+    visibleLooseItems.forEach((item) => looseGrid.append(createWorkshopActionCard(item)));
+    fragment.append(looseGrid);
   }
 
   els.workshopGrid.append(fragment);
+  renderPagination(els.workshopPagination, pages * WORKSHOP_GROUPS_PER_PAGE, state.workshopPage, (page) => {
+    state.workshopPage = page;
+    renderWorkshop();
+  }, WORKSHOP_GROUPS_PER_PAGE);
 }
 
 // 获取动作与宠物的同名匹配度分值 (智能算法)
@@ -4795,9 +4906,9 @@ async function fetchWorkshopItems(): Promise<void> {
 
   // 动作索引是静态内容，按可用性在三个公共分发源之间回退。
   const endpoints = [
-    "https://raw.gitmirror.com/dev-zyl/LingoPet-workshop/main/patches/index.json",
     "https://raw.githubusercontent.com/dev-zyl/LingoPet-workshop/main/patches/index.json",
-    "https://fastly.jsdelivr.net/gh/dev-zyl/LingoPet-workshop@main/patches/index.json"
+    "https://fastly.jsdelivr.net/gh/dev-zyl/LingoPet-workshop@main/patches/index.json",
+    "https://raw.gitmirror.com/dev-zyl/LingoPet-workshop/main/patches/index.json"
   ];
 
   let lastError: Error | null = null;
@@ -4809,7 +4920,7 @@ async function fetchWorkshopItems(): Promise<void> {
       const listUrl = new URL(apiBase);
       listUrl.searchParams.set("t", String(Date.now())); // 追加随机时间戳，彻底击穿 WebView/CDN 本地缓存
 
-      const resp = await fetch(listUrl);
+      const resp = await fetch(listUrl, { cache: "no-store" });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       if (Array.isArray(data)) {
@@ -4832,6 +4943,7 @@ async function fetchWorkshopItems(): Promise<void> {
       ...item,
       imageUrl: normalizeWorkshopImageUrl(item),
     }));
+    state.workshopPage = 1;
 
     setStatus(els.workshopStatus, `共 ${state.workshopItems.length} 个动作扩展包。`);
     renderWorkshop();

@@ -78,18 +78,19 @@
 
       <section id="mine-view" class="view active">
 
-        <div class="toolbar">
-          <input id="mine-search-input" type="search" placeholder="搜索本地桌宠名称" />
-          <button id="import-local-pet" class="primary-button" type="button">本地导入</button>
-        </div>
-        <div class="tags-section mine-tags-section">
-          <div id="mine-tags-list" class="tags-tabs">
-            <button class="tag-tab active" data-tag="all" type="button">全部</button>
-            <button class="tag-tab" data-tag="favorite" type="button">已收藏</button>
+        <div class="view-sticky-controls">
+          <div class="toolbar">
+            <input id="mine-search-input" type="search" placeholder="搜索本地桌宠名称" />
+            <button id="import-local-pet" class="primary-button" type="button">本地导入</button>
           </div>
-          <div class="tags-actions" aria-label="分组操作">
-            <button id="add-tag-btn" class="tag-action-button" type="button" aria-label="新建分组" title="新建分组">
-              <svg class="icon-fill" viewBox="0 0 1024 1024" aria-hidden="true">
+          <div class="tags-section mine-tags-section">
+            <div id="mine-tags-list" class="tags-tabs">
+              <button class="tag-tab active" data-tag="all" type="button">全部</button>
+              <button class="tag-tab" data-tag="favorite" type="button">已收藏</button>
+            </div>
+            <div class="tags-actions" aria-label="分组操作">
+              <button id="add-tag-btn" class="tag-action-button" type="button" aria-label="新建分组" title="新建分组">
+                <svg class="icon-fill" viewBox="0 0 1024 1024" aria-hidden="true">
                 <path
                   d="M512 0C228.894118 0 0 228.894118 0 512S228.894118 1024 512 1024 1024 795.105882 1024 512 795.105882 0 512 0z m0 963.764706C265.035294 963.764706 60.235294 758.964706 60.235294 512S265.035294 60.235294 512 60.235294 963.764706 265.035294 963.764706 512 758.964706 963.764706 512 963.764706z">
                 </path>
@@ -114,10 +115,11 @@
                 </path>
               </svg>
               <span class="tag-action-count" aria-hidden="true"></span>
-            </button>
+              </button>
+            </div>
           </div>
+          <p id="mine-status" class="status"></p>
         </div>
-        <p id="mine-status" class="status"></p>
         <div id="my-pets-list" class="pet-table"></div>
         <div id="mine-pagination" class="pagination"></div>
       </section>
@@ -224,59 +226,66 @@
       </section>
 
       <section id="recall-view" class="view">
-        <div class="panel-head">
-          <div>
-            <p class="path-text">管理当前桌面上已经存在的宠物实例。</p>
+        <div class="view-sticky-controls">
+          <div class="panel-head">
+            <div>
+              <p class="path-text">管理当前桌面上已经存在的宠物实例。</p>
+            </div>
+            <div class="row-actions">
+              <button id="recall-selected-pets" class="danger-button" type="button">一键召回</button>
+              <button id="refresh-active-pets" class="ghost-button" type="button">刷新</button>
+            </div>
           </div>
-          <div class="row-actions">
-            <button id="recall-selected-pets" class="danger-button" type="button">一键召回</button>
-            <button id="refresh-active-pets" class="ghost-button" type="button">刷新</button>
-          </div>
+          <p id="active-pets-status" class="status"></p>
         </div>
-        <p id="active-pets-status" class="status"></p>
         <div id="active-pets-list" class="pet-table compact"></div>
       </section>
 
       <section id="market-view" class="view">
-        <div class="toolbar">
-          <input id="search-input" type="search" placeholder="搜索宠物名称" />
-          <div class="segmented">
-            <button class="sort active" data-sort="hot" type="button">热门</button>
-            <button class="sort" data-sort="latest" type="button">最新</button>
-            <button class="sort" data-sort="downloads" type="button">下载</button>
+        <div class="view-sticky-controls">
+          <div class="toolbar">
+            <input id="search-input" type="search" placeholder="搜索宠物名称" />
+            <div class="segmented">
+              <button class="sort active" data-sort="hot" type="button">热门</button>
+              <button class="sort" data-sort="latest" type="button">最新</button>
+              <button class="sort" data-sort="downloads" type="button">下载</button>
+            </div>
           </div>
-        </div>
-        <div class="market-meta">
-          <p id="market-status" class="status"></p>
-          <a id="market-home-link" class="market-home-link" href="https://codex.lingopet.xyz/?style=cartoon"
-            target="_blank" rel="noreferrer">宠物画廊</a>
+          <div class="market-meta">
+            <p id="market-status" class="status"></p>
+            <a id="market-home-link" class="market-home-link" href="https://codex.lingopet.xyz/?style=cartoon"
+              target="_blank" rel="noreferrer">宠物画廊</a>
+          </div>
         </div>
         <div id="market-grid" class="pet-table"></div>
         <div id="market-pagination" class="pagination"></div>
       </section>
 
       <section id="workshop-view" class="view">
-        <div class="toolbar">
-          <input id="workshop-search-input" type="search" placeholder="搜索动作名称或作者" />
-          <select id="workshop-action-filter">
-            <option value="all">全部模式</option>
-            <option value="focus">专注模式</option>
-            <option value="music">音乐律动</option>
-            <option value="merit">功德模式</option>
-          </select>
-        </div>
-        <div class="tags-section">
-          <div id="workshop-tags-list" class="tags-tabs">
-            <button class="tag-tab active" data-tag="all" type="button">全部动作</button>
-            <button class="tag-tab" data-tag="downloaded" type="button">已下载桌宠的扩展包</button>
+        <div class="workshop-sticky-controls">
+          <div class="workshop-local-topbar">
+            <h2>创意工坊</h2>
+            <p>下载并一键套用社区精选的功德、专注及律动扩展动作。</p>
+          </div>
+          <div class="toolbar">
+            <input id="workshop-search-input" type="search" placeholder="搜索动作名称或作者" />
+            <select id="workshop-action-filter">
+              <option value="all">全部模式</option>
+              <option value="focus">专注模式</option>
+              <option value="music">音乐律动</option>
+              <option value="merit">功德模式</option>
+            </select>
+          </div>
+          <div class="tags-section">
+            <div id="workshop-tags-list" class="tags-tabs">
+              <button class="tag-tab active" data-tag="all" type="button">全部动作</button>
+              <button class="tag-tab" data-tag="downloaded" type="button">已下载桌宠的扩展包</button>
+            </div>
+            <p id="workshop-status" class="status"></p>
           </div>
         </div>
-        <div class="market-meta">
-          <p id="workshop-status" class="status"></p>
-          <span class="path-text"
-            style="color: rgba(44, 30, 21, 0.7); font-size: 13px;">社区精选扩展动作补丁，点击“一键套用”直接无缝集成到你的桌宠上。</span>
-        </div>
         <div id="workshop-grid" class="pet-table"></div>
+        <div id="workshop-pagination" class="pagination"></div>
       </section>
 
       <section id="settings-view" class="view">
