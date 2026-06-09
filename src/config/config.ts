@@ -40,6 +40,7 @@ interface WorkshopItem {
   framesCount: number;
   frameDuration: number;
   imageUrl: string;
+  metaPath?: string;
 }
 
 type ModeActionKey = "focus" | "music" | "merit";
@@ -57,9 +58,11 @@ interface FrameAnimation {
 }
 
 const WORKSHOP_SHARE_API = "https://api.lingopet.xyz/api/share";
+const WORKSHOP_RAW_BASE = "https://raw.githubusercontent.com/dev-zyl/LingoPet-workshop/main/";
 const EMPTY_PETS_IMAGE = new URL("./empty-pets.png", import.meta.url).href;
 
 const LS_PET_ASSETS_VERSION = "pet_assets_version";
+const DEEP_LINK_ACTION_IMPORT_EVENT = "lingopet-action-import";
 
 const ATLAS_COLS = 8;
 const ATLAS_CELL_WIDTH = 192;
@@ -191,6 +194,17 @@ interface DeepLinkInstallResult {
   displayName?: string;
   message: string;
   source?: string;
+}
+
+interface DeepLinkActionImportResult {
+  manifestUrl: string;
+  source?: string;
+}
+
+interface WorkshopImportManifest {
+  schemaVersion?: number;
+  createdTime?: string;
+  items?: WorkshopItem[];
 }
 
 type ViewName = "mine" | "recall" | "market" | "settings" | "editor" | "workshop";
@@ -1368,7 +1382,7 @@ function allowMultiplePets(): boolean {
 }
 
 function petNameById(petId: string): string {
-  return state.projectPets.find((pet) => pet.id === petId)?.displayName || petId;
+  return projectPetById(petId)?.displayName || petId;
 }
 
 function currentPrimaryPetId(): string {
@@ -1960,6 +1974,173 @@ function setupDeepLinkInstallListener(): void {
   void listen<DeepLinkInstallResult>(DEEP_LINK_INSTALL_EVENT, (event) => {
     void handleDeepLinkInstallResult(event.payload);
   });
+  void listen<DeepLinkActionImportResult>(DEEP_LINK_ACTION_IMPORT_EVENT, (event) => {
+    void handleDeepLinkActionImportResult(event.payload);
+  });
+}
+
+const ACTION_IMPORT_ALLOWED_HOSTS = new Set([
+  "fastly.jsdelivr.net",
+  "cdn.jsdelivr.net",
+  "raw.githubusercontent.com",
+  "raw.gitmirror.com",
+]);
+const ACTION_IMPORT_LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
+
+function actionTypeLabel(actionType: string): string {
+  if (actionType === "focus") return "专注模式";
+  if (actionType === "music") return "音乐律动";
+  if (actionType === "merit") return "功德模式";
+  return actionType;
+}
+
+function isAllowedActionImportManifestUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    const isTrustedRemote = url.protocol === "https:" && ACTION_IMPORT_ALLOWED_HOSTS.has(url.hostname);
+    const isDevLocal = import.meta.env.DEV && url.protocol === "http:" && ACTION_IMPORT_LOCAL_HOSTS.has(url.hostname);
+    return (isTrustedRemote || isDevLocal) && url.pathname.includes("/handoffs/");
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedActionImportImageUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    return url.protocol === "https:" || (import.meta.env.DEV && url.protocol === "http:" && ACTION_IMPORT_LOCAL_HOSTS.has(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
+function workshopImageUrlFromMetaPath(metaPath: string): string {
+  return `${WORKSHOP_RAW_BASE}${metaPath.replace(/\.json$/i, ".webp")}`;
+}
+
+function normalizeWorkshopImageUrl(item: Partial<WorkshopItem>): string {
+  const metaPath = String(item.metaPath || "");
+  if (metaPath.startsWith("patches/")) {
+    return workshopImageUrlFromMetaPath(metaPath);
+  }
+
+  const imageUrl = String(item.imageUrl || "");
+  return imageUrl
+    .replace("https://raw.gitmirror.com/ZhangYiLong416/vibepet-workshop/main/", WORKSHOP_RAW_BASE)
+    .replace("https://raw.githubusercontent.com/ZhangYiLong416/vibepet-workshop/main/", WORKSHOP_RAW_BASE)
+    .replace("https://raw.gitmirror.com/dev-zyl/LingoPet-workshop/main/", WORKSHOP_RAW_BASE);
+}
+
+function normalizeWorkshopImportItem(item: any, index: number): WorkshopItem {
+  const petId = String(item?.petId || "").trim().toLowerCase();
+  const actionType = String(item?.actionType || "").trim();
+  const title = String(item?.title || "").trim();
+  const author = String(item?.author || "anonymous").trim() || "anonymous";
+  const promptUsed = String(item?.promptUsed || "");
+  const imageUrl = normalizeWorkshopImageUrl(item);
+  const framesCount = Number(item?.framesCount);
+  const frameDuration = Number(item?.frameDuration || 120);
+
+  if (!petId) throw new Error(`第 ${index + 1} 条动作缺少 petId。`);
+  if (!["focus", "music", "merit"].includes(actionType)) throw new Error(`第 ${index + 1} 条动作类型无效。`);
+  if (!title) throw new Error(`第 ${index + 1} 条动作缺少标题。`);
+  if (![4, 8].includes(framesCount)) throw new Error(`第 ${index + 1} 条动作帧数必须为 4 或 8。`);
+  if (!Number.isFinite(frameDuration) || frameDuration <= 0 || frameDuration > 2000) throw new Error(`第 ${index + 1} 条动作帧时长无效。`);
+  if (!isAllowedActionImportImageUrl(imageUrl)) {
+    throw new Error(`第 ${index + 1} 条动作图片地址无效。`);
+  }
+
+  return { petId, actionType, title, author, promptUsed, framesCount, frameDuration, imageUrl, metaPath: item?.metaPath };
+}
+
+async function fetchActionImportManifest(manifestUrl: string): Promise<WorkshopItem[]> {
+  if (!isAllowedActionImportManifestUrl(manifestUrl)) {
+    throw new Error("动作导入清单来源不受信任。");
+  }
+  const response = await fetch(manifestUrl, { cache: "no-store" });
+  if (!response.ok) throw new Error(`读取动作导入清单失败：HTTP ${response.status}`);
+  const manifest = await response.json() as WorkshopImportManifest;
+  if (!Array.isArray(manifest.items)) throw new Error("动作导入清单格式无效。");
+  return manifest.items.map(normalizeWorkshopImportItem);
+}
+
+async function handleDeepLinkActionImportResult(result: DeepLinkActionImportResult): Promise<void> {
+  try {
+    setStatus(els.mineStatus, "正在读取从 Sprite Studio 发布的动作清单...");
+    await loadProjectPets();
+    const items = await fetchActionImportManifest(result.manifestUrl);
+    if (items.length === 0) {
+      setStatus(els.mineStatus, "动作清单为空。", true);
+      return;
+    }
+
+    const importable: Array<{ item: WorkshopItem; pet: ProjectPet; overwrite: boolean }> = [];
+    const missing: WorkshopItem[] = [];
+    for (const item of items) {
+      const pet = projectPetById(item.petId);
+      if (!pet || pet.builtin) {
+        missing.push(item);
+        continue;
+      }
+      importable.push({
+        item,
+        pet,
+        overwrite: Boolean(pet.animations?.[item.actionType]),
+      });
+    }
+
+    const summary = [
+      `即将从 Sprite Studio 导入 ${importable.length} 个已发布动作到本地桌宠。`,
+      "",
+      ...importable.slice(0, 12).map(({ item, pet, overwrite }) => `- ${pet.displayName} / ${actionTypeLabel(item.actionType)}${overwrite ? "（覆盖已有动作）" : "（追加动作行）"}`),
+      importable.length > 12 ? `- 其余 ${importable.length - 12} 个动作...` : "",
+      missing.length ? "" : "",
+      missing.length ? `将跳过 ${missing.length} 个本地未安装或不可写的目标宠物。` : "",
+      "",
+      "是否继续写入本地桌宠？",
+    ].filter(Boolean).join("\n");
+
+    if (importable.length === 0) {
+      window.alert(`没有可导入的本地目标桌宠。\n\n${missing.map((item) => `${item.petId} / ${actionTypeLabel(item.actionType)}`).join("\n")}`);
+      setStatus(els.mineStatus, "未找到可导入的本地目标桌宠。", true);
+      return;
+    }
+    if (!window.confirm(summary)) {
+      setStatus(els.mineStatus, "已取消 Sprite Studio 动作导入。");
+      return;
+    }
+
+    setView("mine");
+    let successCount = 0;
+    const failures: string[] = [];
+    for (const { item, pet } of importable) {
+      try {
+        const latestPet = projectPetById(item.petId) || pet;
+        await applyCommunityActionToPet(item, latestPet, { quiet: true, statusEl: els.mineStatus });
+        successCount += 1;
+      } catch (error) {
+        failures.push(`${pet.displayName} / ${actionTypeLabel(item.actionType)}：${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    await loadProjectPets();
+    const skippedText = missing.length ? `，跳过 ${missing.length} 个未安装目标` : "";
+    if (failures.length) {
+      window.alert(`已导入 ${successCount} 个动作${skippedText}，但有 ${failures.length} 个失败：\n\n${failures.slice(0, 8).join("\n")}`);
+      setStatus(els.mineStatus, `Sprite Studio 动作导入完成：成功 ${successCount} 个，失败 ${failures.length} 个${skippedText}。`, failures.length > 0);
+    } else {
+      showWorkshopSuccessDialog(
+        "动作已发布并写入本地",
+        `已成功导入 ${successCount} 个 Sprite Studio 动作。`,
+        `对应动作已经在创意工坊发布，并写入本地桌宠${skippedText}。`
+      );
+      setStatus(els.mineStatus, `Sprite Studio 动作导入完成：成功 ${successCount} 个${skippedText}。`);
+    }
+  } catch (err) {
+    console.error(err);
+    window.alert(`Sprite Studio 动作导入失败：${err instanceof Error ? err.message : String(err)}`);
+    setStatus(els.mineStatus, `Sprite Studio 动作导入失败：${err instanceof Error ? err.message : String(err)}`, true);
+  }
 }
 
 async function loadActivePets(): Promise<void> {
@@ -4535,8 +4716,9 @@ async function choosePetToApply(item: WorkshopItem): Promise<void> {
   searchInput.focus();
 }
 
-async function applyCommunityActionToPet(item: WorkshopItem, pet: ProjectPet): Promise<void> {
-  setStatus(els.workshopStatus, `正在为 ${pet.displayName} 下载并写入「${item.title}」动作...`);
+async function applyCommunityActionToPet(item: WorkshopItem, pet: ProjectPet, options: { quiet?: boolean; statusEl?: HTMLElement } = {}): Promise<void> {
+  const statusEl = options.statusEl || els.workshopStatus;
+  setStatus(statusEl, `正在为 ${pet.displayName} 下载并写入「${item.title}」动作...`);
   try {
     const image = await loadImageElement(item.imageUrl);
     const origImage = await loadSpritesheetImage(pet);
@@ -4591,16 +4773,20 @@ async function applyCommunityActionToPet(item: WorkshopItem, pet: ProjectPet): P
       void openSpriteEditor(updatedPet);
     }
 
-    showWorkshopSuccessDialog(
-      "动作套用成功",
-      `「${item.title}」已集成到「${pet.displayName}」。`,
-      "召唤这只桌宠后，它会在对应模式下自动播放新动作。"
-    );
-    setStatus(els.workshopStatus, `成功将「${item.title}」动作套用到 ${pet.displayName}！`);
+    if (!options.quiet) {
+      showWorkshopSuccessDialog(
+        "动作套用成功",
+        `「${item.title}」已集成到「${pet.displayName}」。`,
+        "召唤这只桌宠后，它会在对应模式下自动播放新动作。"
+      );
+    }
+    setStatus(statusEl, `成功将「${item.title}」动作套用到 ${pet.displayName}！`);
   } catch (err) {
     console.error(err);
-    window.alert(`套用动作失败：${err instanceof Error ? err.message : String(err)}`);
-    setStatus(els.workshopStatus, `套用动作失败：${err instanceof Error ? err.message : String(err)}`, true);
+    const message = `套用动作失败：${err instanceof Error ? err.message : String(err)}`;
+    setStatus(statusEl, message, true);
+    if (options.quiet) throw err;
+    window.alert(message);
   }
 }
 
@@ -4642,12 +4828,10 @@ async function fetchWorkshopItems(): Promise<void> {
     // 【殿堂级源头数据清洗与防白板网络拦截】
     // 将所有 item.imageUrl 中的 raw.githubusercontent.com 无缝转化为极速稳定的 GitMirror 加速域名！
     // 彻底防范和消除了接下来在渲染动图预览和执行“一键套用”网络下载 WebP 时因直连 GitHub 发生 Failed to fetch 的惨剧！
-    state.workshopItems = successData.map((item: any) => {
-      if (item && item.imageUrl && typeof item.imageUrl === "string") {
-        item.imageUrl = item.imageUrl.replace("https://raw.githubusercontent.com/", "https://raw.gitmirror.com/");
-      }
-      return item;
-    });
+    state.workshopItems = successData.map((item: any) => ({
+      ...item,
+      imageUrl: normalizeWorkshopImageUrl(item),
+    }));
 
     setStatus(els.workshopStatus, `共 ${state.workshopItems.length} 个动作扩展包。`);
     renderWorkshop();

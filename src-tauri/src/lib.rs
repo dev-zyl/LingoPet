@@ -30,6 +30,7 @@ const API_KEY_SERVICE: &str = "LingoPet";
 const API_KEY_ACCOUNT: &str = "pet_api_key";
 const CODEXPET_API_BASE: &str = "https://codexpet.xyz";
 const DEEP_LINK_INSTALL_EVENT: &str = "lingopet-install-result";
+const DEEP_LINK_ACTION_IMPORT_EVENT: &str = "lingopet-action-import";
 #[cfg(windows)]
 const RPC_E_CHANGED_MODE: HRESULT = HRESULT(0x80010106u32 as i32);
 #[cfg(windows)]
@@ -92,6 +93,13 @@ struct DeepLinkInstallEvent {
     source: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct DeepLinkActionImportEvent {
+    #[serde(rename = "manifestUrl")]
+    manifest_url: String,
+    source: Option<String>,
+}
+
 fn parse_install_deep_link(raw_url: &str) -> Result<Option<DeepLinkInstallRequest>, String> {
     let url = reqwest::Url::parse(raw_url).map_err(|e| format!("Invalid deep link URL: {e}"))?;
     if url.scheme() != "lingopet" {
@@ -136,6 +144,56 @@ fn parse_install_deep_link(raw_url: &str) -> Result<Option<DeepLinkInstallReques
     }))
 }
 
+fn parse_action_import_deep_link(raw_url: &str) -> Result<Option<DeepLinkActionImportEvent>, String> {
+    let url = reqwest::Url::parse(raw_url).map_err(|e| format!("Invalid deep link URL: {e}"))?;
+    if url.scheme() != "lingopet" {
+        return Ok(None);
+    }
+
+    let action = url
+        .host_str()
+        .filter(|host| !host.is_empty())
+        .or_else(|| url.path().trim_start_matches('/').split('/').next())
+        .unwrap_or("");
+    if action != "import-actions" {
+        return Ok(None);
+    }
+
+    let mut manifest_url = None;
+    let mut source = None;
+    for (key, value) in url.query_pairs() {
+        match key.as_ref() {
+            "url" | "manifestUrl" => manifest_url = Some(value.to_string()),
+            "source" => source = Some(value.to_string()),
+            _ => {}
+        }
+    }
+
+    let manifest_url = manifest_url.ok_or_else(|| "Action import link is missing url".to_string())?;
+    let parsed_manifest_url = reqwest::Url::parse(&manifest_url)
+        .map_err(|e| format!("Invalid action import manifest URL: {e}"))?;
+    if parsed_manifest_url.scheme() != "https"
+        && !is_dev_local_action_import_url(&parsed_manifest_url)
+    {
+        return Err("Action import manifest URL must use https".to_string());
+    }
+
+    Ok(Some(DeepLinkActionImportEvent {
+        manifest_url,
+        source,
+    }))
+}
+
+fn is_dev_local_action_import_url(url: &reqwest::Url) -> bool {
+    if !cfg!(debug_assertions) || url.scheme() != "http" {
+        return false;
+    }
+    matches!(
+        url.host_str(),
+        Some("127.0.0.1") | Some("localhost") | Some("::1")
+    )
+}
+
 fn sanitize_deep_link_slug(slug: &str) -> Result<String, String> {
     let cleaned: String = slug
         .chars()
@@ -152,6 +210,34 @@ fn emit_deep_link_install_event(app: &tauri::AppHandle, event: DeepLinkInstallEv
     if let Err(error) = app.emit(DEEP_LINK_INSTALL_EVENT, event) {
         log::warn!("Failed to emit deep link install event: {error}");
     }
+}
+
+fn emit_action_import_event(app: &tauri::AppHandle, event: DeepLinkActionImportEvent) {
+    if let Err(error) = app.emit(DEEP_LINK_ACTION_IMPORT_EVENT, event) {
+        log::warn!("Failed to emit action import event: {error}");
+    }
+}
+
+fn handle_action_import_deep_link(app: tauri::AppHandle, raw_url: String) -> bool {
+    let event = match parse_action_import_deep_link(&raw_url) {
+        Ok(Some(event)) => event,
+        Ok(None) => return false,
+        Err(error) => {
+            log::warn!("Ignoring invalid LingoPet action import deep link: {error}");
+            return true;
+        }
+    };
+
+    let app_for_window = app.clone();
+    if let Err(error) = open_manager_window(app_for_window) {
+        log::warn!("Failed to open manager window for action import deep link: {error}");
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = tauri::async_runtime::spawn_blocking(|| thread::sleep(Duration::from_millis(700))).await;
+        emit_action_import_event(&app, event);
+    });
+    true
 }
 
 fn handle_install_deep_link(app: tauri::AppHandle, raw_url: String) {
@@ -226,18 +312,25 @@ fn handle_install_deep_link(app: tauri::AppHandle, raw_url: String) {
     });
 }
 
+fn handle_deep_link_url(app: tauri::AppHandle, raw_url: String) {
+    if handle_action_import_deep_link(app.clone(), raw_url.clone()) {
+        return;
+    }
+    handle_install_deep_link(app, raw_url);
+}
+
 fn setup_deep_link_install_handler(app: &tauri::App) {
     let app_handle = app.handle().clone();
     app.deep_link().on_open_url(move |event| {
         for url in event.urls() {
-            handle_install_deep_link(app_handle.clone(), url.to_string());
+            handle_deep_link_url(app_handle.clone(), url.to_string());
         }
     });
 
     match app.deep_link().get_current() {
         Ok(Some(urls)) => {
             for url in urls {
-                handle_install_deep_link(app.handle().clone(), url.to_string());
+                handle_deep_link_url(app.handle().clone(), url.to_string());
             }
         }
         Ok(None) => {}

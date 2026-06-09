@@ -12,6 +12,263 @@
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
+const GITHUB_API_BASE = 'https://api.github.com';
+const ALLOWED_ACTION_TYPES = new Set(['focus', 'music', 'merit']);
+const MAX_BATCH_ITEMS = 50;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const WORKSHOP_INDEX_PATH = 'patches/index.json';
+
+class ShareValidationError extends Error {}
+
+interface ShareItemInput {
+  petId: string;
+  actionType: 'focus' | 'music' | 'merit';
+  title: string;
+  author?: string;
+  promptUsed?: string;
+  framesCount?: number;
+  frameDuration?: number;
+  imageBufferBase64: string;
+}
+
+interface WorkshopMetadata {
+  title: string;
+  author: string;
+  petId: string;
+  actionType: string;
+  status: 'published' | 'import-only';
+  framesCount: number;
+  frameDuration: number;
+  promptUsed: string;
+  imageUrl: string;
+  createdTime: string;
+  metaPath: string;
+}
+
+interface GithubFileContent {
+  content: Buffer;
+  sha: string;
+}
+
+function sanitizePathSegment(value: string, fallback: string): string {
+  const cleaned = value
+    .trim()
+    .replace(/\.[^.]+$/, '')
+    .replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5]/g, '')
+    .substring(0, 48);
+  return cleaned || fallback;
+}
+
+function normalizeShareItems(body: any): { items: ShareItemInput[]; createImportManifest: boolean; publishToWorkshop: boolean; legacy: boolean } {
+  if (Array.isArray(body?.items)) {
+    return {
+      items: body.items,
+      createImportManifest: body.createImportManifest === true,
+      publishToWorkshop: body.publishToWorkshop !== false,
+      legacy: false,
+    };
+  }
+
+  return {
+    items: [{
+      petId: body?.petId,
+      actionType: body?.actionType,
+      title: body?.title,
+      author: body?.author,
+      promptUsed: body?.promptUsed,
+      framesCount: body?.framesCount,
+      frameDuration: body?.frameDuration,
+      imageBufferBase64: body?.imageBufferBase64,
+    }],
+    createImportManifest: false,
+    publishToWorkshop: true,
+    legacy: true,
+  };
+}
+
+function readUint24LE(buffer: Buffer, offset: number): number {
+  return buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16);
+}
+
+function readWebpDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length < 30 || buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') {
+    return null;
+  }
+
+  const chunkType = buffer.toString('ascii', 12, 16);
+  if (chunkType === 'VP8X') {
+    return {
+      width: readUint24LE(buffer, 24) + 1,
+      height: readUint24LE(buffer, 27) + 1,
+    };
+  }
+  if (chunkType === 'VP8L' && buffer[20] === 0x2f) {
+    const b1 = buffer[21];
+    const b2 = buffer[22];
+    const b3 = buffer[23];
+    const b4 = buffer[24];
+    return {
+      width: 1 + (((b2 & 0x3f) << 8) | b1),
+      height: 1 + (((b4 & 0x0f) << 10) | (b3 << 2) | (b2 >> 6)),
+    };
+  }
+  if (chunkType === 'VP8 ' && buffer[23] === 0x9d && buffer[24] === 0x01 && buffer[25] === 0x2a) {
+    return {
+      width: buffer.readUInt16LE(26) & 0x3fff,
+      height: buffer.readUInt16LE(28) & 0x3fff,
+    };
+  }
+  return null;
+}
+
+function validateShareItem(item: ShareItemInput, index: number): Required<ShareItemInput> {
+  const petId = sanitizePathSegment(String(item.petId || ''), '').toLowerCase();
+  const actionType = String(item.actionType || '') as ShareItemInput['actionType'];
+  const title = String(item.title || '').trim();
+  const author = String(item.author || 'anonymous').trim() || 'anonymous';
+  const promptUsed = String(item.promptUsed || '');
+  const framesCount = Number(item.framesCount || 8);
+  const frameDuration = Number(item.frameDuration || 120);
+  const imageBufferBase64 = String(item.imageBufferBase64 || '').trim();
+
+  if (!petId) {
+    throw new ShareValidationError(`Item ${index + 1}: invalid petId`);
+  }
+  if (!ALLOWED_ACTION_TYPES.has(actionType)) {
+    throw new ShareValidationError(`Item ${index + 1}: invalid actionType`);
+  }
+  if (!title) {
+    throw new ShareValidationError(`Item ${index + 1}: title is required`);
+  }
+  if (!Number.isInteger(framesCount) || ![4, 8].includes(framesCount)) {
+    throw new ShareValidationError(`Item ${index + 1}: framesCount must be 4 or 8`);
+  }
+  if (!Number.isFinite(frameDuration) || frameDuration <= 0 || frameDuration > 2000) {
+    throw new ShareValidationError(`Item ${index + 1}: frameDuration must be between 1 and 2000`);
+  }
+  if (!imageBufferBase64) {
+    throw new ShareValidationError(`Item ${index + 1}: imageBufferBase64 is required`);
+  }
+
+  const imageBuffer = Buffer.from(imageBufferBase64, 'base64');
+  if (imageBuffer.length === 0 || imageBuffer.length > MAX_IMAGE_BYTES) {
+    throw new ShareValidationError(`Item ${index + 1}: image is empty or too large`);
+  }
+  const dimensions = readWebpDimensions(imageBuffer);
+  if (!dimensions || dimensions.width !== framesCount * 192 || dimensions.height !== 208) {
+    throw new ShareValidationError(`Item ${index + 1}: WebP dimensions must be ${framesCount * 192}x208`);
+  }
+
+  return {
+    petId,
+    actionType,
+    title,
+    author,
+    promptUsed,
+    framesCount,
+    frameDuration,
+    imageBufferBase64,
+  };
+}
+
+async function getGithubFile(
+  owner: string,
+  repo: string,
+  token: string,
+  path: string,
+): Promise<GithubFileContent | null> {
+  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${path}`;
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'User-Agent': 'VibePet-Serverless-Proxy'
+    }
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Failed to read ${path}: ${errText}`);
+  }
+
+  const data = await response.json();
+  return {
+    content: Buffer.from(String(data.content || ''), 'base64'),
+    sha: String(data.sha || ''),
+  };
+}
+
+async function uploadGithubFile(
+  owner: string,
+  repo: string,
+  token: string,
+  path: string,
+  content: Buffer,
+  message: string,
+  sha?: string,
+): Promise<void> {
+  const uploadUrl = `${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${path}`;
+  const response = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'VibePet-Serverless-Proxy'
+    },
+    body: JSON.stringify({
+      message,
+      content: content.toString('base64'),
+      ...(sha ? { sha } : {}),
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Failed to upload ${path}: ${errText}`);
+  }
+}
+
+async function updateWorkshopIndex(
+  owner: string,
+  repo: string,
+  token: string,
+  newItems: WorkshopMetadata[],
+): Promise<void> {
+  const existingFile = await getGithubFile(owner, repo, token, WORKSHOP_INDEX_PATH);
+  let existingItems: WorkshopMetadata[] = [];
+
+  if (existingFile) {
+    try {
+      const parsed = JSON.parse(existingFile.content.toString('utf8'));
+      if (Array.isArray(parsed)) {
+        existingItems = parsed;
+      }
+    } catch {
+      existingItems = [];
+    }
+  }
+
+  const newMetaPaths = new Set(newItems.map((item) => item.metaPath));
+  const merged = [
+    ...newItems,
+    ...existingItems.filter((item) => !newMetaPaths.has(String(item?.metaPath || ''))),
+  ];
+
+  merged.sort((a, b) => new Date(b.createdTime || 0).getTime() - new Date(a.createdTime || 0).getTime());
+
+  await uploadGithubFile(
+    owner,
+    repo,
+    token,
+    WORKSHOP_INDEX_PATH,
+    Buffer.from(JSON.stringify(merged, null, 2)),
+    `Update workshop index: ${newItems.length} item${newItems.length === 1 ? '' : 's'}`,
+    existingFile?.sha,
+  );
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 开启跨域响应头，允许 Tauri 客户端请求
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -38,100 +295,109 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const {
-      petId,
-      actionType,
-      title,
-      author,
-      promptUsed,
-      framesCount,
-      frameDuration,
-      imageBufferBase64 // 用户导出的横版 WebP 精灵图 Base64 字符串
-    } = req.body;
-
-    // 参数校验
-    if (!petId || !actionType || !title || !imageBufferBase64) {
-      return res.status(400).json({ error: 'Missing required parameters' });
+    const normalized = normalizeShareItems(req.body);
+    if (normalized.items.length === 0 || normalized.items.length > MAX_BATCH_ITEMS) {
+      return res.status(400).json({ error: `items must contain 1-${MAX_BATCH_ITEMS} entries` });
     }
 
-    // 格式化标识名
     const timestamp = Date.now();
-    const cleanAuthor = (author || 'anonymous').replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '').substring(0, 16);
-    const fileNamePrefix = `${cleanAuthor}_${timestamp}`;
+    const createdTime = new Date(timestamp).toISOString();
+    const publishedItems: WorkshopMetadata[] = [];
+    const manifestId = `${timestamp}_${Math.random().toString(36).slice(2, 10)}`;
 
-    // 动作图片和元数据配置在仓库里的存储相对路径
-    const imagePath = `patches/${petId}/${actionType}/${fileNamePrefix}.webp`;
-    const jsonPath = `patches/${petId}/${actionType}/${fileNamePrefix}.json`;
+    for (let i = 0; i < normalized.items.length; i++) {
+      const item = validateShareItem(normalized.items[i], i);
+      const cleanAuthor = sanitizePathSegment(item.author, 'anonymous').substring(0, 16);
+      const fileNamePrefix = `${cleanAuthor}_${timestamp}_${String(i + 1).padStart(2, '0')}`;
+      const imagePath = normalized.publishToWorkshop
+        ? `patches/${item.petId}/${item.actionType}/${fileNamePrefix}.webp`
+        : `handoffs/${manifestId}/${fileNamePrefix}.webp`;
+      const jsonPath = normalized.publishToWorkshop
+        ? `patches/${item.petId}/${item.actionType}/${fileNamePrefix}.json`
+        : '';
+      const imageUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/${imagePath}`;
 
-    // 构造将要保存在 CDN 上的图片绝对链接 (jsDelivr CDN)
-    const imageUrl = `https://fastly.jsdelivr.net/gh/${owner}/${repo}@main/${imagePath}`;
+      const metadata: WorkshopMetadata = {
+        title: item.title,
+        author: cleanAuthor,
+        petId: item.petId,
+        actionType: item.actionType,
+        status: normalized.publishToWorkshop ? 'published' : 'import-only',
+        framesCount: item.framesCount,
+        frameDuration: item.frameDuration,
+        promptUsed: item.promptUsed,
+        imageUrl,
+        createdTime,
+        metaPath: jsonPath,
+      };
 
-    const metadata = {
-      title,
-      author: cleanAuthor,
-      petId,
-      actionType,
-      status: 'published',
-      framesCount: Number(framesCount || 8),
-      frameDuration: Number(frameDuration || 120),
-      promptUsed: promptUsed || '',
-      imageUrl,
-      createdTime: new Date().toISOString()
-    };
+      await uploadGithubFile(
+        owner,
+        repo,
+        token,
+        imagePath,
+        Buffer.from(item.imageBufferBase64, 'base64'),
+        `Add workshop image: ${imagePath}`,
+      );
+      if (normalized.publishToWorkshop) {
+        await uploadGithubFile(
+          owner,
+          repo,
+          token,
+          jsonPath,
+          Buffer.from(JSON.stringify(metadata, null, 2)),
+          `Add workshop metadata: ${jsonPath}`,
+        );
+      }
 
-    // 将图片 Base64 转换成 Buffer 字节
-    const imageBuffer = Buffer.from(imageBufferBase64, 'base64');
-    const jsonContent = JSON.stringify(metadata, null, 2);
-
-    // 1. 上传图片文件到 GitHub
-    const imageUploadUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${imagePath}`;
-    const imageUploadRes = await fetch(imageUploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'VibePet-Serverless-Proxy'
-      },
-      body: JSON.stringify({
-        message: `Add workshop image: ${imagePath}`,
-        content: imageBuffer.toString('base64')
-      })
-    });
-
-    if (!imageUploadRes.ok) {
-      const errText = await imageUploadRes.text();
-      return res.status(502).json({ error: 'Failed to upload image to GitHub', details: errText });
+      publishedItems.push(metadata);
     }
 
-    // 2. 上传 JSON 配置文件到 GitHub
-    const jsonUploadUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${jsonPath}`;
-    const jsonUploadRes = await fetch(jsonUploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'VibePet-Serverless-Proxy'
-      },
-      body: JSON.stringify({
-        message: `Add workshop metadata: ${jsonPath}`,
-        content: Buffer.from(jsonContent).toString('base64')
-      })
-    });
-
-    if (!jsonUploadRes.ok) {
-      const errText = await jsonUploadRes.text();
-      return res.status(502).json({ error: 'Failed to upload metadata to GitHub', details: errText });
+    if (normalized.publishToWorkshop && publishedItems.length > 0) {
+      await updateWorkshopIndex(owner, repo, token, publishedItems);
     }
 
-    // 返回成功信息
+    let importManifestUrl: string | undefined;
+    let openAppUrl: string | undefined;
+    if (normalized.createImportManifest) {
+      const manifestPath = `handoffs/${manifestId}.json`;
+      const manifest = {
+        schemaVersion: 1,
+        createdTime,
+        items: publishedItems,
+      };
+      await uploadGithubFile(
+        owner,
+        repo,
+        token,
+        manifestPath,
+        Buffer.from(JSON.stringify(manifest, null, 2)),
+        `Add workshop import handoff: ${manifestPath}`,
+      );
+      importManifestUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/${manifestPath}`;
+      openAppUrl = `lingopet://import-actions?url=${encodeURIComponent(importManifestUrl)}`;
+    }
+
+    if (normalized.legacy) {
+      const first = publishedItems[0];
+      return res.status(200).json({
+        success: true,
+        message: 'Successfully submitted to VibePet Community Workshop!',
+        imageUrl: first.imageUrl,
+        jsonUrl: `https://fastly.jsdelivr.net/gh/${owner}/${repo}@main/${first.metaPath}`,
+        item: first,
+      });
+    }
+
     return res.status(200).json({
       success: true,
-      message: 'Successfully submitted to VibePet Community Workshop!',
-      imageUrl,
-      jsonUrl: `https://fastly.jsdelivr.net/gh/${owner}/${repo}@main/${jsonPath}`
+      items: publishedItems,
+      importManifestUrl,
+      openAppUrl,
     });
 
   } catch (error) {
-    return res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    const status = error instanceof ShareValidationError ? 400 : 500;
+    return res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
   }
 }

@@ -11,6 +11,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:share": "node tools/local-share-server.mjs",
     "build": "tsc && vite build",
     "tauri": "tauri",
     "preview": "vite preview"
