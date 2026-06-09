@@ -643,10 +643,12 @@ const LS_TODOS = "pet_todos";
 const LS_PRIMARY_PET_ID = "pet_primary_project_id";
 const DEFAULT_PRIMARY_PET_ID = "doro";
 const LS_FOCUS_MINUTES = "pet_focus_minutes";
+const LS_FOCUS_DISPLAY_TEXT = "pet_focus_display_text";
 const LS_SUMMONED_PET_IDS = "pet_summoned_pet_ids";
 const LS_PET_ASSETS_VERSION = "pet_assets_version";
 const LS_PET_EXTERNAL_SPEECH = "pet_external_speech";
 const LS_PET_WINDOW_STATE_VERSION = "pet_window_state_version";
+const DEFAULT_FOCUS_DISPLAY_TEXT = "专注中";
 let apiKeyMigrationWarned = false;
 
 function getPrimaryPetId(): string {
@@ -880,6 +882,14 @@ function formatFocusRemaining(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function getFocusDisplayText(): string {
+  return localStorage.getItem(LS_FOCUS_DISPLAY_TEXT)?.trim() || DEFAULT_FOCUS_DISPLAY_TEXT;
+}
+
+function formatFocusBubbleText(remainingMs: number): string {
+  return `${getFocusDisplayText()} ${formatFocusRemaining(remainingMs)}`;
+}
+
 function updateFocusStatusText(text: string): void {
   const status = document.getElementById("focus-status-text");
   if (status) status.textContent = text;
@@ -962,6 +972,14 @@ function ensureFocusPanelLayout(panel: HTMLElement): void {
     timerCard.innerHTML = '<div class="focus-ring" aria-hidden="true"><div class="focus-ring-fill"></div><div class="focus-ring-inner"><div id="focus-status-text">25:00</div><div class="focus-ring-caption">分钟专注</div></div></div>';
   }
 
+  const inputRow = panel.querySelector(".focus-input-row");
+  if (inputRow && !document.getElementById("focus-display-input")) {
+    const wordRow = document.createElement("div");
+    wordRow.className = "focus-word-row";
+    wordRow.innerHTML = '<label class="focus-word-wrap"><input type="text" id="focus-display-input" maxlength="12" placeholder="专注中"><span>显示词</span></label>';
+    inputRow.insertAdjacentElement("afterend", wordRow);
+  }
+
   const actionRow = panel.querySelector(".focus-action-row");
   if (actionRow) {
     actionRow.innerHTML = '<button id="focus-start" type="button">开始</button><button id="focus-pause" type="button">暂停</button><button id="focus-reset" type="button">重置</button>';
@@ -997,9 +1015,8 @@ function tickFocusMode(engine: PetEngine): void {
     endFocusMode(engine, true);
     return;
   }
-  const remainingText = formatFocusRemaining(remaining);
   updateFocusPanelState(remaining, true);
-  setFocusBubbleText(`专注中 ${remainingText}`);
+  setFocusBubbleText(formatFocusBubbleText(remaining));
   const focusState = engine.hasState("focus") ? "focus" : "review";
   if (engine.currentState !== focusState) engine.applyState(focusState);
 }
@@ -1042,9 +1059,8 @@ function startFocusMode(minutes: number, engine: PetEngine): void {
       endFocusMode(engine, true);
       return;
     }
-    const remainingText = formatFocusRemaining(remaining);
     updateFocusPanelState(remaining, true);
-    setFocusBubbleText(`专注中 ${remainingText}`);
+    setFocusBubbleText(formatFocusBubbleText(remaining));
     const focusState = engine.hasState("focus") ? "focus" : "review";
     if (engine.currentState !== focusState) engine.applyState(focusState);
   }, 1000);
@@ -1135,9 +1151,11 @@ function hideFocusPanel(): void {
 async function showFocusPanel(): Promise<void> {
   const panel = document.getElementById("focus-panel") as HTMLElement | null;
   const input = document.getElementById("focus-minutes-input") as HTMLInputElement | null;
+  const displayInput = document.getElementById("focus-display-input") as HTMLInputElement | null;
   if (!panel || !input) return;
 
   input.value = localStorage.getItem(LS_FOCUS_MINUTES) || input.value || "25";
+  if (displayInput) displayInput.value = localStorage.getItem(LS_FOCUS_DISPLAY_TEXT) || "";
   const minutes = Math.min(240, Math.max(1, Math.round(Number(input.value) || 25)));
   input.value = String(minutes);
   syncFocusPresetButtons(minutes);
@@ -2037,13 +2055,15 @@ function setupFocusPanel(engine: PetEngine): void {
   const panel = document.getElementById("focus-panel") as HTMLElement | null;
   if (panel) ensureFocusPanelLayout(panel);
   const input = document.getElementById("focus-minutes-input") as HTMLInputElement | null;
+  const displayInput = document.getElementById("focus-display-input") as HTMLInputElement | null;
   const startBtn = document.getElementById("focus-start") as HTMLButtonElement | null;
   const pauseBtn = document.getElementById("focus-pause") as HTMLButtonElement | null;
   const resetBtn = document.getElementById("focus-reset") as HTMLButtonElement | null;
   const closeBtn = document.getElementById("focus-close") as HTMLButtonElement | null;
-  if (!panel || !input || !startBtn || !pauseBtn || !resetBtn || !closeBtn) return;
+  if (!panel || !input || !displayInput || !startBtn || !pauseBtn || !resetBtn || !closeBtn) return;
 
   input.value = localStorage.getItem(LS_FOCUS_MINUTES) || "25";
+  displayInput.value = localStorage.getItem(LS_FOCUS_DISPLAY_TEXT) || "";
   syncFocusPresetButtons(Number(input.value) || 25);
   updateFocusPanelState((Number(input.value) || 25) * 60_000, false);
 
@@ -2065,6 +2085,16 @@ function setupFocusPanel(engine: PetEngine): void {
     localStorage.setItem(LS_FOCUS_MINUTES, String(minutes));
     syncFocusPresetButtons(minutes);
     updateFocusPanelState(minutes * 60_000, false);
+    lastPetInteractionTime = Date.now();
+  });
+
+  displayInput.addEventListener("input", () => {
+    const text = displayInput.value.trim();
+    if (text) localStorage.setItem(LS_FOCUS_DISPLAY_TEXT, text);
+    else localStorage.removeItem(LS_FOCUS_DISPLAY_TEXT);
+    if (isFocusMode && !isFocusPaused) {
+      setFocusBubbleText(formatFocusBubbleText(getFocusRemainingMs()));
+    }
     lastPetInteractionTime = Date.now();
   });
 
@@ -3873,10 +3903,6 @@ async function setupDrag(engine: PetEngine): Promise<void> {
   // mousedown - 潜伏阶段
   hitbox.addEventListener("mousedown", (e) => {
     if (e.button !== 0 || isExiting || isRecallAnimating || isDraggingInProgress) return;
-    if (isFocusMode) {
-      showSpeech("专注中，先把工作做完", 1800);
-      return;
-    }
 
     isMouseDown = true;
     hasStartedDragging = false;
