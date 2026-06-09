@@ -4006,26 +4006,29 @@ async function loadPetAssets(): Promise<{ spritesheetUrl: string; manifest: PetM
     ? getPrimaryPetId()
     : null;
   const projectPetId = params.get("petId") || summonedPetId || primaryPetId;
-  if (projectPetId === "doro") {
-    return {
-      spritesheetUrl: BUILTIN_DORO_SPRITESHEET_URL,
-      manifest: BUILTIN_DORO_MANIFEST,
-    };
-  }
   if (projectPetId) {
     try {
       const petDir = await invoke<string>("get_project_pet_dir", { petId: projectPetId });
       const content = await invoke<PetManifest>("read_project_pet_manifest", { petId: projectPetId });
+      const manifest = content.id === BUILTIN_DORO_MANIFEST.id
+        ? {
+          ...content,
+          animations: {
+            ...BUILTIN_DORO_MANIFEST.animations,
+            ...(content.animations || {}),
+          },
+        }
+        : content;
       const spritesheetPath = `${petDir}/${content.spritesheetPath}`;
       const url = `${convertFileSrc(spritesheetPath)}?v=${Date.now()}`;
       console.log("Loading project pet", {
         requestedPetId: projectPetId,
-        manifestId: content.id,
-        spritesheetPath: content.spritesheetPath,
-        hasMerit: Boolean(content.animations?.merit),
+        manifestId: manifest.id,
+        spritesheetPath: manifest.spritesheetPath,
+        hasMerit: Boolean(manifest.animations?.merit),
         url,
       });
-      return { spritesheetUrl: url, manifest: content };
+      return { spritesheetUrl: url, manifest };
     } catch (e) {
       console.warn("Project pet failed to load, using fallback:", e);
       if (projectPetId === primaryPetId) {
