@@ -473,6 +473,21 @@ function spawnMusicNote(): void {
   document.body.appendChild(note);
 }
 
+function spawnCatWalkHeart(): void {
+  const container = document.getElementById("pet-container");
+  const rect = container?.getBoundingClientRect();
+  if (!rect) return;
+
+  const heart = document.createElement("div");
+  heart.className = "music-note cat-walk-heart";
+  heart.textContent = Math.random() > 0.45 ? "♥" : "♡";
+  heart.style.left = `${rect.left + rect.width * (0.42 + Math.random() * 0.26)}px`;
+  heart.style.top = `${rect.top + rect.height * (0.12 + Math.random() * 0.24)}px`;
+  heart.style.setProperty("--note-drift-x", `${(Math.random() - 0.45) * 54}px`);
+  heart.addEventListener("animationend", () => heart.remove());
+  document.body.appendChild(heart);
+}
+
 function scheduleNextMusicBeat(): void {
   if (!isMusicRhythmMode) return;
   const nextBeatMs = 360 + Math.floor(Math.random() * 340);
@@ -521,6 +536,33 @@ function updateMusicRhythmButton(): void {
   if (label) {
     label.textContent = isMusicRhythmAutoEnabled ? "音乐律动" : "律动关闭";
   }
+}
+
+function updateCatWalkButton(): void {
+  const catWalkButton = document.getElementById("context-cat-walk") as HTMLButtonElement | null;
+  if (!catWalkButton) return;
+
+  catWalkButton.classList.toggle("is-active", isCatWalkMode);
+  catWalkButton.setAttribute("aria-pressed", String(isCatWalkMode));
+}
+
+function setCatWalkMode(enabled: boolean, engine?: PetEngine): void {
+  isCatWalkMode = enabled;
+  lastCatWalkSpeechAt = 0;
+  lastCatWalkHeartAt = 0;
+  catWalkLastCaughtAt = enabled ? performance.now() : 0;
+  catWalkGiveUpUntil = 0;
+
+  const container = document.getElementById("pet-container");
+  container?.classList.remove("cat-walk-caught");
+  if (!isMusicRhythmMode) container?.classList.remove("music-rhythm-active");
+  updateCatWalkButton();
+
+  if (!enabled && engine && engine.currentState === "music" && !isMusicRhythmMode) {
+    engine.applyState(activeModeAnimationState(engine) ?? "idle");
+  }
+
+  showSpeech(enabled ? "遛猫模式开启，快拿逗猫棒逗我！" : "遛猫模式关闭，先歇一会儿。", 1800);
 }
 
 async function pollSystemAudioState(): Promise<void> {
@@ -610,6 +652,7 @@ const PET_BASE_WIDTH = 192;
 const PET_BASE_HEIGHT = 208;
 const PET_WINDOW_TOP_PADDING = 100;
 const PET_CONTEXT_MENU_SPACE = 174;
+const PET_CONTEXT_MENU_MIN_HEIGHT = 456;
 // ── Focus Mode State ──
 let isFocusMode = false;
 let isFocusPaused = false;
@@ -630,6 +673,42 @@ let isWindowIgnoringCursor = false;
 let lastKnownCursorX = -1;
 let lastKnownCursorY = -1;
 let lastSpriteFacing: "left" | "right" | null = null;
+let isCatWalkMode = false;
+let lastCatWalkSpeechAt = 0;
+let lastCatWalkHeartAt = 0;
+let catWalkLastCaughtAt = 0;
+let catWalkGiveUpUntil = 0;
+
+const CAT_WALK_CATCH_RADIUS = 58;
+const CAT_WALK_RELEASE_RADIUS = 86;
+const CAT_WALK_FACE_DEADZONE = 14;
+const CAT_WALK_BODY_PADDING = 12;
+const CAT_WALK_RUN_SPEED_MIN = 135;
+const CAT_WALK_RUN_SPEED_MAX = 190;
+const CAT_WALK_SPEECH_COOLDOWN_MS = 4200;
+const CAT_WALK_HEART_INTERVAL_MS = 360;
+const CAT_WALK_GIVE_UP_MS = 20000;
+const CAT_WALK_GIVE_UP_DISPLAY_MS = 3200;
+const CAT_WALK_CHATTER = [
+  "等等我，逗猫棒！",
+  "别跑别跑，我要抓到你啦！",
+  "再靠近一点点嘛。",
+  "这个会动的东西好好玩！",
+];
+const CAT_WALK_GIVE_UP_LINES = [
+  "不追了不追了，尾巴都要冒烟啦。",
+  "哼，今天先放过你。",
+  "抓不到，装作没看见好了。",
+  "这鼠标太会跑了，我要躺平三秒。",
+  "逗我这么久，奖励一口小鱼干不过分吧？",
+];
+const GOODBYE_SPEECH_POOL = [
+  "那我先回窝啦，下次再见！",
+  "今天也辛苦啦，下次再来找我玩。",
+  "我先收工啦，下次见面继续陪你。",
+  "记得休息和喝水，我们下次再见。",
+  "拜拜，下一次打开我还在这里等你。",
+];
 
 // ── API Settings & Chat Mode ──
 
@@ -1130,11 +1209,34 @@ async function expandFocusPanelWindow(): Promise<void> {
     Math.max(normalSize.width, FOCUS_PANEL_WINDOW_WIDTH),
     Math.max(normalSize.height, FOCUS_PANEL_WINDOW_HEIGHT),
   );
+  await clampCurrentWindowRectToWorkArea();
 }
 
 async function restoreFocusPanelWindow(): Promise<void> {
   const panel = document.getElementById("focus-panel") as HTMLElement | null;
   if (panel?.style.display === "block") return;
+  const normalSize = getPetPixelSize();
+  await setPetWindowSizePreservingAnchor(normalSize.width, normalSize.height);
+  await clampCurrentWindowToRoamBounds();
+}
+
+function hasExpandedPetPanelOpen(): boolean {
+  return ["todo-panel", "reminder-panel", "focus-panel", "merit-panel"].some((id) => {
+    const panel = document.getElementById(id) as HTMLElement | null;
+    return panel?.style.display === "block";
+  });
+}
+
+async function expandContextMenuWindow(menu: HTMLElement): Promise<void> {
+  const normalSize = getPetPixelSize();
+  const menuHeight = Math.ceil(menu.getBoundingClientRect().height || PET_CONTEXT_MENU_MIN_HEIGHT);
+  const targetHeight = Math.max(normalSize.height, menuHeight + 24);
+  await setPetWindowSizePreservingAnchor(normalSize.width, targetHeight);
+}
+
+async function restoreContextMenuWindow(): Promise<void> {
+  const menu = document.getElementById("pet-context-menu") as HTMLElement | null;
+  if (menu?.classList.contains("show") || hasExpandedPetPanelOpen()) return;
   const normalSize = getPetPixelSize();
   await setPetWindowSizePreservingAnchor(normalSize.width, normalSize.height);
   await clampCurrentWindowToRoamBounds();
@@ -1679,8 +1781,13 @@ function endMeritMode(engine: PetEngine, announce = true): void {
 function stopCurrentPetActivitiesImmediately(): void {
   clearMeritTimer();
   isMeritMode = false;
+  isCatWalkMode = false;
+  catWalkLastCaughtAt = 0;
+  catWalkGiveUpUntil = 0;
   localStorage.setItem(LS_MERIT_ENABLED, "false");
-  document.getElementById("pet-container")?.classList.remove("merit-active", "merit-hit");
+  document.getElementById("pet-container")?.classList.remove("merit-active", "merit-hit", "cat-walk-caught");
+  if (!isMusicRhythmMode) document.getElementById("pet-container")?.classList.remove("music-rhythm-active");
+  updateCatWalkButton();
   stopSound("woodfish");
 
   const engine = (window as any).__petEngine as PetEngine | undefined;
@@ -3135,7 +3242,7 @@ function setupCursorPassthrough(): void {
 
 // ── Idle Roaming Physics ──
 
-type RoamAction = "idle" | "walk" | "jump" | "fall" | "waiting" | "sprint" | "review" | "failed";
+type RoamAction = "idle" | "walk" | "jump" | "fall" | "waiting" | "sprint" | "review" | "failed" | "catWalkChase" | "catWalkCaught";
 
 interface RoamPlatform {
   id: string;
@@ -3184,6 +3291,8 @@ const ROAM_ACTIONS: Record<RoamAction, string> = {
   sprint: "running",
   review: "review",
   failed: "failed",
+  catWalkChase: "running",
+  catWalkCaught: "music",
 };
 const ROAM_DECISIONS = [
   { action: "idle", weight: 25 },
@@ -3285,6 +3394,149 @@ function shouldPauseRoamDecisions(): boolean {
   return !canAutoRoam();
 }
 
+function canCatWalkChase(): boolean {
+  return isCatWalkMode
+    && !isExiting
+    && !isRecallAnimating
+    && !isTeleportAnimating
+    && !isManualPetControlActive()
+    && !isPetMenuOpen
+    && !isPetPanelOpen
+    && !isBlockingPetPanelOpen()
+    && !isFocusMode
+    && !isMeritMode;
+}
+
+function maybeCatWalkSpeech(nowMs: number): void {
+  if (nowMs - lastCatWalkSpeechAt < CAT_WALK_SPEECH_COOLDOWN_MS) return;
+  lastCatWalkSpeechAt = nowMs;
+  const text = CAT_WALK_CHATTER[Math.floor(Math.random() * CAT_WALK_CHATTER.length)];
+  showSpeech(text, 1800);
+}
+
+function giveUpCatWalkChase(engine: PetEngine, state: RoamState, now: number): void {
+  isCatWalkMode = false;
+  catWalkLastCaughtAt = 0;
+  catWalkGiveUpUntil = now + CAT_WALK_GIVE_UP_DISPLAY_MS;
+  state.vx = 0;
+  state.vy = 0;
+  state.action = "failed";
+  state.nextDecisionAt = catWalkGiveUpUntil;
+  lastPetInteractionTime = Date.now();
+  lastActivityTime = Date.now();
+
+  const container = document.getElementById("pet-container");
+  container?.classList.remove("cat-walk-caught");
+  if (!isMusicRhythmMode) container?.classList.remove("music-rhythm-active");
+  updateCatWalkButton();
+
+  engine.applyState(engine.hasState("failed") ? "failed" : "idle");
+  const text = CAT_WALK_GIVE_UP_LINES[Math.floor(Math.random() * CAT_WALK_GIVE_UP_LINES.length)];
+  showSpeech(text, CAT_WALK_GIVE_UP_DISPLAY_MS);
+}
+
+function getPetVisualRectOnScreen(state: RoamState): { left: number; top: number; width: number; height: number } {
+  const visualRect = getPetVisualRectInWindow(state.width, state.height);
+  const windowLeft = state.x - state.width / 2 - petWindowOffsetX;
+  const windowTop = state.y - state.height + petWindowOffsetBottom;
+  return {
+    left: windowLeft + visualRect.left,
+    top: windowTop + visualRect.top,
+    width: visualRect.width,
+    height: visualRect.height,
+  };
+}
+
+function isPointInsideRect(x: number, y: number, rect: { left: number; top: number; width: number; height: number }, padding = 0): boolean {
+  return x >= rect.left - padding
+    && x <= rect.left + rect.width + padding
+    && y >= rect.top - padding
+    && y <= rect.top + rect.height + padding;
+}
+
+async function tickCatWalkChase(engine: PetEngine, state: RoamState, now: number, dt: number): Promise<boolean> {
+  const container = document.getElementById("pet-container");
+  if (!canCatWalkChase()) {
+    container?.classList.remove("cat-walk-caught");
+    if (!isMusicRhythmMode) container?.classList.remove("music-rhythm-active");
+    return false;
+  }
+
+  const cursor = await cursorPosition();
+  updateLastKnownCursor(cursor.x, cursor.y);
+
+  if (now - state.lastWindowSyncAt > 220) {
+    await syncRoamStateFromWindow(engine, state, false);
+  }
+
+  const visualRect = getPetVisualRectOnScreen(state);
+  const targetX = cursor.x;
+  const targetY = cursor.y;
+  const petCenterX = visualRect.left + visualRect.width / 2;
+  const petCenterY = visualRect.top + visualRect.height / 2;
+  const dx = targetX - petCenterX;
+  const dy = targetY - petCenterY;
+  const distance = Math.hypot(dx, dy);
+  const wasCaught = state.action === "catWalkCaught";
+  const cursorInsideBody = isPointInsideRect(targetX, targetY, visualRect, CAT_WALK_BODY_PADDING);
+  const isCaught = cursorInsideBody
+    || (wasCaught
+      ? distance <= CAT_WALK_RELEASE_RADIUS
+      : distance <= CAT_WALK_CATCH_RADIUS);
+
+  if (isCaught) {
+    catWalkLastCaughtAt = now;
+    state.vx = 0;
+    state.vy = 0;
+    state.action = "catWalkCaught";
+    state.nextDecisionAt = now + 500;
+    container?.classList.add("music-rhythm-active", "cat-walk-caught");
+    if (engine.hasState("music") && engine.currentState !== "music") {
+      engine.applyState("music");
+    } else if (!engine.hasState("music") && engine.currentState !== "idle") {
+      engine.applyState("idle");
+    }
+    if (now - lastCatWalkHeartAt > CAT_WALK_HEART_INTERVAL_MS) {
+      lastCatWalkHeartAt = now;
+      spawnCatWalkHeart();
+      if (Math.random() > 0.68) window.setTimeout(spawnCatWalkHeart, 120);
+    }
+    await applyRoamWindowPosition(state);
+    return true;
+  }
+
+  container?.classList.remove("cat-walk-caught");
+  if (!isMusicRhythmMode) container?.classList.remove("music-rhythm-active");
+
+  if (catWalkLastCaughtAt > 0 && now - catWalkLastCaughtAt >= CAT_WALK_GIVE_UP_MS) {
+    giveUpCatWalkChase(engine, state, now);
+    await applyRoamWindowPosition(state);
+    return true;
+  }
+
+  const speed = clamp(distance * 1.8, CAT_WALK_RUN_SPEED_MIN, CAT_WALK_RUN_SPEED_MAX);
+  state.vx = distance > 1 ? (dx / distance) * speed : 0;
+  state.vy = distance > 1 ? (dy / distance) * speed : 0;
+  state.action = "catWalkChase";
+  state.grounded = true;
+  state.platformId = "";
+  state.nextDecisionAt = now + 500;
+  if (Math.abs(dx) > CAT_WALK_FACE_DEADZONE) {
+    state.facing = dx < 0 ? "left" : "right";
+  }
+  applyRoamFacing(engine, state);
+  maybeCatWalkSpeech(Date.now());
+
+  const step = Math.min(speed * dt, Math.max(0, distance - CAT_WALK_CATCH_RADIUS));
+  if (distance > 1 && step > 0) {
+    state.x += (dx / distance) * step;
+    state.y += (dy / distance) * step;
+  }
+  clampRoamToBounds(engine, state);
+  await applyRoamWindowPosition(state);
+  return true;
+}
+
 function setRoamAction(engine: PetEngine, state: RoamState, action: RoamAction): void {
   state.action = action;
   if (action === "walk" || action === "sprint") {
@@ -3299,7 +3551,7 @@ function setRoamAction(engine: PetEngine, state: RoamState, action: RoamAction):
 }
 
 function applyRoamFacing(engine: PetEngine, state: RoamState): void {
-  if (state.action === "walk" || state.action === "sprint") {
+  if (state.action === "walk" || state.action === "sprint" || state.action === "catWalkChase") {
     applyRoamMovementState(engine, state);
     return;
   }
@@ -3442,6 +3694,22 @@ async function clampCurrentWindowToRoamBounds(): Promise<void> {
   const nextPosition = clampPetVisualWindowPositionToBounds(position.x, position.y, size.width, size.height, bounds);
   if (nextPosition.x === position.x && nextPosition.y === position.y) return;
   await appWindow.setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
+}
+
+async function clampCurrentWindowRectToWorkArea(margin = 12): Promise<void> {
+  const appWindow = getCurrentWindow();
+  const [position, size, bounds] = await Promise.all([
+    appWindow.outerPosition(),
+    appWindow.outerSize(),
+    getRoamBounds(),
+  ]);
+
+  const maxX = bounds.right - size.width - margin;
+  const maxY = bounds.bottom - size.height - margin;
+  const nextX = clamp(position.x, bounds.left + margin, Math.max(bounds.left + margin, maxX));
+  const nextY = clamp(position.y, bounds.top + margin, Math.max(bounds.top + margin, maxY));
+  if (nextX === position.x && nextY === position.y) return;
+  await appWindow.setPosition(new PhysicalPosition(Math.round(nextX), Math.round(nextY)));
 }
 
 async function scanRoamPlatforms(bounds: RoamBounds): Promise<RoamPlatform[]> {
@@ -3735,6 +4003,22 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
   const recentlyDragged = Date.now() - lastDragEndTime < 1200;
   const shouldSyncWindow = now - state.lastWindowSyncAt > 220;
   const customMusicStateActive = isMusicRhythmMode && engine.hasState("music");
+
+  if (now < catWalkGiveUpUntil) {
+    state.vx = 0;
+    state.vy = 0;
+    state.action = "failed";
+    state.nextDecisionAt = catWalkGiveUpUntil;
+    if (engine.currentState !== "failed") {
+      engine.applyState(engine.hasState("failed") ? "failed" : "idle");
+    }
+    return;
+  }
+
+  if (await tickCatWalkChase(engine, state, now, dt)) {
+    return;
+  }
+
   if (shouldFreezeRoamPhysics(state) || customMusicStateActive) {
     if (shouldSyncWindow) await syncRoamStateFromWindow(engine, state, false);
     state.vx = 0;
@@ -4173,12 +4457,14 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   const focusButton = document.getElementById("context-focus") as HTMLButtonElement | null;
   const meritButton = document.getElementById("context-merit") as HTMLButtonElement | null;
   const musicButton = document.getElementById("context-music") as HTMLButtonElement | null;
+  const catWalkButton = document.getElementById("context-cat-walk") as HTMLButtonElement | null;
   const recallButton = document.getElementById("context-recall") as HTMLButtonElement | null;
   const quitButton = document.getElementById("context-quit") as HTMLButtonElement | null;
-  if (!hitbox || !menu || !managerButton || !reminderButton || !todoButton || !focusButton || !meritButton || !musicButton || !recallButton || !quitButton) return;
+  if (!hitbox || !menu || !managerButton || !reminderButton || !todoButton || !focusButton || !meritButton || !musicButton || !catWalkButton || !recallButton || !quitButton) return;
 
   // Apply persisted always-on-top state on startup
   await appWindow.setAlwaysOnTop(isAlwaysOnTop);
+  updateCatWalkButton();
 
   const hideMenu = (): void => {
     menu.classList.remove("show");
@@ -4187,6 +4473,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
       if (!menu.classList.contains("show")) {
         isPetMenuOpen = false;
         lastPetInteractionTime = Date.now();
+        void restoreContextMenuWindow();
       }
     }, 160);
   };
@@ -4276,6 +4563,7 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     lastActivityTime = Date.now();
     lastPetInteractionTime = Date.now();
     await updateRecallVisibility();
+    await expandContextMenuWindow(menu);
     await positionMenu();
     menu.setAttribute("aria-hidden", "false");
   };
@@ -4327,6 +4615,11 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
     setMusicRhythmAutoEnabled(!isMusicRhythmAutoEnabled);
   });
 
+  catWalkButton.addEventListener("click", () => {
+    hideMenu();
+    setCatWalkMode(!isCatWalkMode, engine);
+  });
+
   recallButton.addEventListener("click", () => {
     if (isRecallAnimating) return;
     hideMenu();
@@ -4336,8 +4629,10 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   quitButton.addEventListener("click", () => {
     hideMenu();
     isExiting = true;
-    engine.applyState("failed");
-    setTimeout(() => exit(0), 3000);
+    engine.applyState(engine.hasState("waving") ? "waving" : "idle");
+    const message = GOODBYE_SPEECH_POOL[Math.floor(Math.random() * GOODBYE_SPEECH_POOL.length)];
+    showSpeech(message, 2600);
+    setTimeout(() => exit(0), 2800);
   });
 
   menu.addEventListener("mouseenter", () => {
@@ -4520,7 +4815,7 @@ function applySpeechBubbleStyle(): void {
   bubble.dataset.bubbleStyle = getSpeechBubbleStyle();
 }
 
-function showSpeech(text: string, durationMs: number, withSound = true): void {
+function showSpeech(text: string, durationMs: number, withSound = false): void {
   const bubble = document.getElementById("pet-speech-bubble");
   const bubbleText = bubble?.querySelector(".bubble-text") as HTMLElement | null;
   if (!bubble || !bubbleText || !text) return;

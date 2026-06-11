@@ -1472,8 +1472,20 @@ body {
   animation: music-note-float 1.15s cubic-bezier(0.18, 0.76, 0.32, 1) forwards;
 }
 
+.cat-walk-heart {
+  color: #ff7aa8;
+  font-size: 24px;
+  text-shadow:
+    0 0 10px rgba(255, 122, 168, 0.72),
+    0 2px 8px rgba(95, 18, 46, 0.28);
+}
+
 #pet-container.music-rhythm-active {
   animation: music-rhythm-bop 780ms ease-in-out infinite;
+}
+
+#pet-container.cat-walk-caught {
+  filter: drop-shadow(0 0 10px rgba(255, 122, 168, 0.34));
 }
 
 @keyframes music-rhythm-bop {
