@@ -98,7 +98,7 @@ Frame sequence, left to right:
 Keep the wooden fish in the same position in all frames. Keep the mallet aligned to the wooden fish. Do not switch hands. Pure green background #00FF00.`,
 };
 
-const STUDIO_REFINE_URL = "https://studio.lingopet.xyz/精修";
+const STUDIO_REFINE_URL = "https://studio.lingopet.xyz";
 
 const WORKSHOP_SHARE_API = "https://api.lingopet.xyz/api/share";
 const WORKSHOP_RAW_BASE = "https://raw.githubusercontent.com/dev-zyl/LingoPet-workshop/main/";
@@ -1488,6 +1488,45 @@ function setSavedSummonedPetIds(petIds: string[]): void {
   localStorage.setItem(LS_SUMMONED_PET_IDS, JSON.stringify(petIds.filter(Boolean)));
 }
 
+function summonedWindowTimestamp(label: string): number {
+  const match = /^pet-.+-(\d+)$/.exec(label);
+  const timestamp = match ? Number(match[1]) : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function lastActivePetForSingleMode(windows: SummonedPetWindow[]): SummonedPetWindow | null {
+  const summoned = windows
+    .filter((item) => !item.primary)
+    .sort((a, b) => summonedWindowTimestamp(a.label) - summonedWindowTimestamp(b.label));
+  return summoned[summoned.length - 1] || windows.find((item) => item.primary) || null;
+}
+
+async function getActivePetWindowsSnapshot(): Promise<SummonedPetWindow[]> {
+  const [summoned, primaryVisible] = await Promise.all([
+    invoke<SummonedPetWindow[]>("list_summoned_pet_windows"),
+    invoke<boolean>("is_primary_pet_window_visible"),
+  ]);
+  const primary = primaryVisible
+    ? [{ label: "pet", petId: currentPrimaryPetId(), primary: true }]
+    : [];
+  return [...primary, ...summoned];
+}
+
+async function showPrimaryPetAs(petId: string): Promise<void> {
+  rememberPrimaryPet(petId);
+  await invoke("reload_primary_pet_window", { petId });
+  await invoke("show_primary_pet_window");
+}
+
+async function switchToSinglePetModePreservingLastActive(): Promise<string> {
+  const activePets = await getActivePetWindowsSnapshot();
+  const keepPetId = lastActivePetForSingleMode(activePets)?.petId || currentPrimaryPetId();
+  await invoke("close_all_summoned_pet_windows");
+  setSavedSummonedPetIds([]);
+  await showPrimaryPetAs(keepPetId);
+  return keepPetId;
+}
+
 function getFavoritePetIds(): string[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(LS_FAVORITE_PET_IDS) || "[]");
@@ -2309,14 +2348,7 @@ async function handleDeepLinkActionImportResult(result: DeepLinkActionImportResu
 
 async function loadActivePets(): Promise<void> {
   try {
-    const [summoned, primaryVisible] = await Promise.all([
-      invoke<SummonedPetWindow[]>("list_summoned_pet_windows"),
-      invoke<boolean>("is_primary_pet_window_visible"),
-    ]);
-    const primary = primaryVisible
-      ? [{ label: "pet", petId: currentPrimaryPetId(), primary: true }]
-      : [];
-    state.activePetWindows = [...primary, ...summoned];
+    state.activePetWindows = await getActivePetWindowsSnapshot();
     for (const label of Array.from(state.selectedRecallLabels)) {
       if (!state.activePetWindows.some((item) => item.label === label)) {
         state.selectedRecallLabels.delete(label);
@@ -2413,8 +2445,7 @@ async function summonPet(petId: string, button: HTMLButtonElement, statusEl: HTM
     if (!allowMultiplePets()) {
       await invoke("close_all_summoned_pet_windows");
       setSavedSummonedPetIds([]);
-      rememberPrimaryPet(petId);
-      await invoke("show_primary_pet_window");
+      await showPrimaryPetAs(petId);
       button.textContent = "已切换";
       const message = `桌宠已切换为「${petNameById(petId)}」。`;
       if (statusEl) setStatus(statusEl, message);
@@ -2630,8 +2661,7 @@ els.summonGroupBtn.addEventListener("click", async () => {
         const firstPet = currentFilteredPets[0];
         await invoke("close_all_summoned_pet_windows");
         setSavedSummonedPetIds([]);
-        rememberPrimaryPet(firstPet.id);
-        await invoke("show_primary_pet_window");
+        await showPrimaryPetAs(firstPet.id);
         setStatus(els.mineStatus, `派对模式未开启，已为您单宠召唤「${firstPet.displayName}」。`);
         window.setTimeout(() => void loadActivePets(), 300);
         updateSummonGroupButton("召唤完成", "✓", "success");
@@ -2693,9 +2723,7 @@ els.petInstanceModeRadios.forEach((radio) => {
     const isMultiple = radio.value === "party";
     localStorage.setItem(LS_ALLOW_MULTIPLE_PETS, String(isMultiple));
     if (!isMultiple) {
-      await invoke("close_all_summoned_pet_windows").catch(console.error);
-      setSavedSummonedPetIds([]);
-      await invoke("show_primary_pet_window").catch(console.error);
+      await switchToSinglePetModePreservingLastActive().catch(console.error);
     }
     await loadActivePets();
   });

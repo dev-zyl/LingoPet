@@ -254,6 +254,60 @@ body {
   animation: recall-overlay-fade var(--recall-duration, 620ms) ease forwards;
 }
 
+#pet-container.teleport-charging::before,
+#pet-container.teleport-arriving::before {
+  left: 50%;
+  bottom: 8px;
+  z-index: 1;
+  width: 150px;
+  height: 34px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.86) 0 9%, rgba(111, 212, 255, 0.42) 24%, rgba(74, 143, 255, 0.16) 50%, transparent 72%),
+    radial-gradient(ellipse at center, transparent 0 44%, rgba(184, 234, 255, 0.9) 48% 53%, transparent 60%);
+  filter: blur(0.3px) drop-shadow(0 0 14px rgba(93, 193, 255, 0.5));
+}
+
+#pet-container.teleport-charging::before {
+  animation: teleport-charge-ring 520ms cubic-bezier(0.18, 0.7, 0.2, 1) forwards;
+}
+
+#pet-container.teleport-arriving::before {
+  animation: teleport-arrive-ring 360ms cubic-bezier(0.18, 0.72, 0.24, 1) forwards;
+}
+
+#pet-container.teleport-charging::after,
+#pet-container.teleport-arriving::after {
+  left: 50%;
+  bottom: 44px;
+  z-index: 4;
+  width: 132px;
+  height: 128px;
+  background:
+    radial-gradient(circle at 18% 70%, rgba(255, 247, 176, 0.78) 0 2px, transparent 3px),
+    radial-gradient(circle at 30% 24%, rgba(168, 229, 255, 0.84) 0 2px, transparent 3px),
+    radial-gradient(circle at 56% 48%, rgba(255, 255, 255, 0.8) 0 2px, transparent 3px),
+    radial-gradient(circle at 74% 20%, rgba(255, 239, 148, 0.72) 0 1px, transparent 2px),
+    radial-gradient(circle at 82% 76%, rgba(126, 206, 255, 0.72) 0 2px, transparent 3px);
+  filter: drop-shadow(0 0 5px rgba(139, 213, 255, 0.56));
+}
+
+#pet-container.teleport-charging::after {
+  animation: teleport-charge-sparks 520ms steps(4, end) forwards;
+}
+
+#pet-container.teleport-arriving::after {
+  animation: teleport-arrive-sparks 360ms steps(4, end) forwards;
+}
+
+#pet-container.teleport-charging #pet-visual {
+  animation: teleport-charge-body 520ms cubic-bezier(0.2, 0.72, 0.24, 1) forwards;
+}
+
+#pet-container.teleport-arriving #pet-visual {
+  animation: teleport-arrive-body 360ms cubic-bezier(0.18, 0.74, 0.24, 1) forwards;
+}
+
 #pet-container.recall-puff::before {
   left: 50%;
   bottom: 4px;
@@ -461,6 +515,92 @@ body {
     opacity: 0;
     filter: blur(4px);
     transform: translateY(10px) scale(0.9);
+  }
+}
+
+@keyframes teleport-charge-ring {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.48);
+  }
+
+  52% {
+    opacity: 0.86;
+    transform: translateX(-50%) scale(0.9);
+  }
+
+  100% {
+    opacity: 0.18;
+    transform: translateX(-50%) scale(1.16);
+  }
+}
+
+@keyframes teleport-arrive-ring {
+  0% {
+    opacity: 0.86;
+    transform: translateX(-50%) scale(0.52);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.24);
+  }
+}
+
+@keyframes teleport-charge-sparks {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px) scale(0.62);
+  }
+
+  60% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0.18;
+    transform: translateX(-50%) translateY(-14px) scale(1);
+  }
+}
+
+@keyframes teleport-arrive-sparks {
+  0% {
+    opacity: 0.95;
+    transform: translateX(-50%) translateY(-8px) scale(0.74);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-30px) scale(1.16);
+  }
+}
+
+@keyframes teleport-charge-body {
+  0% {
+    filter: brightness(1);
+    transform: translateY(0) scale(1);
+  }
+
+  58% {
+    filter: brightness(1.22) saturate(1.08);
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  100% {
+    filter: brightness(1.45) saturate(1.12);
+    transform: translateY(-7px) scale(0.96);
+  }
+}
+
+@keyframes teleport-arrive-body {
+  0% {
+    filter: brightness(1.36) saturate(1.1);
+    transform: translateY(-8px) scale(0.94);
+  }
+
+  100% {
+    filter: brightness(1);
+    transform: translateY(0) scale(1);
   }
 }
 

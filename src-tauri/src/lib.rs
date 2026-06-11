@@ -557,6 +557,27 @@ fn show_primary_pet_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn reload_primary_pet_window(app: tauri::AppHandle, pet_id: String) -> Result<(), String> {
+    let safe_id: String = pet_id
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+        .collect();
+    if safe_id.is_empty() {
+        return Err("Invalid pet id".to_string());
+    }
+
+    if let Some(window) = app.get_webview_window("pet") {
+        let pet_url = format!("/pet/index.html?petId={safe_id}");
+        let encoded_url = serde_json::to_string(&pet_url)
+            .map_err(|e| format!("Failed to encode pet url: {e}"))?;
+        window
+            .eval(&format!("window.location.href = {encoded_url};"))
+            .map_err(|e| format!("Failed to reload primary pet window: {e}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn hide_primary_pet_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("pet") {
         window.hide().map_err(|e| e.to_string())?;
@@ -879,6 +900,7 @@ pub fn run() {
             close_all_summoned_pet_windows,
             is_primary_pet_window_visible,
             show_primary_pet_window,
+            reload_primary_pet_window,
             hide_primary_pet_window,
         ])
         .run(tauri::generate_context!())
