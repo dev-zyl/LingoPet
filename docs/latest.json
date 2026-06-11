@@ -1,4 +1,4 @@
-﻿{
+{
   "version": "0.2.6",
   "notes": "LingoPet 灵动宠物桌面宠物自动构建发布版本。\n\nmacOS 提示“已损坏，无法打开”时，通常是因为应用尚未签名和 Apple 公证。临时解决：将 LingoPet.app 拖到“应用程序”后，在终端执行：\n```bash\nxattr -cr /Applications/LingoPet.app\n```\n然后再次打开应用。",
   "pub_date": "2026-06-11T13:51:53.385Z",

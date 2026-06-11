@@ -1722,6 +1722,9 @@ function clearMeritTimer(): void {
 
 function startMeritMode(engine: PetEngine): void {
   if (isFocusMode) endFocusMode(engine, false);
+  if (isMusicRhythmAutoEnabled || isMusicRhythmMode) {
+    setMusicRhythmAutoEnabled(false, false);
+  }
   clearMeritTimer();
   const container = document.getElementById("pet-container");
   const text = getMeritText();
