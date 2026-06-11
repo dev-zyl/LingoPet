@@ -3902,6 +3902,7 @@ async function triggerActiveTeleport(engine: PetEngine, state: RoamState): Promi
   state.nextDecisionAt = teleportAt + 650;
 
   try {
+    await playTeleportChargeEffect(container);
     await playRecallDisappearEffect();
     container.style.visibility = "hidden";
 
@@ -3919,12 +3920,16 @@ async function triggerActiveTeleport(engine: PetEngine, state: RoamState): Promi
     clampRoamToBounds(engine, state);
     await applyRoamWindowPosition(state);
     engine.applyState("idle");
+    resetRecallDisappearEffect(container);
+    container.style.visibility = previousVisibility;
+    await playTeleportArriveEffect(container);
     return true;
   } catch (err) {
     console.warn("active roam teleport failed:", err);
     return false;
   } finally {
     resetRecallDisappearEffect(container);
+    resetTeleportHintEffect(container);
     container.style.visibility = previousVisibility;
     isTeleportAnimating = false;
   }
@@ -4358,6 +4363,32 @@ function resetRecallDisappearEffect(container: HTMLElement): void {
   container.style.removeProperty("--recall-duration");
 }
 
+function resetTeleportHintEffect(container: HTMLElement): void {
+  container.classList.remove("teleport-charging", "teleport-arriving");
+}
+
+function playTimedPetEffect(container: HTMLElement, className: string, durationMs: number): Promise<void> {
+  container.classList.remove(className);
+  void container.offsetWidth;
+  container.classList.add(className);
+
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      container.classList.remove(className);
+      resolve();
+    }, durationMs);
+  });
+}
+
+function playTeleportChargeEffect(container: HTMLElement): Promise<void> {
+  resetTeleportHintEffect(container);
+  return playTimedPetEffect(container, "teleport-charging", 520);
+}
+
+function playTeleportArriveEffect(container: HTMLElement): Promise<void> {
+  return playTimedPetEffect(container, "teleport-arriving", 360);
+}
+
 function randomRecallEffectClass(): RecallEffectClass {
   return RECALL_EFFECT_CLASSES[Math.floor(Math.random() * RECALL_EFFECT_CLASSES.length)];
 }
@@ -4629,7 +4660,6 @@ async function setupContextMenu(engine: PetEngine): Promise<void> {
   quitButton.addEventListener("click", () => {
     hideMenu();
     isExiting = true;
-    engine.applyState(engine.hasState("waving") ? "waving" : "idle");
     const message = GOODBYE_SPEECH_POOL[Math.floor(Math.random() * GOODBYE_SPEECH_POOL.length)];
     showSpeech(message, 2600);
     setTimeout(() => exit(0), 2800);

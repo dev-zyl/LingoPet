@@ -1,6 +1,6 @@
 [package]
 name = "lingo-pet"
-version = "0.2.5"
+version = "0.2.6"
 description = "A lightweight Tauri desktop pet companion."
 authors = ["dev-zyl"]
 license = "MIT"
