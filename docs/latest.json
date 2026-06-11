@@ -1,35 +1,35 @@
-{
-  "version": "0.2.4",
+﻿{
+  "version": "0.2.6",
   "notes": "LingoPet 灵动宠物桌面宠物自动构建发布版本。\n\nmacOS 提示“已损坏，无法打开”时，通常是因为应用尚未签名和 Apple 公证。临时解决：将 LingoPet.app 拖到“应用程序”后，在终端执行：\n```bash\nxattr -cr /Applications/LingoPet.app\n```\n然后再次打开应用。",
-  "pub_date": "2026-06-04T08:41:05.522Z",
+  "pub_date": "2026-06-11T13:51:53.385Z",
   "platforms": {
-    "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2FpenkveU9SYnRMMGNKMGhVeWRORjFJMnJUM2hGaXNLczNmUW8zRXNaTm5XN3lWRkFRT0p5eXRzb1k1SUF6TWcxM1gzUmN5LzJmVlNBcjN5L2NHNXdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTYyMjg2CWZpbGU6TGluZ29QZXQuYXBwLnRhci5nego5ekpzNDhEYWpEcFUvRGpaSVBJV1dNaWdSc2ZpYURmZnVIUWlZMjMvdndQb2hSRTd3dFF3RWI5TkNzRXM3TmJkSlhyU09sMXluZHlhUnVJcUJHUFVEZz09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.4/LingoPet_x64.app.tar.gz"
-    },
-    "darwin-x86_64-app": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2FpenkveU9SYnRMMGNKMGhVeWRORjFJMnJUM2hGaXNLczNmUW8zRXNaTm5XN3lWRkFRT0p5eXRzb1k1SUF6TWcxM1gzUmN5LzJmVlNBcjN5L2NHNXdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTYyMjg2CWZpbGU6TGluZ29QZXQuYXBwLnRhci5nego5ekpzNDhEYWpEcFUvRGpaSVBJV1dNaWdSc2ZpYURmZnVIUWlZMjMvdndQb2hSRTd3dFF3RWI5TkNzRXM3TmJkSlhyU09sMXluZHlhUnVJcUJHUFVEZz09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.4/LingoPet_x64.app.tar.gz"
-    },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2JYaXlSVjF1SjJXZEtzVFdvdEN5SnZ5L3E4R3hrdUx2dXRES1owWVRVWmxUcHljZmVvbHNFLzJnU3RnMVVUT3MwRFlQU3Z2ajhlZlgyWHRRUXYxTmdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTYyMjk2CWZpbGU6TGluZ29QZXQuYXBwLnRhci5negpnYUxEQXp2ZllteWQ2S2NEVkZabStza1lic1N6N2o3NDFzcElPdEgvMFJsbEVmVytSaThLRkdQT1M1WDhMOUJTUHp3QVdFcERFS05QN213dVc5Z0pBUT09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.4/LingoPet_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2NGOEtXTFdMOWdOMkZ0RGt2YjN0V2VtakkzZlg0YlNZY2hxTm0wYmo5S0ZoTXVZdjRzTWx5Nlk2Q2lUcHRjeFBXMElaR2xHUnhSeWpWSnFGTHg3WXc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMTg1Njg5CWZpbGU6TGluZ29QZXQuYXBwLnRhci5negpTWjJxdnRYMmpGRnZiK2xWTlJvN0FLc0RjSXhrbnhGV1plTWQ4SDdhUFNvb3VQZnlja1c5dVV3K0ttOXZPQjJYaUwzV0NXRUVSUisxZ2xobVpldzFEZz09Cg==",
+      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.6/LingoPet_aarch64.app.tar.gz"
     },
     "darwin-aarch64-app": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2JYaXlSVjF1SjJXZEtzVFdvdEN5SnZ5L3E4R3hrdUx2dXRES1owWVRVWmxUcHljZmVvbHNFLzJnU3RnMVVUT3MwRFlQU3Z2ajhlZlgyWHRRUXYxTmdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTYyMjk2CWZpbGU6TGluZ29QZXQuYXBwLnRhci5negpnYUxEQXp2ZllteWQ2S2NEVkZabStza1lic1N6N2o3NDFzcElPdEgvMFJsbEVmVytSaThLRkdQT1M1WDhMOUJTUHp3QVdFcERFS05QN213dVc5Z0pBUT09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.4/LingoPet_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2NGOEtXTFdMOWdOMkZ0RGt2YjN0V2VtakkzZlg0YlNZY2hxTm0wYmo5S0ZoTXVZdjRzTWx5Nlk2Q2lUcHRjeFBXMElaR2xHUnhSeWpWSnFGTHg3WXc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMTg1Njg5CWZpbGU6TGluZ29QZXQuYXBwLnRhci5negpTWjJxdnRYMmpGRnZiK2xWTlJvN0FLc0RjSXhrbnhGV1plTWQ4SDdhUFNvb3VQZnlja1c5dVV3K0ttOXZPQjJYaUwzV0NXRUVSUisxZ2xobVpldzFEZz09Cg==",
+      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.6/LingoPet_aarch64.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2NVTmEwQ05uUEcwK2NzR2xWNzBqRTNpWTJVYWZkWWhXZGdUS0h1K2NIcmRwL2lJdWFoVkxUNXhLZkt2L3lCdld6amRpMXdhcVE4cEg3Q3RjU0YyWlFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMTg1NzkzCWZpbGU6TGluZ29QZXQuYXBwLnRhci5negpvbGNBUFRlLzRSRndvZ2xBNVZFOElGbXRndCtKaEZDa0JORWNYZUdCemRKbTNzMTd2SmVNQTFVMHZ5Y2FFL09sWWFlQ3JFZkE4RDQvYU5MV0daQjJEZz09Cg==",
+      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.6/LingoPet_x64.app.tar.gz"
+    },
+    "darwin-x86_64-app": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2NVTmEwQ05uUEcwK2NzR2xWNzBqRTNpWTJVYWZkWWhXZGdUS0h1K2NIcmRwL2lJdWFoVkxUNXhLZkt2L3lCdld6amRpMXdhcVE4cEg3Q3RjU0YyWlFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMTg1NzkzCWZpbGU6TGluZ29QZXQuYXBwLnRhci5negpvbGNBUFRlLzRSRndvZ2xBNVZFOElGbXRndCtKaEZDa0JORWNYZUdCemRKbTNzMTd2SmVNQTFVMHZ5Y2FFL09sWWFlQ3JFZkE4RDQvYU5MV0daQjJEZz09Cg==",
+      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.6/LingoPet_x64.app.tar.gz"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R1pXbFJSeUxNb0pJUHBJT3prYkdIYUk0K2Vndmc2dXFsSVd5SXhJcUV5bE9ZNnJXVkxrR0FoTmloK1Z5WTVFN3lUM20vSzFHVy9wQ093YVp4MVFzVXdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTYyNDYwCWZpbGU6TGluZ29QZXRfMC4yLjRfeDY0X2VuLVVTLm1zaQpJQjhvZU9FdElIaTZKaEt0NXVGQU1CS3NuZi95RmhuVXJZVG1DcThFQmNDWGdKaUJxRUMydENEWU42SEhpWEVrTzhlbUx3R2FIdjNZdHVJT0NKMmhCUT09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.4/LingoPet_0.2.4_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R1RCdDJ0R0dYQ0owcUJBZWdYUGJSdUFOSHVYNVVMR2RRblBGaE4xNndQTmNBVW5DSnJzbk5MMkFuSXNwNWxXd2lPSjVxYktCTmJpUUlzd0FuQTU1dHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMTg1OTA5CWZpbGU6TGluZ29QZXRfMC4yLjZfeDY0X2VuLVVTLm1zaQovRmRTWXRMZ3pvT05US012WkY3TlFrVWN4Zi9mSUs4dlg0NVhlNk5CbXcvREtEUW5EUmNmcE93Nkt3cjZNVmNtbGUwRFROM2lxd0hzUlVZLzhjNjlDUT09Cg==",
+      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.6/LingoPet_0.2.6_x64_en-US.msi"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R1pXbFJSeUxNb0pJUHBJT3prYkdIYUk0K2Vndmc2dXFsSVd5SXhJcUV5bE9ZNnJXVkxrR0FoTmloK1Z5WTVFN3lUM20vSzFHVy9wQ093YVp4MVFzVXdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTYyNDYwCWZpbGU6TGluZ29QZXRfMC4yLjRfeDY0X2VuLVVTLm1zaQpJQjhvZU9FdElIaTZKaEt0NXVGQU1CS3NuZi95RmhuVXJZVG1DcThFQmNDWGdKaUJxRUMydENEWU42SEhpWEVrTzhlbUx3R2FIdjNZdHVJT0NKMmhCUT09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.4/LingoPet_0.2.4_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R1RCdDJ0R0dYQ0owcUJBZWdYUGJSdUFOSHVYNVVMR2RRblBGaE4xNndQTmNBVW5DSnJzbk5MMkFuSXNwNWxXd2lPSjVxYktCTmJpUUlzd0FuQTU1dHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMTg1OTA5CWZpbGU6TGluZ29QZXRfMC4yLjZfeDY0X2VuLVVTLm1zaQovRmRTWXRMZ3pvT05US012WkY3TlFrVWN4Zi9mSUs4dlg0NVhlNk5CbXcvREtEUW5EUmNmcE93Nkt3cjZNVmNtbGUwRFROM2lxd0hzUlVZLzhjNjlDUT09Cg==",
+      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.6/LingoPet_0.2.6_x64_en-US.msi"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R1h0eVBPb1lHR0Yva3c3SEVSYkxNeDJ1dXAwYjNPdVRkQlpDUlM0QWUrc1hyZjRRMHhaNFlWNDdQSURTVGc3STN0dHVqWEhmN0h3c1pWcEJ0NGh2QVFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTYyNDYwCWZpbGU6TGluZ29QZXRfMC4yLjRfeDY0LXNldHVwLmV4ZQpnNXh5b3VqZG5wL0l2VUZpaUo4UDVkSnJhZFlNdVRla3JVaHpyYTZ1YW1DaVdmM284TjRRMlhrTEx6Y0hYQXZEYXZUUU9rdk82aFVnOTVKSVJaNXNEQT09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.4/LingoPet_0.2.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R1dGdUV0R20xeVdrb0g3QzQ4VzFlbWEwM21VQU9SaDhYNVdEbzBNcmR2UEUrNm5GN3pUTmhHcGxmNFk1RksyL3RlcS9icG4wUXo0UVRTQzNBemNxQWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMTg1OTA5CWZpbGU6TGluZ29QZXRfMC4yLjZfeDY0LXNldHVwLmV4ZQpUd3RNZ2szSGVHY3kzT3RQUXdSdE0vWVBvUFJJODNnSStXMk9mZ2g3L3p2cXZKNnJMUU96ajBvTUs4UnE4MjN0VG5yYWRqb3VRUWFqc2ZqT0N2c2dBZz09Cg==",
+      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v0.2.6/LingoPet_0.2.6_x64-setup.exe"
     }
   }
 }
