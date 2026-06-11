@@ -880,7 +880,6 @@ pub fn run() {
             pet_import::read_project_pet_spritesheet,
             pet_import::save_project_pet_spritesheet,
             pet_import::save_project_pet_generation_references,
-            pet_import::save_project_pet_generated_images,
             pet_import::open_pet_folder,
             pet_import::get_project_pet_dir,
             set_api_key,

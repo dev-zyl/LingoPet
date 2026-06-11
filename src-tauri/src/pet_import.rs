@@ -63,12 +63,6 @@ pub struct DebugGenerationInput {
     pub prompt: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct GeneratedImageInput {
-    #[serde(rename = "base64")]
-    pub base64_data: String,
-}
-
 fn pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app
         .path()
@@ -662,57 +656,6 @@ pub fn save_project_pet_generation_references(
         saved.push(path.to_string_lossy().to_string());
     }
     Ok(saved)
-}
-
-#[tauri::command]
-pub fn save_project_pet_generated_images(
-    app: AppHandle,
-    pet_id: String,
-    images: Vec<GeneratedImageInput>,
-) -> Result<Vec<String>, String> {
-    let dir = project_pets_dir(&app)?.join(sanitize_id(&pet_id)?);
-    if !dir.is_dir() {
-        return Err(format!("Project pet not found: {}", pet_id));
-    }
-    if images.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let pet_json = dir.join("pet.json");
-    let content =
-        fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
-    let manifest: PetManifest =
-        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
-    let name = generated_image_name_prefix(&manifest);
-    let mut saved = Vec::new();
-
-    for (index, image) in images.into_iter().enumerate() {
-        let bytes = decode_base64(&image.base64_data)?;
-        if bytes.is_empty() || bytes.len() > MAX_FILE_BYTES as usize {
-            return Err("Generated image is empty or too large".to_string());
-        }
-        let file_name = format!("{name}_{:02}.png", index + 1);
-        let path = dir.join(&file_name);
-        fs::write(&path, bytes).map_err(|e| format!("Failed to write generated image: {e}"))?;
-        saved.push(path.to_string_lossy().to_string());
-    }
-    Ok(saved)
-}
-
-fn generated_image_name_prefix(manifest: &PetManifest) -> String {
-    let cleaned: String = manifest
-        .display_name
-        .trim()
-        .chars()
-        .filter(|ch| !matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') && !ch.is_control())
-        .collect::<String>()
-        .trim_end_matches(&[' ', '.'][..])
-        .to_string();
-    if cleaned.is_empty() {
-        manifest.id.clone()
-    } else {
-        cleaned
-    }
 }
 
 fn sanitize_debug_reference_name(name: &str) -> Result<String, String> {

@@ -4054,35 +4054,16 @@ async function saveSpriteEditor(): Promise<void> {
     state.editorDirty = false;
     const index = state.projectPets.findIndex((item) => item.id === pet.id);
     if (index >= 0) state.projectPets[index] = pet;
-    let pngStatus = "";
     for (const action of actions) {
-      if (!action.pendingFramePngSave || !action.key || !(action.key in MODE_ACTION_PRESETS)) continue;
-      const count = MODE_ACTION_PRESETS[action.key as ModeActionKey].frames;
-      const frames = action.frames.slice(0, count);
-      if (!frames.every((frame) => frameHasContent(frame)) || !frames[0]) continue;
-      try {
-        const savedImages = await saveGeneratedActionImages(frames.map((frame) => frame!.toDataURL("image/png")));
-        action.pendingFramePngSave = false;
-        if (savedImages.length) pngStatus = `，并保存最终分帧 PNG（${savedImages.length} 张）`;
-      } catch (err) {
-        pngStatus = `，但分帧 PNG 保存失败：${err instanceof Error ? err.message : String(err)}`;
-      }
+      action.pendingFramePngSave = false;
     }
-    setStatus(els.editorStatus, `已保存为 ${pet.spritesheetPath}${pngStatus}。`);
+    setStatus(els.editorStatus, `已保存为 ${pet.spritesheetPath}。`);
   } catch (err) {
     setStatus(els.editorStatus, `保存失败：${err instanceof Error ? err.message : String(err)}`, true);
   } finally {
     els.editorSave.disabled = false;
     els.editorSave.textContent = original;
   }
-}
-
-async function saveGeneratedActionImages(images: string[]): Promise<string[]> {
-  if (!isTauriRuntime() || !state.editorPet) return [];
-  return await invoke<string[]>("save_project_pet_generated_images", {
-    petId: state.editorPet.id,
-    images: images.map((img) => ({ base64: dataUrlBase64(img) })),
-  });
 }
 
 function loadImageElement(src: string): Promise<HTMLImageElement> {
@@ -4105,10 +4086,6 @@ async function loadImageFile(file: File): Promise<HTMLImageElement> {
   } finally {
     URL.revokeObjectURL(url);
   }
-}
-
-function dataUrlBase64(dataUrl: string): string {
-  return dataUrl.split(",", 2)[1] || "";
 }
 
 function frameHasContent(canvas: HTMLCanvasElement | null): boolean {
