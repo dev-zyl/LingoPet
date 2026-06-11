@@ -32,6 +32,7 @@ const API_KEY_ACCOUNT: &str = "pet_api_key";
 const CODEXPET_API_BASE: &str = "https://codexpet.xyz";
 const DEEP_LINK_INSTALL_EVENT: &str = "lingopet-install-result";
 const DEEP_LINK_ACTION_IMPORT_EVENT: &str = "lingopet-action-import";
+const PET_WINDOW_STATE_CHANGED_EVENT: &str = "pet-window-state-changed";
 #[cfg(windows)]
 const RPC_E_CHANGED_MODE: HRESULT = HRESULT(0x80010106u32 as i32);
 #[cfg(windows)]
@@ -82,6 +83,35 @@ fn write_export_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
         return Err("Export file is empty".to_string());
     }
     fs::write(path, bytes).map_err(|e| format!("Failed to write export file: {e}"))
+}
+
+fn custom_tags_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {e}"))?;
+    fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create app data dir: {e}"))?;
+    Ok(data_dir.join("custom_tags.json"))
+}
+
+#[tauri::command]
+fn read_custom_tags(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let path = custom_tags_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    fs::read_to_string(path).map(Some).map_err(|e| format!("Failed to read custom tags: {e}"))
+}
+
+#[tauri::command]
+fn write_custom_tags(app: tauri::AppHandle, tags_json: String) -> Result<(), String> {
+    let value: serde_json::Value = serde_json::from_str(&tags_json)
+        .map_err(|e| format!("Invalid custom tags JSON: {e}"))?;
+    if !value.is_object() {
+        return Err("Custom tags JSON must be an object".to_string());
+    }
+    let path = custom_tags_path(&app)?;
+    fs::write(path, tags_json).map_err(|e| format!("Failed to write custom tags: {e}"))
 }
 
 #[derive(Debug, Clone)]
@@ -477,8 +507,12 @@ fn pet_id_from_window_label(label: &str) -> Option<String> {
 #[tauri::command]
 fn list_summoned_pet_windows(app: tauri::AppHandle) -> Vec<SummonedPetWindow> {
     app.webview_windows()
-        .into_keys()
-        .filter_map(|label| {
+        .into_values()
+        .filter_map(|window| {
+            if !matches!(window.is_visible(), Ok(true)) {
+                return None;
+            }
+            let label = window.label().to_string();
             pet_id_from_window_label(&label).map(|pet_id| SummonedPetWindow { label, pet_id })
         })
         .collect()
@@ -530,19 +564,86 @@ fn hide_primary_pet_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-fn toggle_primary_pet_window(app: tauri::AppHandle) {
-    match is_primary_pet_window_visible(app.clone()) {
-        Ok(true) => {
-            if let Err(error) = hide_primary_pet_window(app) {
+fn visible_summoned_pet_window_labels(app: &tauri::AppHandle) -> Vec<String> {
+    summoned_pet_window_labels_by_visibility(app, true)
+}
+
+fn hidden_summoned_pet_window_labels(app: &tauri::AppHandle) -> Vec<String> {
+    summoned_pet_window_labels_by_visibility(app, false)
+}
+
+fn summoned_pet_window_labels_by_visibility(app: &tauri::AppHandle, visible: bool) -> Vec<String> {
+    app.webview_windows()
+        .into_values()
+        .filter_map(|window| {
+            if pet_id_from_window_label(window.label()).is_none() {
+                return None;
+            }
+            match window.is_visible() {
+                Ok(is_visible) if is_visible == visible => Some(window.label().to_string()),
+                Ok(_) => None,
+                Err(error) => {
+                    log::error!(
+                        "Failed to read summoned pet window visibility for {}: {error}",
+                        window.label()
+                    );
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+fn toggle_visible_pet_windows(app: tauri::AppHandle) {
+    let emit_app = app.clone();
+    let primary_visible = match is_primary_pet_window_visible(app.clone()) {
+        Ok(visible) => visible,
+        Err(error) => {
+            log::error!("Failed to read primary pet visibility from tray: {error}");
+            false
+        }
+    };
+    let visible_summoned = visible_summoned_pet_window_labels(&app);
+
+    if primary_visible || !visible_summoned.is_empty() {
+        if primary_visible {
+            if let Err(error) = hide_primary_pet_window(app.clone()) {
                 log::error!("Failed to hide primary pet window from tray: {error}");
             }
         }
-        Ok(false) => {
-            if let Err(error) = show_primary_pet_window(app) {
-                log::error!("Failed to show primary pet window from tray: {error}");
+        for label in visible_summoned {
+            if let Some(window) = app.get_webview_window(&label) {
+                if let Err(error) = window.hide() {
+                    log::error!("Failed to hide summoned pet window {label} from tray: {error}");
+                }
             }
         }
-        Err(error) => log::error!("Failed to read primary pet visibility from tray: {error}"),
+        if let Err(error) = emit_app.emit(PET_WINDOW_STATE_CHANGED_EVENT, ()) {
+            log::error!("Failed to emit pet window state change from tray: {error}");
+        }
+        return;
+    }
+
+    let hidden_summoned = hidden_summoned_pet_window_labels(&app);
+    if !hidden_summoned.is_empty() {
+        for label in hidden_summoned {
+            if let Some(window) = app.get_webview_window(&label) {
+                if let Err(error) = window.show() {
+                    log::error!("Failed to show summoned pet window {label} from tray: {error}");
+                }
+            }
+        }
+        if let Err(error) = emit_app.emit(PET_WINDOW_STATE_CHANGED_EVENT, ()) {
+            log::error!("Failed to emit pet window state change from tray: {error}");
+        }
+        return;
+    }
+
+    if let Err(error) = show_primary_pet_window(app) {
+        log::error!("Failed to show primary pet window from tray: {error}");
+    }
+    if let Err(error) = emit_app.emit(PET_WINDOW_STATE_CHANGED_EVENT, ()) {
+        log::error!("Failed to emit pet window state change from tray: {error}");
     }
 }
 
@@ -564,7 +665,7 @@ fn setup_system_tray(app: &tauri::App) -> tauri::Result<()> {
                     log::error!("Failed to open manager from tray: {error}");
                 }
             }
-            "toggle_pet" => toggle_primary_pet_window(app.clone()),
+            "toggle_pet" => toggle_visible_pet_windows(app.clone()),
             "quit_app" => app.exit(0),
             _ => {}
         })
@@ -767,6 +868,8 @@ pub fn run() {
             delete_api_key,
             move_to_trash,
             write_export_file,
+            read_custom_tags,
+            write_custom_tags,
             is_system_audio_playing,
             list_desktop_platforms,
             open_manager_window,

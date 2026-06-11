@@ -855,7 +855,15 @@ textarea:focus {
 .editor-main-header {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.editor-main-heading {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
 }
 .workspace-badge {
   font-size: 11px;
@@ -867,6 +875,34 @@ textarea:focus {
   margin-left: 8px;
   vertical-align: middle;
   display: inline-block;
+}
+
+.editor-current-pet-name {
+  margin: 0;
+  color: #6a5736;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.editor-workshop-share {
+  min-height: 34px;
+  padding: 6px 14px;
+  border-color: #78b957;
+  background: rgba(120, 185, 87, 0.12);
+  color: #2f4b16;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.editor-workshop-share:hover {
+  background: rgba(120, 185, 87, 0.2);
+  border-color: #67a944;
+}
+
+.editor-workshop-share[hidden] {
+  display: none !important;
 }
 
 .sprite-editor-main h3,
@@ -889,6 +925,56 @@ textarea:focus {
   overflow: auto;
 }
 
+.editor-preview-controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(31, 169, 154, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.9);
+  box-shadow: 0 8px 24px rgba(93, 74, 35, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.editor-preview-controls button {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.editor-preview-controls .editor-icon-button {
+  width: 34px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.editor-fps-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #5b5144;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.editor-fps-field input {
+  width: 54px;
+  height: 32px;
+  border: 1px solid #d7c9af;
+  border-radius: 8px;
+  padding: 0 8px;
+  background: #fff;
+  color: #342c22;
+  font-weight: 800;
+}
+
 #editor-frame-canvas {
   width: 288px;
   height: 312px;
@@ -901,6 +987,102 @@ textarea:focus {
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
   background-size: 16px 16px;
   image-rendering: pixelated;
+}
+
+.editor-guide-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 288px;
+  height: 312px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.editor-guide-overlay.hidden {
+  display: none;
+}
+
+.editor-guide-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px dashed rgba(0, 162, 255, 0.62);
+}
+
+.editor-guide-x,
+.editor-guide-y {
+  position: absolute;
+  background: rgba(0, 162, 255, 0.88);
+  pointer-events: auto;
+}
+
+.editor-guide-overlay[data-guide-hover="x"] .editor-guide-x,
+.editor-guide-overlay[data-guide-hover="y"] .editor-guide-y {
+  filter: brightness(1.08);
+}
+
+.editor-guide-x {
+  left: 0;
+  right: 0;
+  top: 84.5%;
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    rgba(0, 162, 255, 0.92) 0 6px,
+    transparent 6px 10px
+  );
+  cursor: ns-resize;
+}
+
+.editor-guide-y {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 162, 255, 0.92) 0 6px,
+    transparent 6px 10px
+  );
+  cursor: ew-resize;
+}
+
+.editor-guide-overlay[data-guide-hover="x"] .editor-guide-x {
+  background: repeating-linear-gradient(
+    to right,
+    rgba(0, 198, 255, 0.98) 0 6px,
+    transparent 6px 10px
+  );
+}
+
+.editor-guide-overlay[data-guide-hover="y"] .editor-guide-y {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 198, 255, 0.98) 0 6px,
+    transparent 6px 10px
+  );
+}
+
+.editor-guide-x::before,
+.editor-guide-y::before {
+  content: "";
+  position: absolute;
+}
+
+.editor-guide-x::before {
+  left: 0;
+  right: 0;
+  top: -8px;
+  bottom: -8px;
+}
+
+.editor-guide-y::before {
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  right: -8px;
 }
 
 #editor-frame-canvas.eraser-active {
@@ -3773,6 +3955,39 @@ textarea {
 }
 
 /* 缩减卡片之间的间距，彻底消灭滚动条以实现一页全显 */
+.mode-action-buttons button.active,
+.mode-action-buttons button[aria-pressed="true"] {
+  border-color: #78b957;
+  background: rgba(120, 185, 87, 0.14);
+  color: #2f4b16;
+  box-shadow: 0 0 0 2px rgba(120, 185, 87, 0.12) inset;
+}
+
+.mode-refine-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border: 1px solid #8bc7d8;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ebfbff, #f5fffb);
+  color: #23556a;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.mode-refine-link:hover {
+  border-color: #5fb1ca;
+  color: #153d4c;
+}
+
+.mode-refine-help {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(91, 81, 68, 0.78);
+}
+
 .sprite-editor-side {
   gap: 12px !important;
 }

@@ -7,7 +7,7 @@
   <title>灵动宠物控制面板</title>
 </head>
 
-<body>
+<body data-view="mine">
   <a class="skip-link" href="#main-content">跳转到主要内容</a>
   <div id="app">
     <aside class="sidebar">
@@ -138,10 +138,28 @@
         <div class="sprite-editor-shell">
           <section class="sprite-editor-main" aria-label="桌宠帧编辑">
             <div class="editor-main-header">
-              <h3 id="editor-frame-title">帧编辑</h3>
-              <span class="workspace-badge">工作区</span>
+              <div class="editor-main-heading">
+                <h3 id="editor-frame-title">帧编辑</h3>
+                <span class="workspace-badge">工作区</span>
+              </div>
+              <button id="action-strip-share-btn" class="secondary-button editor-workshop-share" type="button" hidden>分享创意工坊</button>
+              <p id="editor-current-pet-name" class="editor-current-pet-name">当前桌宠：-</p>
             </div>
             <div class="frame-stage-wrap">
+              <div class="editor-preview-controls" aria-label="预览播放控制">
+                <button id="editor-prev-frame-btn" class="secondary-button editor-icon-button" type="button" title="上一帧">‹</button>
+                <button id="editor-play-toggle-btn" class="secondary-button" type="button" aria-pressed="false">播放</button>
+                <button id="editor-next-frame-btn" class="secondary-button editor-icon-button" type="button" title="下一帧">›</button>
+                <button id="editor-guide-toggle-btn" class="secondary-button" type="button" aria-pressed="true">辅助线</button>
+                <label class="editor-fps-field" for="editor-play-fps-input">
+                  <span>FPS</span>
+                  <input id="editor-play-fps-input" type="number" min="1" max="60" step="1" value="8" />
+                </label>
+              </div>
+              <div class="editor-guide-overlay" aria-hidden="true">
+                <span class="editor-guide-x"></span>
+                <span class="editor-guide-y"></span>
+              </div>
               <canvas id="editor-frame-canvas" width="192" height="208" tabindex="0"
                 aria-label="当前帧预览，未启用橡皮擦时可拖动调整位置"></canvas>
               <div class="editor-eraser-toolbar" aria-label="橡皮擦工具">
@@ -164,6 +182,8 @@
                 <button id="editor-copy-btn" class="secondary-button" type="button">复制帧</button>
                 <button id="editor-paste-btn" class="secondary-button" type="button" disabled>粘贴帧</button>
                 <button id="editor-clear-btn" class="secondary-button" type="button">删除帧</button>
+                <button id="editor-mirror-frame-btn" class="secondary-button" type="button">镜像当前帧</button>
+                <button id="editor-mirror-action-btn" class="secondary-button" type="button">镜像当前动作</button>
               </div>
               <div class="frame-position-tools" aria-label="当前帧位置微调" style="display: none !important;">
                 <strong>位置微调</strong>
@@ -198,26 +218,21 @@
               </div>
             </div>
             <div class="editor-card">
-              <h3>模式关联与分享</h3>
+              <h3>复制提示词</h3>
               <div class="mode-action-buttons">
                 <button class="secondary-button mode-action-preset" data-action-key="merit" type="button">功德模式</button>
                 <button class="secondary-button mode-action-preset" data-action-key="focus" type="button">专注模式</button>
                 <button class="secondary-button mode-action-preset" data-action-key="music" type="button">音乐律动</button>
               </div>
-              <div class="action-strip-import-tools">
-                <label class="action-strip-frame-count-field" for="action-strip-frame-count">
-                  <span>帧数</span>
-                  <input id="action-strip-frame-count" type="number" min="1" max="8" step="1" inputmode="numeric" placeholder="自动" title="留空则自动识别帧数；输入数字可手动指定帧数" />
-                </label>
-                <button id="action-strip-import-btn" class="secondary-button" type="button">导入横版图</button>
-              </div>
-              <small class="action-strip-help">粘贴或导入时会优先按这里的帧数拆分；留空则自动识别。</small>
+              <a id="mode-refine-link" class="mode-refine-link" href="https://studio.lingopet.xyz/精修" target="_blank" rel="noreferrer">打开LingoPet Sprite Studio</a>
+              <small class="mode-refine-help">选取本页面任意帧作为参考图，点击模式按钮复制动作英文提示词。复制到站外生图平台生成动作精灵图</small>
+              <small class="mode-refine-help">使用文档</small>
+              <input id="action-strip-frame-count" type="number" min="1" max="8" step="1" inputmode="numeric" hidden />
               <input id="action-strip-upload-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
-              <button id="action-strip-share-btn" class="primary-button" type="button"
-                style="background-color: #8b5cf6 !important; border-color: #8b5cf6 !important; color: white !important; font-weight: 800; font-size: 14px; padding: 12px; margin-top: 8px;">分享当前动作到社区</button>
 
               <!-- 隐藏的后向兼容辅助元素 -->
               <button id="editor-align-action-btn" type="button" style="display: none !important;"></button>
+              <button id="action-strip-import-btn" type="button" style="display: none !important;"></button>
               <button id="prompt-copy-btn" type="button" style="display: none !important;"></button>
               <textarea id="image-prompt-output" style="display: none !important;"></textarea>
             </div>

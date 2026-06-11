@@ -12,6 +12,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 
@@ -57,12 +58,55 @@ interface FrameAnimation {
   frameDurations: number[];
 }
 
+const MODE_PROMPT_COMMON_PREFIX = `Use the uploaded reference image as the strict character identity reference. Preserve the character's species, body shape, head shape, face, colors, clothing, accessories, outline style, and cute sprite/pixel-art feeling.
+Create one complete sprite sheet, not separate images. Each frame must show the same character at a consistent scale and position. Use pure chroma green background #00FF00 only. No transparent background. No text, labels, frame numbers, borders, grid lines, scenery, shadows, glow, speed lines, blur, loose particles, or detached effects. No cropped body parts. No pose should cross into another frame.`;
+
+const MODE_COPY_PROMPTS: Record<ModeActionKey, string> = {
+  focus: `${MODE_PROMPT_COMMON_PREFIX}
+Create a focus/work mode sprite sheet.
+Layout: 1 row x 4 columns, 4 frames total. Each cell is 192x208 pixels. Final image size should be 768x208.
+Action: the character is seriously working with a small laptop resting on its lap or directly in front of its body. The laptop must stay visible, stable, and aligned with the character in every frame.
+Frame sequence, left to right:
+1. Neutral working pose, looking focused, paws/hands on laptop.
+2. Slight body lean or small typing movement.
+3. Blink frame while still typing or working.
+4. Small body/ear/head bounce returning to the neutral working pose.
+Keep the motion subtle and loop-friendly. Preserve the original character style exactly. Pure green background #00FF00.`,
+  music: `${MODE_PROMPT_COMMON_PREFIX}
+Create a smooth music rhythm mode sprite sheet.
+Layout: 2 rows x 4 columns, 8 frames total. Each cell is 192x208 pixels. Final image size should be 768x416. Frame order is left to right across the first row, then left to right across the second row.
+Action: make one coherent looping rhythm animation that fits the character. Choose a suitable motion such as dancing, singing, clapping, tapping the beat, swaying, bouncing, or a character-specific rhythm gag if the reference clearly suggests one. If there is no obvious association, use a cute bounce-and-clap rhythm loop.
+Frame sequence:
+1. Neutral beat-ready pose.
+2. Lean or sway left.
+3. Clap/tap/sing on beat.
+4. Lean or sway right.
+5. Small bounce or step.
+6. Strongest rhythm pose, still consistent with the previous motion.
+7. Blink or expressive beat accent.
+8. Return close to frame 1 for a smooth loop.
+The frames must feel continuous, not like random unrelated poses. Keep scale, facing direction, costume, and accessories consistent. Pure green background #00FF00.`,
+  merit: `${MODE_PROMPT_COMMON_PREFIX}
+Create a merit mode wooden-fish tapping sprite sheet.
+Layout: 1 row x 4 columns, 4 frames total. Each cell is 192x208 pixels. Final image size should be 768x208.
+Action: the character sits low or cross-legged if possible. A wooden fish instrument is fixed directly in front of the character in every frame. The character uses the SAME hand, paw, claw, or limb in all frames to hold a small mallet.
+Frame sequence, left to right:
+1. Mallet raised above the wooden fish.
+2. Mallet descending toward the exact strike point.
+3. Strike frame: the mallet head visibly touches the top of the wooden fish. It must not float, miss, shift sideways, hit the floor, hit a cushion, or hit another object.
+4. Mallet lifts again for recovery, with a blink if possible.
+Keep the wooden fish in the same position in all frames. Keep the mallet aligned to the wooden fish. Do not switch hands. Pure green background #00FF00.`,
+};
+
+const STUDIO_REFINE_URL = "https://studio.lingopet.xyz/精修";
+
 const WORKSHOP_SHARE_API = "https://api.lingopet.xyz/api/share";
 const WORKSHOP_RAW_BASE = "https://raw.githubusercontent.com/dev-zyl/LingoPet-workshop/main/";
 const EMPTY_PETS_IMAGE = new URL("./empty-pets.png", import.meta.url).href;
 
 const LS_PET_ASSETS_VERSION = "pet_assets_version";
 const DEEP_LINK_ACTION_IMPORT_EVENT = "lingopet-action-import";
+const PET_WINDOW_STATE_CHANGED_EVENT = "pet-window-state-changed";
 
 const ATLAS_COLS = 8;
 const ATLAS_CELL_WIDTH = 192;
@@ -294,6 +338,7 @@ const els = {
   editorView: document.getElementById("editor-view") as HTMLElement,
   editorTopbarActions: document.getElementById("editor-topbar-actions") as HTMLDivElement,
   editorPetName: document.getElementById("editor-pet-name") as HTMLParagraphElement,
+  editorCurrentPetName: document.getElementById("editor-current-pet-name") as HTMLParagraphElement,
   editorStatus: document.getElementById("editor-status") as HTMLParagraphElement,
   editorFrameTitle: document.getElementById("editor-frame-title") as HTMLHeadingElement,
   editorFrameCanvas: document.getElementById("editor-frame-canvas") as HTMLCanvasElement,
@@ -316,8 +361,19 @@ const els = {
   editorCopy: document.getElementById("editor-copy-btn") as HTMLButtonElement,
   editorPaste: document.getElementById("editor-paste-btn") as HTMLButtonElement,
   editorMoveUndo: document.getElementById("editor-move-undo-btn") as HTMLButtonElement,
+  editorPrevFrame: document.getElementById("editor-prev-frame-btn") as HTMLButtonElement,
+  editorNextFrame: document.getElementById("editor-next-frame-btn") as HTMLButtonElement,
+  editorPlayToggle: document.getElementById("editor-play-toggle-btn") as HTMLButtonElement,
+  editorGuideToggle: document.getElementById("editor-guide-toggle-btn") as HTMLButtonElement,
+  editorPlayFps: document.getElementById("editor-play-fps-input") as HTMLInputElement,
+  editorMirrorFrame: document.getElementById("editor-mirror-frame-btn") as HTMLButtonElement,
+  editorMirrorAction: document.getElementById("editor-mirror-action-btn") as HTMLButtonElement,
+  editorGuideOverlay: document.querySelector(".editor-guide-overlay") as HTMLDivElement,
+  editorGuideX: document.querySelector(".editor-guide-x") as HTMLSpanElement,
+  editorGuideY: document.querySelector(".editor-guide-y") as HTMLSpanElement,
   editorNudgeButtons: [...document.querySelectorAll<HTMLButtonElement>("[data-frame-nudge]")],
   editorModePresets: [...document.querySelectorAll<HTMLButtonElement>(".mode-action-preset")],
+  modeRefineLink: document.getElementById("mode-refine-link") as HTMLAnchorElement,
   editorAlignAction: document.getElementById("editor-align-action-btn") as HTMLButtonElement,
   actionStripUpload: document.getElementById("action-strip-upload-input") as HTMLInputElement,
   actionStripFrameCount: document.getElementById("action-strip-frame-count") as HTMLInputElement,
@@ -342,6 +398,8 @@ const state = {
   activePetWindows: [] as SummonedPetWindow[],
   selectedRecallLabels: new Set<string>(),
   downloading: new Set<string>(),
+  customTags: {} as Record<string, string[]>,
+  customTagsLoaded: false,
 
   editorPet: null as ProjectPet | null,
   editorActions: [] as EditorAction[],
@@ -351,6 +409,7 @@ const state = {
   editorPreviewMode: "frame" as "frame" | "action",
   editorPreviewFrame: 0,
   editorPreviewTimer: null as number | null,
+  editorPreviewPlaying: false,
   editorSelectionType: "cell" as "cell" | "action",
   editorEraserEnabled: false,
   editorErasing: false,
@@ -370,6 +429,11 @@ const state = {
   editorMoveSourceFrame: null as HTMLCanvasElement | null,
   editorMoveSourceOffset: null as { x: number; y: number } | null,
   editorMoveChanged: false,
+  editorGuideDragging: null as "x" | "y" | null,
+  editorGuidePointerId: null as number | null,
+  editorGuideXPercent: 50,
+  editorGuideYPercent: 84.5,
+  editorGuideVisible: true,
   editorDirty: false,
   editorZoomScale: 1.0,
   editorScaleSourceFrame: null as HTMLCanvasElement | null,
@@ -1442,26 +1506,103 @@ function toggleFavoritePet(petId: string): void {
   setFavoritePetIds(petIds.includes(petId) ? petIds.filter((id) => id !== petId) : [...petIds, petId]);
 }
 
-function getCustomTags(): Record<string, string[]> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(LS_CUSTOM_TAGS) || "{}");
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const result: Record<string, string[]> = {};
-      for (const [tag, ids] of Object.entries(parsed)) {
-        if (Array.isArray(ids)) {
-          result[tag] = ids.filter((id): id is string => typeof id === "string" && id.length > 0);
-        }
-      }
-      return result;
+function normalizeCustomTags(raw: unknown): Record<string, string[]> {
+  const source = (() => {
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const candidate = raw as Record<string, unknown>;
+      if (candidate.tags && typeof candidate.tags === "object" && !Array.isArray(candidate.tags)) return candidate.tags;
+      if (candidate.groups && typeof candidate.groups === "object" && !Array.isArray(candidate.groups)) return candidate.groups;
+      return candidate;
     }
     return {};
+  })();
+  const result: Record<string, string[]> = {};
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item || typeof item !== "object") continue;
+      const entry = item as Record<string, unknown>;
+      const tag = typeof entry.name === "string" ? entry.name.trim() : "";
+      const ids = Array.isArray(entry.petIds) ? entry.petIds : Array.isArray(entry.ids) ? entry.ids : [];
+      if (tag) {
+        result[tag] = [...new Set(ids.filter((id): id is string => typeof id === "string" && id.length > 0))];
+      }
+    }
+    return result;
+  }
+
+  for (const [tag, ids] of Object.entries(source)) {
+    const tagName = tag.trim();
+    if (!tagName || !Array.isArray(ids)) continue;
+    result[tagName] = [...new Set(ids.filter((id): id is string => typeof id === "string" && id.length > 0))];
+  }
+  return result;
+}
+
+function parseCustomTagsJson(json: string | null | undefined): Record<string, string[]> {
+  if (!json) return {};
+  try {
+    return normalizeCustomTags(JSON.parse(json));
   } catch {
     return {};
   }
 }
 
+function mergeCustomTags(...tagSets: Record<string, string[]>[]): Record<string, string[]> {
+  const merged: Record<string, string[]> = {};
+  for (const tags of tagSets) {
+    for (const [tag, ids] of Object.entries(tags)) {
+      merged[tag] = [...new Set([...(merged[tag] || []), ...ids])];
+    }
+  }
+  return merged;
+}
+
+function customTagsFromLocalStorage(): Record<string, string[]> {
+  return parseCustomTagsJson(localStorage.getItem(LS_CUSTOM_TAGS));
+}
+
+function getCustomTags(): Record<string, string[]> {
+  return state.customTags;
+}
+
 function saveCustomTags(tags: Record<string, string[]>): void {
-  localStorage.setItem(LS_CUSTOM_TAGS, JSON.stringify(tags));
+  const normalized = normalizeCustomTags(tags);
+  const tagsJson = JSON.stringify(normalized);
+  state.customTags = normalized;
+  state.customTagsLoaded = true;
+  localStorage.setItem(LS_CUSTOM_TAGS, tagsJson);
+  if (isTauriRuntime()) {
+    void invoke("write_custom_tags", { tagsJson }).catch((err) => {
+      console.warn("Failed to back up custom tags", err);
+    });
+  }
+}
+
+async function loadCustomTags(): Promise<void> {
+  const localTags = customTagsFromLocalStorage();
+  let fileTags: Record<string, string[]> = {};
+
+  if (isTauriRuntime()) {
+    try {
+      const fileJson = await invoke<string | null>("read_custom_tags");
+      fileTags = parseCustomTagsJson(fileJson);
+    } catch (err) {
+      console.warn("Failed to read custom tags backup", err);
+    }
+  }
+
+  const merged = mergeCustomTags(fileTags, localTags);
+  state.customTags = merged;
+  state.customTagsLoaded = true;
+  localStorage.setItem(LS_CUSTOM_TAGS, JSON.stringify(merged));
+
+  if (isTauriRuntime() && Object.keys(merged).length > 0) {
+    const tagsJson = JSON.stringify(merged);
+    void invoke("write_custom_tags", { tagsJson }).catch((err) => {
+      console.warn("Failed to refresh custom tags backup", err);
+    });
+  }
 }
 
 function getPetTags(petId: string): string[] {
@@ -1950,6 +2091,9 @@ async function fetchMarketPets(page = 1): Promise<void> {
 
 async function loadProjectPets(): Promise<void> {
   try {
+    if (!state.customTagsLoaded) {
+      await loadCustomTags();
+    }
     const pets = await invoke<ProjectPet[]>("list_project_pets");
     const builtinIds = new Set(BUILTIN_PROJECT_PETS.map((pet) => pet.id));
     state.projectPets = [
@@ -1993,6 +2137,9 @@ function setupDeepLinkInstallListener(): void {
   });
   void listen<DeepLinkActionImportResult>(DEEP_LINK_ACTION_IMPORT_EVENT, (event) => {
     void handleDeepLinkActionImportResult(event.payload);
+  });
+  void listen(PET_WINDOW_STATE_CHANGED_EVENT, () => {
+    void loadActivePets();
   });
 }
 
@@ -2717,11 +2864,24 @@ els.editorClear.addEventListener("click", () => {
 els.editorCopy.addEventListener("click", () => copySelectedEditorFrame());
 els.editorPaste.addEventListener("click", () => pasteSelectedEditorFrame());
 els.editorMoveUndo.addEventListener("click", () => undoFrameNudge());
+els.editorPrevFrame.addEventListener("click", () => stepSelectedEditorFrame(-1));
+els.editorNextFrame.addEventListener("click", () => stepSelectedEditorFrame(1));
+els.editorPlayToggle.addEventListener("click", () => toggleSelectedEditorActionPlayback());
+els.editorGuideToggle.addEventListener("click", () => setEditorGuideVisible(!state.editorGuideVisible));
+els.editorPlayFps.addEventListener("change", () => {
+  const action = state.editorActions[state.editorSelectedRow];
+  if (!action) return;
+  setActionFrameDuration(action, actionFrameDurationFromFps());
+  if (state.editorPreviewPlaying) playSelectedEditorAction(state.editorPreviewFrame);
+  renderSpriteEditorGrid();
+});
+els.editorMirrorFrame.addEventListener("click", () => mirrorSelectedEditorFrame());
+els.editorMirrorAction.addEventListener("click", () => mirrorSelectedEditorAction());
 
 els.editorNudgeButtons.forEach((btn) => {
   const nudge = btn.dataset.frameNudge;
   if (nudge) {
-    const [dx, dy] = nudge.split(",").map(Number);
+    const [dx, dy] = nudgeDirectionToDelta(nudge);
     btn.addEventListener("click", () => nudgeFrameOffset(dx, dy));
   }
 });
@@ -2729,8 +2889,13 @@ els.editorNudgeButtons.forEach((btn) => {
 els.editorModePresets.forEach((btn) => {
   const mode = btn.dataset.actionKey as ModeActionKey;
   if (mode) {
-    btn.addEventListener("click", () => selectEditorModeAction(mode));
+    btn.addEventListener("click", () => void copyModePromptForAction(mode));
   }
+});
+
+els.modeRefineLink.addEventListener("click", (event) => {
+  event.preventDefault();
+  void openUrl(STUDIO_REFINE_URL);
 });
 
 els.editorAlignAction.addEventListener("click", () => void optimizeActionFramesAlignment());
@@ -2764,10 +2929,84 @@ els.editorEraserSize.addEventListener("input", () => {
 
 els.editorEraserUndo.addEventListener("click", () => undoEditorEraser());
 
+function updateEditorGuideLines(): void {
+  if (!els.editorGuideX || !els.editorGuideY) return;
+  els.editorGuideX.style.top = `${state.editorGuideYPercent}%`;
+  els.editorGuideY.style.left = `${state.editorGuideXPercent}%`;
+}
+
+function setEditorGuideVisible(visible: boolean): void {
+  state.editorGuideVisible = visible;
+  els.editorGuideOverlay.classList.toggle("hidden", !visible);
+  els.editorGuideToggle.classList.toggle("active", visible);
+  els.editorGuideToggle.setAttribute("aria-pressed", String(visible));
+}
+
+function guideAxisFromPointer(event: PointerEvent): "x" | "y" | null {
+  const rect = els.editorGuideOverlay.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const localX = event.clientX - rect.left;
+  const localY = event.clientY - rect.top;
+  const guideX = rect.width * state.editorGuideXPercent / 100;
+  const guideY = rect.height * state.editorGuideYPercent / 100;
+  const nearY = Math.abs(localX - guideX) <= 10;
+  const nearX = Math.abs(localY - guideY) <= 10;
+  if (nearX && nearY) return Math.abs(localY - guideY) <= Math.abs(localX - guideX) ? "x" : "y";
+  if (nearX) return "x";
+  if (nearY) return "y";
+  return null;
+}
+
+function moveEditorGuideLine(axis: "x" | "y", event: PointerEvent): void {
+  const rect = els.editorGuideOverlay.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+  if (axis === "x") {
+    state.editorGuideYPercent = Math.min(100, Math.max(0, ((event.clientY - rect.top) / rect.height) * 100));
+  } else {
+    state.editorGuideXPercent = Math.min(100, Math.max(0, ((event.clientX - rect.left) / rect.width) * 100));
+  }
+  updateEditorGuideLines();
+}
+
+els.editorGuideOverlay.addEventListener("pointerdown", (event) => {
+  const axis = guideAxisFromPointer(event);
+  if (!axis) return;
+  event.preventDefault();
+  els.editorFrameCanvas.focus({ preventScroll: true });
+  state.editorGuideDragging = axis;
+  state.editorGuidePointerId = event.pointerId;
+  els.editorGuideOverlay.setPointerCapture(event.pointerId);
+  moveEditorGuideLine(axis, event);
+});
+
+els.editorGuideOverlay.addEventListener("pointermove", (event) => {
+  if (state.editorGuideDragging && state.editorGuidePointerId === event.pointerId) {
+    event.preventDefault();
+    moveEditorGuideLine(state.editorGuideDragging, event);
+    return;
+  }
+  const axis = guideAxisFromPointer(event);
+  els.editorGuideOverlay.dataset.guideHover = axis || "";
+});
+
+const finishGuideDrag = (event: PointerEvent): void => {
+  if (state.editorGuidePointerId !== event.pointerId) return;
+  els.editorGuideOverlay.releasePointerCapture(event.pointerId);
+  state.editorGuideDragging = null;
+  state.editorGuidePointerId = null;
+  els.editorGuideOverlay.dataset.guideHover = "";
+};
+
+els.editorGuideOverlay.addEventListener("pointerup", finishGuideDrag);
+els.editorGuideOverlay.addEventListener("pointercancel", finishGuideDrag);
+updateEditorGuideLines();
+setEditorGuideVisible(state.editorGuideVisible);
+
 // 帧编辑 Canvas 手绘擦除与拖拽移动鼠标/触摸事件
 els.editorFrameCanvas.addEventListener("pointerdown", (event) => {
   const frame = z();
   if (!frame) return;
+  els.editorFrameCanvas.focus({ preventScroll: true });
 
   if (state.editorEraserEnabled) {
     event.preventDefault();
@@ -2885,6 +3124,7 @@ window.addEventListener("keydown", (event) => {
   if (state.view !== "editor") return;
   const isEditingText = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement;
   if (isEditingText) return;
+  const canvasFocused = document.activeElement === els.editorFrameCanvas;
 
   if (event.ctrlKey || event.metaKey) {
     if (event.key.toLowerCase() === "c") {
@@ -2899,7 +3139,22 @@ window.addEventListener("keydown", (event) => {
       } else if (state.editorMoveUndoFrame) {
         undoFrameNudge();
       }
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      stepSelectedEditorFrame(-1);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      stepSelectedEditorFrame(1);
     }
+  } else if (event.key === " ") {
+    event.preventDefault();
+    toggleSelectedEditorActionPlayback();
+  } else if (canvasFocused && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"].includes(event.key)) {
+    event.preventDefault();
+    const key = event.key.toLowerCase();
+    const dx = key === "arrowleft" || key === "a" ? -1 : key === "arrowright" || key === "d" ? 1 : 0;
+    const dy = key === "arrowup" || key === "w" ? -1 : key === "arrowdown" || key === "s" ? 1 : 0;
+    nudgeFrameOffset(dx, dy);
   } else if (event.key === "Escape" || event.key === "Backspace") {
     event.preventDefault();
     const frame = z();
@@ -2917,7 +3172,7 @@ window.addEventListener("paste", (event) => void At(event));
 
 setupDeepLinkInstallListener();
 void loadPetsPath();
-void loadProjectPets();
+void loadCustomTags().then(() => loadProjectPets());
 void fetchMarketPets();
 void loadSettings();
 void loadActivePets();
@@ -3390,7 +3645,6 @@ function nudgeFrameOffset(dx: number, dy: number): void {
   if (at(dx, dy, frame)) {
     renderSpriteEditorGrid();
     drawSelectedEditorFrame();
-    setStatus(els.editorStatus, `已移动当前帧：${dx === -1 ? "左" : dx === 1 ? "右" : dy === -1 ? "上" : "下"}移 1 像素。`);
   }
 }
 
@@ -3416,7 +3670,7 @@ function undoFrameNudge(): void {
   }
 }
 
-function finishEditorCanvasDragging(saveMessage = true): void {
+function finishEditorCanvasDragging(): void {
   if (!state.editorMoving) return;
   state.editorMoving = false;
   state.editorMovePointerId = null;
@@ -3431,7 +3685,6 @@ function finishEditorCanvasDragging(saveMessage = true): void {
     if (action) clearActionFrameScale(action, state.editorSelectedCol);
     renderSpriteEditorGrid();
     drawSelectedEditorFrame();
-    if (saveMessage) setStatus(els.editorStatus, "已拖动调整当前帧位置，保存后生效。");
   }
 }
 
@@ -3693,8 +3946,32 @@ function selectEditorModeAction(key: ModeActionKey): void {
   setStatus(els.editorStatus, `已选择「${action.name}」。`);
 }
 
+function syncModePromptButtonState(activeMode: ModeActionKey): void {
+  els.editorModePresets.forEach((button) => {
+    const isActive = button.dataset.actionKey === activeMode;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+async function copyModePromptForAction(mode: ModeActionKey): Promise<void> {
+  selectEditorModeAction(mode);
+  syncModePromptButtonState(mode);
+  await copyTextToClipboard(MODE_COPY_PROMPTS[mode]);
+  setStatus(els.editorStatus, `已复制${MODE_ACTION_PRESETS[mode].label}英文提示词。`);
+}
+
 function actionHasContent(action: EditorAction): boolean {
   return action.frames.some((frame) => frameHasContent(frame));
+}
+
+function shouldShowWorkshopShareButton(action: EditorAction | undefined): boolean {
+  return Boolean(action?.key && action.key in MODE_ACTION_PRESETS && actionHasContent(action));
+}
+
+function updateWorkshopShareButtonState(): void {
+  const action = state.editorActions[state.editorSelectedRow];
+  els.actionStripShare.hidden = !shouldShowWorkshopShareButton(action);
 }
 
 function savableEditorActions(): EditorAction[] {
@@ -3982,6 +4259,67 @@ function stopEditorActionPreview(): void {
     window.clearTimeout(state.editorPreviewTimer);
     state.editorPreviewTimer = null;
   }
+  state.editorPreviewPlaying = false;
+  updateEditorPreviewPlaybackUi();
+}
+
+function stopEditorActionPreviewTimer(): void {
+  if (state.editorPreviewTimer !== null) {
+    window.clearTimeout(state.editorPreviewTimer);
+    state.editorPreviewTimer = null;
+  }
+}
+
+function nudgeDirectionToDelta(direction: string): [number, number] {
+  if (direction.includes(",")) {
+    const [dx, dy] = direction.split(",").map(Number);
+    return [Number.isFinite(dx) ? dx : 0, Number.isFinite(dy) ? dy : 0];
+  }
+  if (direction === "up") return [0, -1];
+  if (direction === "down") return [0, 1];
+  if (direction === "left") return [-1, 0];
+  if (direction === "right") return [1, 0];
+  return [0, 0];
+}
+
+function updateEditorPreviewPlaybackUi(): void {
+  if (!els.editorPlayToggle) return;
+  els.editorPlayToggle.textContent = state.editorPreviewPlaying ? "暂停" : "播放";
+  els.editorPlayToggle.setAttribute("aria-pressed", String(state.editorPreviewPlaying));
+}
+
+function selectedActionValidFrameIndices(): number[] {
+  const action = state.editorActions[state.editorSelectedRow];
+  if (!action) return [];
+  return action.frames.map((fr, idx) => frameHasContent(fr) ? idx : -1).filter((idx) => idx >= 0);
+}
+
+function drawEditorFrameIndex(frameIndex: number, previewMode: "frame" | "action" = state.editorPreviewMode): void {
+  const action = state.editorActions[state.editorSelectedRow];
+  if (!action) return;
+  const safeIndex = Math.min(Math.max(0, frameIndex), ATLAS_COLS - 1);
+  state.editorSelectedCol = safeIndex;
+  state.editorPreviewMode = previewMode;
+  const frame = action.frames[safeIndex];
+  V(frameHasContent(frame) ? frame : null);
+  els.editorFrameTitle.textContent = previewMode === "action"
+    ? `动作预览：${action.name} · 第 ${safeIndex + 1} 帧`
+    : `帧编辑：${action.name} · 第 ${safeIndex + 1} 帧`;
+  els.editorPaste.disabled = !state.editorClipboard;
+  updateEditorEraserUi();
+  updateEditorScaleControls();
+}
+
+function actionFrameDurationFromFps(): number {
+  const fps = Math.min(60, Math.max(1, Math.round(Number(els.editorPlayFps?.value || 8))));
+  if (els.editorPlayFps) els.editorPlayFps.value = String(fps);
+  return Math.round(1000 / fps);
+}
+
+function syncPreviewFpsFromAction(action: EditorAction | undefined): void {
+  if (!action || !els.editorPlayFps) return;
+  const fps = Math.min(60, Math.max(1, Math.round(1000 / actionFrameDuration(action))));
+  els.editorPlayFps.value = String(fps);
 }
 
 function drawSelectedEditorFrame(): void {
@@ -4001,39 +4339,71 @@ function drawSelectedEditorFrame(): void {
 }
 
 function playSelectedEditorAction(frameIndex = 0): void {
-  stopEditorActionPreview();
+  stopEditorActionPreviewTimer();
+  setEditorGuideVisible(false);
   state.editorPreviewMode = "action";
+  state.editorPreviewPlaying = true;
+  updateEditorPreviewPlaybackUi();
   const action = state.editorActions[state.editorSelectedRow];
   if (!action) {
     const ctx = els.editorFrameCanvas.getContext("2d");
     ctx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+    state.editorPreviewPlaying = false;
+    updateEditorPreviewPlaybackUi();
     updateEditorScaleControls();
     return;
   }
-  const validIndices = action.frames.map((fr, idx) => frameHasContent(fr) ? idx : -1).filter((idx) => idx >= 0);
+  const validIndices = selectedActionValidFrameIndices();
   els.editorPaste.disabled = !state.editorClipboard;
   updateEditorEraserUi();
+  syncPreviewFpsFromAction(action);
 
   if (validIndices.length === 0) {
     const ctx = els.editorFrameCanvas.getContext("2d");
     ctx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
+    state.editorPreviewPlaying = false;
+    updateEditorPreviewPlaybackUi();
     updateEditorScaleControls();
     return;
   }
 
   const activeIdx = frameIndex % validIndices.length;
   state.editorPreviewFrame = activeIdx;
-  state.editorSelectedCol = validIndices[activeIdx];
-  const ctx = els.editorFrameCanvas.getContext("2d");
-  ctx?.clearRect(0, 0, ATLAS_CELL_WIDTH, ATLAS_CELL_HEIGHT);
-  const frame = action.frames[state.editorSelectedCol];
-  if (frameHasContent(frame)) ctx?.drawImage(frame!, 0, 0);
-  updateEditorScaleControls();
+  drawEditorFrameIndex(validIndices[activeIdx], "action");
 
-  const duration = action.frameDurations?.[state.editorSelectedCol] || 120;
+  const duration = action.frameDurations?.[state.editorSelectedCol] || actionFrameDurationFromFps();
   state.editorPreviewTimer = window.setTimeout(() => {
     playSelectedEditorAction(activeIdx + 1);
   }, duration);
+}
+
+function pauseSelectedEditorAction(): void {
+  stopEditorActionPreviewTimer();
+  state.editorPreviewPlaying = false;
+  updateEditorPreviewPlaybackUi();
+}
+
+function toggleSelectedEditorActionPlayback(): void {
+  if (state.editorPreviewPlaying) {
+    pauseSelectedEditorAction();
+    return;
+  }
+  const validIndices = selectedActionValidFrameIndices();
+  const start = Math.max(0, validIndices.indexOf(state.editorSelectedCol));
+  playSelectedEditorAction(start);
+}
+
+function stepSelectedEditorFrame(delta: number): void {
+  pauseSelectedEditorAction();
+  const validIndices = selectedActionValidFrameIndices();
+  if (validIndices.length === 0) return;
+  const current = validIndices.includes(state.editorSelectedCol)
+    ? validIndices.indexOf(state.editorSelectedCol)
+    : Math.max(0, Math.min(validIndices.length - 1, state.editorPreviewFrame));
+  const next = (current + delta + validIndices.length) % validIndices.length;
+  state.editorPreviewFrame = next;
+  drawEditorFrameIndex(validIndices[next], "frame");
+  renderSpriteEditorGrid();
 }
 
 function normalizeEditorSelection(): void {
@@ -4351,6 +4721,48 @@ function moveFrameOffset(frame: HTMLCanvasElement, dx: number, dy: number): HTML
   const canvas = createEmptyFrameCanvas();
   canvas.getContext("2d")?.drawImage(frame, dx, dy);
   return canvas;
+}
+
+function mirrorFrameHorizontally(frame: HTMLCanvasElement): HTMLCanvasElement {
+  const canvas = createEmptyFrameCanvas();
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.translate(ATLAS_CELL_WIDTH, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(frame, 0, 0);
+  return canvas;
+}
+
+function mirrorSelectedEditorFrame(): void {
+  const action = state.editorActions[state.editorSelectedRow];
+  const frame = z();
+  if (!action || !frame || !frameHasContent(frame)) {
+    setStatus(els.editorStatus, "当前帧为空，无法镜像。", true);
+    return;
+  }
+  recordEditorTransformUndo();
+  action.frames[state.editorSelectedCol] = mirrorFrameHorizontally(frame);
+  markActionFramesChanged(action);
+  clearActionFrameScale(action, state.editorSelectedCol);
+  renderSpriteEditorGrid();
+  drawSelectedEditorFrame();
+  setStatus(els.editorStatus, "已水平镜像当前帧，保存后生效。");
+}
+
+function mirrorSelectedEditorAction(): void {
+  const action = state.editorActions[state.editorSelectedRow];
+  if (!action || !actionHasContent(action)) {
+    setStatus(els.editorStatus, "当前动作没有可镜像的有效帧。", true);
+    return;
+  }
+  recordEditorTransformUndo();
+  action.frames = action.frames.map((frame) => frameHasContent(frame) ? mirrorFrameHorizontally(frame!) : frame);
+  action.frameScales = undefined;
+  action.frameScaleSources = undefined;
+  markActionFramesChanged(action);
+  renderSpriteEditorGrid();
+  drawSelectedEditorFrame();
+  setStatus(els.editorStatus, `已水平镜像「${action.name}」全部有效帧，保存后生效。`);
 }
 
 function isStripImageFrameValid(action: EditorAction, col: number): boolean {
@@ -5488,6 +5900,7 @@ async function openSpriteEditor(pet: ProjectPet): Promise<void> {
     stopEditorActionPreview();
     updateEditorEraserUi();
     els.editorPetName.textContent = `${pet.displayName} · ${pet.spritesheetPath}`;
+    els.editorCurrentPetName.textContent = `当前桌宠：${pet.displayName}`;
     setView("editor");
 
     const image = await loadProjectPetSpritesheetImage(pet);
@@ -5532,6 +5945,7 @@ async function openSpriteEditor(pet: ProjectPet): Promise<void> {
 
 function renderSpriteEditorGrid(): void {
   normalizeEditorSelection();
+  updateWorkshopShareButtonState();
   const content = document.querySelector(".content");
   const contentTop = content?.scrollTop ?? 0;
   const gridTop = els.editorGrid.scrollTop;
