@@ -339,6 +339,23 @@
               <span class="switch-control"><input id="gravity-mode-toggle" type="checkbox" /><span
                   aria-hidden="true"></span></span>
             </label>
+            <label class="setting-row setting-toggle-row">
+              <span>
+                <strong>打字陪伴</strong>
+                <small>敲击键盘时桌宠原地切换到专注动作，陪你一起打字。</small>
+              </span>
+              <span class="switch-control"><input id="keyboard-companion-toggle" type="checkbox" /><span
+                  aria-hidden="true"></span></span>
+            </label>
+            <!-- Codex monitor entry is temporarily hidden; keep the control wired for later restore. -->
+            <label class="setting-row setting-toggle-row" hidden>
+              <span>
+                <strong>连接 Codex</strong>
+                <small>显示 5 小时剩余额度，并提醒任务开始、完成、失败和需要审阅。</small>
+              </span>
+              <span class="switch-control"><input id="codex-monitor-toggle" type="checkbox" /><span
+                  aria-hidden="true"></span></span>
+            </label>
             <div class="setting-row">
               <span>
                 <strong>桌宠模式</strong>
@@ -609,6 +626,20 @@
                 </svg>
                 <span>打开目录</span>
               </button>
+            </div>
+            <div class="setting-row storage-path-row">
+              <span>
+                <strong>更换存储目录</strong>
+                <small>迁移前会先切换到默认 Doro，避免当前宠物资源被占用。</small>
+              </span>
+              <div class="storage-actions">
+                <button id="settings-change-pets-dir" class="ghost-button storage-open-button" type="button">
+                  <span>更换目录</span>
+                </button>
+                <button id="settings-reset-pets-dir" class="ghost-button storage-open-button" type="button">
+                  <span>恢复默认</span>
+                </button>
+              </div>
             </div>
           </div>
 

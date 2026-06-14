@@ -1,6 +1,6 @@
 [package]
 name = "lingo-pet"
-version = "0.2.6"
+version = "1.0.0"
 description = "A lightweight Tauri desktop pet companion."
 authors = ["dev-zyl"]
 license = "MIT"
@@ -44,6 +44,7 @@ windows = { version = "0.61", features = [
   "Win32_System_Memory",
   "Win32_System_Threading",
   "Win32_UI_Controls",
+  "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
 ] }
 

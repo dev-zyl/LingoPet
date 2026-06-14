@@ -2,6 +2,7 @@ import "./pet.css";
 import { getCurrentWindow, cursorPosition, currentMonitor, LogicalSize, PhysicalPosition } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { exit } from "@tauri-apps/plugin-process";
 import { Solar } from "lunar-javascript";
 
@@ -70,8 +71,8 @@ const BUILTIN_DORO_MANIFEST: PetManifest = {
   spritesheetPath: "spritesheet_edited.webp",
   kind: "creature",
   animations: {
-    focus: { row: 11, frames: 4, frameDurations: [300, 300, 300, 300] },
-    merit: { row: 9, frames: 4, frameDurations: [150, 150, 150, 300] },
+    focus: { row: 9, frames: 4, frameDurations: [300, 300, 300, 300] },
+    merit: { row: 11, frames: 4, frameDurations: [150, 150, 150, 300] },
     music: { row: 10, frames: 8, frameDurations: [140, 140, 140, 140, 140, 140, 140, 140] },
   },
 };
@@ -81,6 +82,9 @@ const BUILTIN_DORO_MANIFEST: PetManifest = {
 const LS_PET_VOLUME = "pet-volume";
 const LS_SPEECH_BUBBLE_STYLE = "pet_speech_bubble_style";
 const LS_PET_GRAVITY_ENABLED = "pet_gravity_enabled";
+const LS_CODEX_MONITOR_ENABLED = "pet_codex_monitor_enabled";
+const LS_KEYBOARD_COMPANION_ENABLED = "pet_keyboard_companion_enabled";
+const CODEX_STATUS_EVENT = "codex-status-event";
 const SPEECH_BUBBLE_STYLE_IDS = new Set(["1", "2", "3", "5", "6", "7", "8", "9"]);
 
 const sfx = {
@@ -678,6 +682,9 @@ let lastCatWalkSpeechAt = 0;
 let lastCatWalkHeartAt = 0;
 let catWalkLastCaughtAt = 0;
 let catWalkGiveUpUntil = 0;
+let keyboardCompanionTimerId: number | null = null;
+let keyboardCompanionActiveUntil = 0;
+let isKeyboardCompanionActive = false;
 
 const CAT_WALK_CATCH_RADIUS = 58;
 const CAT_WALK_RELEASE_RADIUS = 86;
@@ -3141,6 +3148,83 @@ function applyRoamMovementState(engine: PetEngine, state: RoamState): void {
   applyDragRunningState(engine, facing);
 }
 
+function keyboardCompanionState(engine: PetEngine): string {
+  return engine.hasState("focus") ? "focus" : "review";
+}
+
+function isKeyboardCompanionEnabled(): boolean {
+  return localStorage.getItem(LS_KEYBOARD_COMPANION_ENABLED) !== "false";
+}
+
+function shouldPauseKeyboardCompanion(): boolean {
+  return !isKeyboardCompanionEnabled()
+    || isExiting
+    || isMouseDown
+    || hasStartedDragging
+    || isDraggingInProgress
+    || isFocusMode
+    || isMeritMode
+    || isMusicRhythmMode
+    || isCatWalkMode
+    || isPetMenuOpen
+    || isPetPanelOpen
+    || isBlockingPetPanelOpen();
+}
+
+function stopKeyboardCompanion(engine: PetEngine): void {
+  if (!isKeyboardCompanionActive) return;
+  isKeyboardCompanionActive = false;
+  if (!isExiting && !shouldPauseKeyboardCompanion()) {
+    engine.applyState(activeModeAnimationState(engine) ?? "idle");
+  }
+}
+
+function setupKeyboardCompanion(engine: PetEngine): void {
+  window.addEventListener("storage", (event) => {
+    if (event.key === LS_KEYBOARD_COMPANION_ENABLED && !isKeyboardCompanionEnabled()) {
+      stopKeyboardCompanion(engine);
+    }
+  });
+
+  keyboardCompanionTimerId = window.setInterval(() => {
+    if (shouldPauseKeyboardCompanion()) {
+      stopKeyboardCompanion(engine);
+      return;
+    }
+
+    void invoke<boolean>("is_keyboard_active")
+      .then((active) => {
+        if (shouldPauseKeyboardCompanion()) {
+          stopKeyboardCompanion(engine);
+          return;
+        }
+
+        if (active) {
+          keyboardCompanionActiveUntil = Date.now() + 1200;
+          const state = keyboardCompanionState(engine);
+          if (engine.currentState !== state) {
+            engine.applyState(state);
+          }
+          isKeyboardCompanionActive = true;
+          lastActivityTime = Date.now();
+          return;
+        }
+
+        if (isKeyboardCompanionActive && Date.now() > keyboardCompanionActiveUntil) {
+          stopKeyboardCompanion(engine);
+        }
+      })
+      .catch((err) => {
+        console.warn("keyboard companion polling failed:", err);
+        if (keyboardCompanionTimerId !== null) {
+          window.clearInterval(keyboardCompanionTimerId);
+          keyboardCompanionTimerId = null;
+        }
+        stopKeyboardCompanion(engine);
+      });
+  }, 180);
+}
+
 function isElementVisible(el: HTMLElement): boolean {
   const style = window.getComputedStyle(el);
   const rect = el.getBoundingClientRect();
@@ -3369,6 +3453,7 @@ function canAutoRoam(): boolean {
     && !isPetMenuOpen
     && !isPetPanelOpen
     && !isBlockingPetPanelOpen()
+    && !isKeyboardCompanionActive
     && !isFocusMode
     && !isMeritMode
     && !isPetHovered
@@ -3384,6 +3469,7 @@ function shouldFreezeRoamPhysics(state: RoamState): boolean {
   return isExiting
     || isRecallAnimating
     || isTeleportAnimating
+    || isKeyboardCompanionActive
     || isFocusMode
     || isMeritMode
     || isManualPetControlActive()
@@ -4033,7 +4119,9 @@ async function tickIdleRoaming(engine: PetEngine, state: RoamState, now: number)
     state.nextDecisionAt = now + 500;
     const manualDragActive = hasStartedDragging || isDraggingInProgress;
     if (!isMeritMode && !manualDragActive) {
-      const fixedState = activeModeAnimationState(engine) ?? "idle";
+      const fixedState = isKeyboardCompanionActive
+        ? keyboardCompanionState(engine)
+        : activeModeAnimationState(engine) ?? "idle";
       if (engine.currentState !== fixedState) engine.applyState(fixedState);
       state.action = fixedState === "idle" ? "idle" : "review";
     }
@@ -4871,6 +4959,201 @@ function showSpeech(text: string, durationMs: number, withSound = false): void {
 
 // ── Volume Panel ──
 
+type CodexStatusEventType =
+  | "codex_connected"
+  | "codex_disconnected"
+  | "codex_error"
+  | "quota_updated"
+  | "task_started"
+  | "task_completed"
+  | "task_failed"
+  | "needs_review";
+
+interface CodexStatusEvent {
+  type: CodexStatusEventType;
+  payload?: any;
+}
+
+interface CodexRateLimitWindow {
+  usedPercent?: number;
+  windowDurationMins?: number | null;
+  resetsAt?: number | null;
+}
+
+interface CodexRateLimitSnapshot {
+  limitName?: string | null;
+  primary?: CodexRateLimitWindow | null;
+  secondary?: CodexRateLimitWindow | null;
+}
+
+let lastCodexLowQuotaWarningAt = 0;
+let lastCodexReviewNoticeAt = 0;
+
+function isCodexMonitorEnabled(): boolean {
+  return localStorage.getItem(LS_CODEX_MONITOR_ENABLED) === "true";
+}
+
+function codexBadgeElements(): { badge: HTMLElement; text: HTMLElement } | null {
+  const badge = document.getElementById("codex-status-badge") as HTMLElement | null;
+  const text = document.getElementById("codex-status-text") as HTMLElement | null;
+  return badge && text ? { badge, text } : null;
+}
+
+function setCodexBadge(text: string, state: "ok" | "offline" | "warning" | "danger" = "ok"): void {
+  const els = codexBadgeElements();
+  if (!els) return;
+  els.badge.hidden = false;
+  els.text.textContent = text;
+  els.badge.classList.toggle("offline", state === "offline");
+  els.badge.classList.toggle("warning", state === "warning");
+  els.badge.classList.toggle("danger", state === "danger");
+}
+
+function hideCodexBadge(): void {
+  const els = codexBadgeElements();
+  if (!els) return;
+  els.badge.hidden = true;
+}
+
+function formatCodexResetTime(resetsAt: number | null | undefined): string {
+  if (!resetsAt) return "";
+  const ms = resetsAt * 1000 - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return "即将刷新";
+  const minutes = Math.ceil(ms / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest > 0 ? `${hours}h${rest}m` : `${hours}h`;
+}
+
+function selectCodexRateLimitWindow(snapshot: CodexRateLimitSnapshot): CodexRateLimitWindow | null {
+  const windows = [snapshot.primary, snapshot.secondary].filter(Boolean) as CodexRateLimitWindow[];
+  return windows.find((windowInfo) => windowInfo.windowDurationMins === 300)
+    ?? snapshot.primary
+    ?? snapshot.secondary
+    ?? null;
+}
+
+function updateCodexQuotaBadge(rateLimits: CodexRateLimitSnapshot | null | undefined): void {
+  if (!rateLimits) {
+    setCodexBadge("Codex --", "offline");
+    return;
+  }
+  const windowInfo = selectCodexRateLimitWindow(rateLimits);
+  if (!windowInfo || typeof windowInfo.usedPercent !== "number") {
+    setCodexBadge("Codex 已连", "ok");
+    return;
+  }
+
+  const remaining = Math.max(0, Math.min(100, Math.round(100 - windowInfo.usedPercent)));
+  const label = windowInfo.windowDurationMins === 300 ? "5h" : `${windowInfo.windowDurationMins || "?"}m`;
+  const resetText = formatCodexResetTime(windowInfo.resetsAt);
+  const badgeState = remaining <= 10 ? "danger" : remaining <= 25 ? "warning" : "ok";
+  setCodexBadge(`${label} ${remaining}%${resetText ? ` ${resetText}` : ""}`, badgeState);
+
+  const now = Date.now();
+  if (remaining <= 10 && now - lastCodexLowQuotaWarningAt > 10 * 60 * 1000) {
+    lastCodexLowQuotaWarningAt = now;
+    showSpeech(`Codex 5小时额度只剩 ${remaining}% 了`, 4200, true);
+  }
+}
+
+function codexErrorMessage(payload: any): string {
+  return payload?.turn?.error?.message
+    || payload?.message
+    || payload?.error?.message
+    || "Codex 任务失败";
+}
+
+function applyTemporaryCodexState(engine: PetEngine, state: string, durationMs: number): void {
+  if (!engine.hasState(state)) return;
+  engine.applyState(state);
+  window.setTimeout(() => {
+    if (engine.currentState === state && !isExiting && !isFocusMode && !isMeritMode && !isMusicRhythmMode) {
+      engine.applyState("idle");
+    }
+  }, durationMs);
+}
+
+function handleCodexStatusEvent(event: CodexStatusEvent, engine: PetEngine): void {
+  if (!isCodexMonitorEnabled()) {
+    hideCodexBadge();
+    return;
+  }
+
+  switch (event.type) {
+    case "codex_connected":
+      setCodexBadge("Codex 已连", "ok");
+      break;
+    case "codex_disconnected":
+      setCodexBadge("Codex 离线", "offline");
+      break;
+    case "codex_error":
+      setCodexBadge("Codex 异常", "warning");
+      break;
+    case "quota_updated":
+      updateCodexQuotaBadge(event.payload?.rateLimits);
+      break;
+    case "task_started":
+      setCodexBadge("Codex 工作中", "ok");
+      if (engine.hasState("waiting")) engine.applyState("waiting");
+      showSpeech("Codex 开始工作了", 2200, false);
+      break;
+    case "task_completed":
+      setCodexBadge("Codex 完成", "ok");
+      applyTemporaryCodexState(engine, engine.hasState("waving") ? "waving" : "idle", 2600);
+      showSpeech("Codex 任务完成", 2600, true);
+      break;
+    case "task_failed":
+      setCodexBadge("Codex 失败", "danger");
+      applyTemporaryCodexState(engine, "failed", 4200);
+      showSpeech(codexErrorMessage(event.payload), 5200, true);
+      break;
+    case "needs_review": {
+      const now = Date.now();
+      setCodexBadge("需要审阅", "warning");
+      applyTemporaryCodexState(engine, "review", 6000);
+      if (now - lastCodexReviewNoticeAt > 8000) {
+        lastCodexReviewNoticeAt = now;
+        showSpeech("Codex 需要你审阅或输入", 6000, true);
+      }
+      break;
+    }
+  }
+}
+
+async function syncCodexMonitor(): Promise<void> {
+  if (!isCodexMonitorEnabled()) {
+    hideCodexBadge();
+    await invoke("stop_codex_monitor").catch(() => {});
+    hideCodexBadge();
+    return;
+  }
+
+  setCodexBadge("Codex 连接中", "offline");
+  try {
+    await invoke("start_codex_monitor");
+  } catch (err) {
+    console.warn("Failed to start Codex monitor:", err);
+    setCodexBadge("Codex 离线", "offline");
+    showSpeech("Codex 连接失败，请确认已安装并登录 Codex", 4200, false);
+  }
+}
+
+function setupCodexMonitor(engine: PetEngine): void {
+  void listen<CodexStatusEvent>(CODEX_STATUS_EVENT, (event) => {
+    handleCodexStatusEvent(event.payload, engine);
+  }).catch((err) => console.warn("Codex monitor listener failed:", err));
+
+  window.addEventListener("storage", (event) => {
+    if (event.key === LS_CODEX_MONITOR_ENABLED) {
+      void syncCodexMonitor();
+    }
+  });
+
+  void syncCodexMonitor();
+}
+
 function setupVolumePanel(): void {
   const panel = document.getElementById("volume-panel");
   const slider = document.getElementById("volume-slider") as HTMLInputElement | null;
@@ -4937,6 +5220,9 @@ async function main(): Promise<void> {
   if (localStorage.getItem(LS_PET_GRAVITY_ENABLED) === null) {
     localStorage.setItem(LS_PET_GRAVITY_ENABLED, "true");
   }
+  if (localStorage.getItem(LS_KEYBOARD_COMPANION_ENABLED) === null) {
+    localStorage.setItem(LS_KEYBOARD_COMPANION_ENABLED, "true");
+  }
   if (localStorage.getItem(LS_MERIT_TEXT) === null) {
     localStorage.setItem(LS_MERIT_TEXT, MERIT_DEFAULT_TEXT);
   }
@@ -4999,6 +5285,8 @@ async function main(): Promise<void> {
   setupWakeUp(engine);
   setupIdleRoaming(engine);
   setupManagerSettingsSync();
+  setupCodexMonitor(engine);
+  setupKeyboardCompanion(engine);
   setupVolumePanel();
   setupSizePanel();
   setupFocusPanel(engine);
@@ -5010,6 +5298,10 @@ async function main(): Promise<void> {
   void restoreSavedSummonedPets();
 
   const stopActivitiesOnWindowExit = () => {
+    if (keyboardCompanionTimerId !== null) {
+      window.clearInterval(keyboardCompanionTimerId);
+      keyboardCompanionTimerId = null;
+    }
     stopCurrentPetActivitiesImmediately();
     engine.destroy();
     const meritEngine = (window as any).__meritPanelEngine as PetEngine | undefined;

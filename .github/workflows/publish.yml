@@ -74,3 +74,44 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload macOS updater compatibility aliases
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MATRIX_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+
+          case "$MATRIX_TARGET" in
+            "aarch64-apple-darwin")
+              SOURCE_NAME="LingoPet_aarch64.app.tar.gz"
+              ALIAS_NAME="LingoPet_${VERSION}_aarch64.app.tar.gz"
+              ;;
+            "x86_64-apple-darwin")
+              SOURCE_NAME="LingoPet_x64.app.tar.gz"
+              ALIAS_NAME="LingoPet_${VERSION}_x64.app.tar.gz"
+              ;;
+            *)
+              echo "No macOS updater alias rule for target: $MATRIX_TARGET"
+              exit 0
+              ;;
+          esac
+
+          SOURCE_PATH="$(find src-tauri/target -name "$SOURCE_NAME" -type f | head -n 1)"
+          SIG_PATH="$(find src-tauri/target -name "$SOURCE_NAME.sig" -type f | head -n 1)"
+
+          if [ -z "$SOURCE_PATH" ] || [ -z "$SIG_PATH" ]; then
+            echo "::error::Missing macOS updater artifact or signature for $SOURCE_NAME"
+            exit 1
+          fi
+
+          TMP_DIR="$(mktemp -d)"
+          cp "$SOURCE_PATH" "$TMP_DIR/$ALIAS_NAME"
+          cp "$SIG_PATH" "$TMP_DIR/$ALIAS_NAME.sig"
+
+          gh release upload "$TAG" "$TMP_DIR/$ALIAS_NAME" "$TMP_DIR/$ALIAS_NAME.sig" --clobber
