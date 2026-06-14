@@ -16,6 +16,7 @@ const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 200 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES: u64 = 100 * 1024 * 1024;
 const MAX_SPRITESHEET_BYTES: usize = 20 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_SECS: u64 = 60;
+const PET_STORAGE_CONFIG_FILE: &str = "pet_storage_config.json";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FrameAnimation {
@@ -63,6 +64,12 @@ pub struct DebugGenerationInput {
     pub prompt: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct PetStorageConfig {
+    #[serde(rename = "customPetsDir")]
+    custom_pets_dir: Option<String>,
+}
+
 fn pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = app
         .path()
@@ -73,13 +80,22 @@ fn pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(pets)
 }
 
+fn legacy_app_data_pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    Ok(data_dir.join("pets"))
+}
+
 fn repo_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     #[cfg(not(debug_assertions))]
     {
-        app
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))
+        let exe = std::env::current_exe()
+            .map_err(|e| format!("Failed to get current executable path: {}", e))?;
+        exe.parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| "Failed to resolve install directory".to_string())
     }
 
     #[cfg(debug_assertions)]
@@ -102,10 +118,80 @@ fn repo_root_dir(app: &AppHandle) -> Result<PathBuf, String> {
     }
 }
 
+fn default_project_pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(repo_root_dir(app)?.join("pets"))
+}
+
+fn storage_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    fs::create_dir_all(&data_dir).map_err(|e| format!("Failed to create app data dir: {}", e))?;
+    Ok(data_dir.join(PET_STORAGE_CONFIG_FILE))
+}
+
+fn read_storage_config(app: &AppHandle) -> Result<PetStorageConfig, String> {
+    let path = storage_config_path(app)?;
+    if !path.exists() {
+        return Ok(PetStorageConfig::default());
+    }
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("Failed to read storage config: {}", e))?;
+    serde_json::from_str(&content).map_err(|e| format!("Invalid storage config: {}", e))
+}
+
+fn write_storage_config(app: &AppHandle, config: &PetStorageConfig) -> Result<(), String> {
+    let path = storage_config_path(app)?;
+    let content = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialize storage config: {}", e))?;
+    fs::write(path, format!("{content}\n"))
+        .map_err(|e| format!("Failed to write storage config: {}", e))
+}
+
+fn normalize_custom_pets_dir(path: &str) -> Result<PathBuf, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Storage path is empty".to_string());
+    }
+    let dir = PathBuf::from(trimmed);
+    if !dir.is_absolute() {
+        return Err("Storage path must be absolute".to_string());
+    }
+    Ok(dir)
+}
+
 fn project_pets_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let pets = repo_root_dir(app)?.join("pets");
+    let config = read_storage_config(app)?;
+    let pets = match config.custom_pets_dir {
+        Some(ref path) => normalize_custom_pets_dir(path)?,
+        None => default_project_pets_dir(app)?,
+    };
     fs::create_dir_all(&pets).map_err(|e| format!("Failed to create project pets dir: {}", e))?;
+    if config.custom_pets_dir.is_none() {
+        let legacy = legacy_app_data_pets_dir(app)?;
+        if legacy.exists() && legacy != pets {
+            copy_dir_all(&legacy, &pets)?;
+            let _ = fs::remove_dir_all(&legacy);
+        }
+    }
     Ok(pets)
+}
+
+fn copy_dir_all(src: &Path, dest: &Path) -> Result<(), String> {
+    fs::create_dir_all(dest).map_err(|e| format!("Failed to create target folder: {}", e))?;
+    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read source folder: {}", e))? {
+        let entry = entry.map_err(|e| format!("Failed to read source entry: {}", e))?;
+        let path = entry.path();
+        let target = dest.join(entry.file_name());
+        if path.is_dir() {
+            copy_dir_all(&path, &target)?;
+        } else {
+            fs::copy(&path, &target)
+                .map_err(|e| format!("Failed to copy {}: {}", path.display(), e))?;
+        }
+    }
+    Ok(())
 }
 
 fn downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -163,6 +249,77 @@ fn normalize_manifest_path(path: &str) -> Result<PathBuf, String> {
     normalize_relative_path(Path::new(path))
 }
 
+fn first_string_field(value: &serde_json::Value, names: &[&str]) -> Option<String> {
+    names
+        .iter()
+        .filter_map(|name| value.get(*name).and_then(|field| field.as_str()))
+        .map(str::trim)
+        .find(|field| !field.is_empty())
+        .map(ToString::to_string)
+}
+
+fn parse_pet_manifest(content: &str, fallback_id: Option<&str>) -> Result<PetManifest, String> {
+    let mut value: serde_json::Value =
+        serde_json::from_str(content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| "Invalid pet.json: expected an object".to_string())?;
+
+    if !object
+        .get("id")
+        .and_then(|field| field.as_str())
+        .is_some_and(|id| !id.trim().is_empty())
+    {
+        let fallback = fallback_id
+            .and_then(|id| sanitize_id(id).ok())
+            .or_else(|| {
+                first_string_field(&serde_json::Value::Object(object.clone()), &["slug"])
+                    .and_then(|id| sanitize_id(&id).ok())
+            })
+            .ok_or_else(|| "Invalid pet.json: missing field `id`".to_string())?;
+        object.insert("id".to_string(), serde_json::Value::String(fallback));
+    }
+
+    if !object
+        .get("displayName")
+        .and_then(|field| field.as_str())
+        .is_some_and(|name| !name.trim().is_empty())
+    {
+        let display_name =
+            first_string_field(&serde_json::Value::Object(object.clone()), &["name", "title", "id"])
+                .ok_or_else(|| "Invalid pet.json: missing field `displayName`".to_string())?;
+        object.insert(
+            "displayName".to_string(),
+            serde_json::Value::String(display_name),
+        );
+    }
+
+    if !object.contains_key("description") {
+        object.insert(
+            "description".to_string(),
+            serde_json::Value::String(String::new()),
+        );
+    }
+
+    if !object
+        .get("spritesheetPath")
+        .and_then(|field| field.as_str())
+        .is_some_and(|path| !path.trim().is_empty())
+    {
+        if let Some(path) = first_string_field(
+            &serde_json::Value::Object(object.clone()),
+            &["spriteSheetPath", "spritesheet", "spriteSheet", "image"],
+        ) {
+            object.insert(
+                "spritesheetPath".to_string(),
+                serde_json::Value::String(path),
+            );
+        }
+    }
+
+    serde_json::from_value(value).map_err(|e| format!("Invalid pet.json: {}", e))
+}
+
 fn is_ignored_zip_entry(name: &str) -> bool {
     let normalized = name.replace('\\', "/");
     normalized == "__MACOSX" || normalized.starts_with("__MACOSX/")
@@ -203,7 +360,7 @@ fn find_pet_json_entry(
         .ok_or_else(|| "No pet.json found in zip".to_string())
 }
 
-fn extract_pet_zip(zip_path: &Path, dest: &Path) -> Result<PetManifest, String> {
+fn extract_pet_zip(zip_path: &Path, dest: &Path, fallback_id: Option<&str>) -> Result<PetManifest, String> {
     let result = (|| {
         let zip_file =
             fs::File::open(zip_path).map_err(|e| format!("Failed to open zip: {}", e))?;
@@ -232,8 +389,7 @@ fn extract_pet_zip(zip_path: &Path, dest: &Path) -> Result<PetManifest, String> 
             }
         }
 
-        let manifest: PetManifest = serde_json::from_str(&pet_json_content)
-            .map_err(|e| format!("Invalid pet.json: {}", e))?;
+        let manifest = parse_pet_manifest(&pet_json_content, fallback_id)?;
         sanitize_id(&manifest.id)?;
         let spritesheet_path = normalize_manifest_path(&manifest.spritesheet_path)?;
 
@@ -312,6 +468,10 @@ fn extract_pet_zip(zip_path: &Path, dest: &Path) -> Result<PetManifest, String> 
         if !dest.join(&spritesheet_path).is_file() {
             return Err("Pet spritesheet was not found".to_string());
         }
+        let normalized_manifest = serde_json::to_string_pretty(&manifest)
+            .map_err(|e| format!("Failed to serialize pet.json: {}", e))?;
+        fs::write(dest.join("pet.json"), format!("{normalized_manifest}\n"))
+            .map_err(|e| format!("Failed to update pet.json: {}", e))?;
 
         Ok(manifest)
     })();
@@ -326,7 +486,9 @@ fn extract_pet_zip(zip_path: &Path, dest: &Path) -> Result<PetManifest, String> 
 #[tauri::command]
 pub fn import_pet_zip(app: AppHandle, zip_path: String) -> Result<PetManifest, String> {
     let temp = pets_dir(&app)?.join("__import_tmp");
-    let manifest = extract_pet_zip(Path::new(&zip_path), &temp)?;
+    let zip_path = Path::new(&zip_path);
+    let fallback_id = zip_path.file_stem().and_then(|stem| stem.to_str());
+    let manifest = extract_pet_zip(zip_path, &temp, fallback_id)?;
     let final_id = sanitize_id(&manifest.id)?;
     let dest = pets_dir(&app)?.join(&final_id);
     if dest.exists() {
@@ -350,7 +512,9 @@ pub fn import_pet_zip_to_project(app: AppHandle, zip_path: String) -> Result<Pro
             .as_millis()
     );
     let tmp = pets.join(tmp_name);
-    let manifest = extract_pet_zip(Path::new(&zip_path), &tmp)?;
+    let zip_path = Path::new(&zip_path);
+    let fallback_id = zip_path.file_stem().and_then(|stem| stem.to_str());
+    let manifest = extract_pet_zip(zip_path, &tmp, fallback_id)?;
     let final_id = sanitize_id(&manifest.id)?;
     let dest = pets.join(&final_id);
     if dest.exists() {
@@ -370,6 +534,59 @@ pub fn get_project_pets_dir(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn get_default_project_pets_dir(app: AppHandle) -> Result<String, String> {
+    default_project_pets_dir(&app)?
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid default pets path".to_string())
+}
+
+#[tauri::command]
+pub fn set_project_pets_dir(app: AppHandle, target_dir: Option<String>) -> Result<String, String> {
+    let current = project_pets_dir(&app)?;
+    let target = match target_dir {
+        Some(path) if !path.trim().is_empty() => normalize_custom_pets_dir(&path)?,
+        _ => default_project_pets_dir(&app)?,
+    };
+
+    if current == target {
+        let config = PetStorageConfig {
+            custom_pets_dir: if target == default_project_pets_dir(&app)? {
+                None
+            } else {
+                Some(target.to_string_lossy().to_string())
+            },
+        };
+        write_storage_config(&app, &config)?;
+        return target
+            .to_str()
+            .map(|s| s.to_string())
+            .ok_or_else(|| "Invalid pets path".to_string());
+    }
+
+    fs::create_dir_all(&target).map_err(|e| format!("Failed to create target pets dir: {}", e))?;
+    copy_dir_all(&current, &target)?;
+
+    let config = PetStorageConfig {
+        custom_pets_dir: if target == default_project_pets_dir(&app)? {
+            None
+        } else {
+            Some(target.to_string_lossy().to_string())
+        },
+    };
+    write_storage_config(&app, &config)?;
+
+    if current.exists() && current != target {
+        let _ = fs::remove_dir_all(&current);
+    }
+
+    target
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid pets path".to_string())
+}
+
+#[tauri::command]
 pub async fn download_pet_to_project(
     app: AppHandle,
     pet_id: String,
@@ -386,18 +603,37 @@ pub async fn download_pet_to_project(
         return Err("Download URL must use http or https".to_string());
     }
 
+    let fallback_url = if url.path() == format!("/api/download/{pet_id}") {
+        let mut next = url.clone();
+        next.set_path(&format!("/api/pets/{pet_id}/download"));
+        Some(next)
+    } else {
+        None
+    };
+
     let zip_path = downloads_dir(&app)?.join(format!("{pet_id}.zip"));
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(DOWNLOAD_TIMEOUT_SECS))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     let mut response = client
-        .get(url)
+        .get(url.clone())
         .header(ACCEPT_ENCODING, "identity")
         .header(USER_AGENT, "LingoPet/0.2.4")
         .send()
         .await
         .map_err(|e| format!("Failed to download pet: {}", e))?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if let Some(next_url) = fallback_url {
+            response = client
+                .get(next_url)
+                .header(ACCEPT_ENCODING, "identity")
+                .header(USER_AGENT, "LingoPet/0.2.4")
+                .send()
+                .await
+                .map_err(|e| format!("Failed to download pet: {}", e))?;
+        }
+    }
     if !response.status().is_success() {
         return Err(format!("Download failed: HTTP {}", response.status()));
     }
@@ -443,9 +679,13 @@ pub async fn download_pet_to_project(
     tauri::async_runtime::spawn_blocking(move || {
         let pets = project_pets_dir(&app_for_import)?;
         let tmp = pets.join(format!(".tmp-{pet_id_for_import}"));
-        let manifest = extract_pet_zip(&zip_path_for_import, &tmp)?;
-        let final_id = sanitize_id(&manifest.id)?;
-        let dest = pets.join(&final_id);
+        let mut manifest = extract_pet_zip(&zip_path_for_import, &tmp, Some(&pet_id_for_import))?;
+        manifest.id = pet_id_for_import.clone();
+        let normalized_manifest = serde_json::to_string_pretty(&manifest)
+            .map_err(|e| format!("Failed to serialize pet.json: {}", e))?;
+        fs::write(tmp.join("pet.json"), format!("{normalized_manifest}\n"))
+            .map_err(|e| format!("Failed to update pet.json: {}", e))?;
+        let dest = pets.join(&pet_id_for_import);
         if dest.exists() {
             let _ = fs::remove_dir_all(&tmp);
             return project_pet_from_dir(dest);
@@ -461,8 +701,8 @@ fn project_pet_from_dir(dir: PathBuf) -> Result<ProjectPet, String> {
     let pet_json = dir.join("pet.json");
     let content =
         fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
-    let manifest: PetManifest =
-        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    let fallback_id = dir.file_name().and_then(|name| name.to_str());
+    let manifest = parse_pet_manifest(&content, fallback_id)?;
     let spritesheet_path = normalize_manifest_path(&manifest.spritesheet_path)?;
     let spritesheet = dir.join(spritesheet_path);
     Ok(ProjectPet {
@@ -519,8 +759,7 @@ pub fn read_project_pet_spritesheet(app: AppHandle, pet_id: String) -> Result<Ve
     let pet_json = dir.join("pet.json");
     let content =
         fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
-    let manifest: PetManifest =
-        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    let manifest = parse_pet_manifest(&content, Some(&pet_id))?;
     let spritesheet_path = normalize_manifest_path(&manifest.spritesheet_path)?;
     let spritesheet = dir.join(spritesheet_path);
     let bytes =
@@ -542,7 +781,7 @@ pub fn read_project_pet_manifest(app: AppHandle, pet_id: String) -> Result<PetMa
     let pet_json = dir.join("pet.json");
     let content =
         fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
-    serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))
+    parse_pet_manifest(&content, Some(&pet_id))
 }
 
 #[tauri::command]
@@ -568,8 +807,7 @@ pub fn save_project_pet_spritesheet(
     let pet_json = dir.join("pet.json");
     let content =
         fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
-    let mut manifest: PetManifest =
-        serde_json::from_str(&content).map_err(|e| format!("Invalid pet.json: {}", e))?;
+    let mut manifest = parse_pet_manifest(&content, Some(&pet_id))?;
 
     let file_name = "spritesheet_edited.webp";
     fs::write(dir.join(file_name), bytes)
@@ -709,7 +947,8 @@ pub fn list_pets(app: AppHandle) -> Result<Vec<PetManifest>, String> {
         if pet_json.exists() {
             let content =
                 fs::read_to_string(&pet_json).map_err(|e| format!("Failed to read pet.json: {}", e))?;
-            match serde_json::from_str::<PetManifest>(&content) {
+            let fallback_id = entry.file_name().to_string_lossy().to_string();
+            match parse_pet_manifest(&content, Some(&fallback_id)) {
                 Ok(manifest) => pets.push(manifest),
                 Err(e) => log::warn!("Skipping invalid pet at {:?}: {}", entry.path(), e),
             }

@@ -7,7 +7,7 @@
   "version": null,
   "animations": {
     "focus": {
-      "row": 11,
+      "row": 9,
       "frames": 4,
       "frameDurations": [
         300,
@@ -17,7 +17,7 @@
       ]
     },
     "merit": {
-      "row": 9,
+      "row": 11,
       "frames": 4,
       "frameDurations": [
         150,

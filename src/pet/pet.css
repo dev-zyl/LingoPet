@@ -1211,6 +1211,83 @@ body {
 
 /* ── Speech Bubble ── */
 
+.codex-status-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10002;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 132px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(75, 96, 82, 0.35);
+  border-radius: 8px;
+  background: rgba(250, 255, 245, 0.88);
+  color: #2e4632;
+  box-shadow: 0 6px 16px rgba(43, 69, 42, 0.16);
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
+.codex-status-badge[hidden] {
+  display: none;
+}
+
+.codex-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #72b255;
+  box-shadow: 0 0 0 3px rgba(114, 178, 85, 0.16);
+}
+
+#codex-status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-status-badge.offline {
+  color: #6a6255;
+  border-color: rgba(119, 109, 96, 0.3);
+  background: rgba(248, 244, 235, 0.78);
+}
+
+.codex-status-badge.offline .codex-status-dot {
+  background: #a69b8a;
+  box-shadow: 0 0 0 3px rgba(166, 155, 138, 0.16);
+}
+
+.codex-status-badge.warning {
+  color: #6a4218;
+  border-color: rgba(210, 135, 38, 0.42);
+  background: rgba(255, 244, 216, 0.9);
+}
+
+.codex-status-badge.warning .codex-status-dot {
+  background: #d78326;
+  box-shadow: 0 0 0 3px rgba(215, 131, 38, 0.18);
+}
+
+.codex-status-badge.danger {
+  color: #743238;
+  border-color: rgba(202, 74, 86, 0.42);
+  background: rgba(255, 236, 238, 0.9);
+}
+
+.codex-status-badge.danger .codex-status-dot {
+  background: #ca4a56;
+  box-shadow: 0 0 0 3px rgba(202, 74, 86, 0.18);
+}
+
 #pet-speech-bubble {
   position: absolute;
   bottom: calc(100% + 12px);

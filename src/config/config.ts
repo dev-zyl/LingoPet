@@ -169,6 +169,8 @@ const LS_PET_WINDOW_STATE_VERSION = "pet_window_state_version";
 const LS_PET_VOLUME = "pet-volume";
 const LS_SPEECH_BUBBLE_STYLE = "pet_speech_bubble_style";
 const LS_PET_GRAVITY_ENABLED = "pet_gravity_enabled";
+const LS_CODEX_MONITOR_ENABLED = "pet_codex_monitor_enabled";
+const LS_KEYBOARD_COMPANION_ENABLED = "pet_keyboard_companion_enabled";
 const BUILTIN_DORO_PET: ProjectPet = {
   id: "doro",
   displayName: "Doro",
@@ -181,12 +183,12 @@ const BUILTIN_DORO_PET: ProjectPet = {
   builtin: true,
   animations: {
     focus: {
-      row: 11,
+      row: 9,
       frames: 4,
       frameDurations: [300, 300, 300, 300],
     },
     merit: {
-      row: 9,
+      row: 11,
       frames: 4,
       frameDurations: [150, 150, 150, 300],
     },
@@ -291,6 +293,8 @@ const els = {
   settingsPetsPath: document.getElementById("settings-pets-path") as HTMLParagraphElement,
   openPetsDir: document.getElementById("open-pets-dir") as HTMLButtonElement | null,
   settingsOpenPetsDir: document.getElementById("settings-open-pets-dir") as HTMLButtonElement,
+  settingsChangePetsDir: document.getElementById("settings-change-pets-dir") as HTMLButtonElement,
+  settingsResetPetsDir: document.getElementById("settings-reset-pets-dir") as HTMLButtonElement,
   currentVersion: document.getElementById("current-version-text") as HTMLSpanElement,
   updateStatus: document.getElementById("update-status") as HTMLElement,
   checkUpdate: document.getElementById("check-update-btn") as HTMLButtonElement,
@@ -298,6 +302,8 @@ const els = {
   autostartToggle: document.getElementById("autostart-toggle") as HTMLInputElement,
   alwaysTopToggle: document.getElementById("always-top-toggle") as HTMLInputElement,
   gravityModeToggle: document.getElementById("gravity-mode-toggle") as HTMLInputElement,
+  keyboardCompanionToggle: document.getElementById("keyboard-companion-toggle") as HTMLInputElement,
+  codexMonitorToggle: document.getElementById("codex-monitor-toggle") as HTMLInputElement,
   petInstanceModeRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="pet-instance-mode"]')],
   petActivityLevelRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="pet-activity-level"]')],
   musicRhythmSyncRadios: [...document.querySelectorAll<HTMLInputElement>('input[name="music-rhythm-sync"]')],
@@ -1280,7 +1286,7 @@ function renderMarket(totalPets: number = getMarketTotalCount()): void {
 
       fragment.append(renderListRow({
         title: petTitle(pet),
-        subtitle: `${pet.version || "v1.0.0"} · 下载 ${marketDownloadCount(pet)}`,
+        subtitle: `ID: ${pet.slug} · ${pet.version || "v1.0.0"} · 下载 ${marketDownloadCount(pet)}`,
         spriteUrl: preview.url,
         lazySprite: preview.lazy,
         actions: [button],
@@ -2247,7 +2253,9 @@ function normalizeWorkshopImportItem(item: any, index: number): WorkshopItem {
   if (!petId) throw new Error(`第 ${index + 1} 条动作缺少 petId。`);
   if (!["focus", "music", "merit"].includes(actionType)) throw new Error(`第 ${index + 1} 条动作类型无效。`);
   if (!title) throw new Error(`第 ${index + 1} 条动作缺少标题。`);
-  if (![4, 8].includes(framesCount)) throw new Error(`第 ${index + 1} 条动作帧数必须为 4 或 8。`);
+  if (!Number.isInteger(framesCount) || framesCount < 1 || framesCount > ATLAS_COLS) {
+    throw new Error(`第 ${index + 1} 条动作帧数必须在 1-${ATLAS_COLS} 之间。`);
+  }
   if (!Number.isFinite(frameDuration) || frameDuration <= 0 || frameDuration > 2000) throw new Error(`第 ${index + 1} 条动作帧时长无效。`);
   if (!isAllowedActionImportImageUrl(imageUrl)) {
     throw new Error(`第 ${index + 1} 条动作图片地址无效。`);
@@ -2416,6 +2424,77 @@ async function loadPetsPath(): Promise<void> {
   }
 }
 
+async function prepareForPetsDirMigration(): Promise<void> {
+  localStorage.setItem(LS_ALLOW_MULTIPLE_PETS, "false");
+  setSavedSummonedPetIds([]);
+  await invoke("close_all_summoned_pet_windows");
+  await showPrimaryPetAs(BUILTIN_DORO_PET.id);
+  localStorage.setItem(LS_PET_ASSETS_VERSION, String(Date.now()));
+  await new Promise((resolve) => window.setTimeout(resolve, 350));
+}
+
+async function changePetsStorageDir(): Promise<void> {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "选择本地宠物存储目录",
+    });
+    if (!selected || Array.isArray(selected)) return;
+
+    const proceed = window.confirm(
+      "更换存储目录前会先将桌宠切换为默认 Doro，并迁移当前宠物资源。\n是否继续？"
+    );
+    if (!proceed) return;
+
+    els.settingsChangePetsDir.disabled = true;
+    els.settingsResetPetsDir.disabled = true;
+    els.settingsPetsPath.textContent = "正在切换到默认 Doro 并迁移资源...";
+
+    await prepareForPetsDirMigration();
+    const dir = await invoke<string>("set_project_pets_dir", { targetDir: selected });
+    localStorage.setItem(LS_PET_ASSETS_VERSION, String(Date.now()));
+    await loadProjectPets();
+    await loadPetsPath();
+    setStatus(els.mineStatus, `本地宠物目录已迁移到：${dir}`);
+  } catch (err) {
+    console.error(err);
+    els.settingsPetsPath.textContent = `迁移失败：${err}`;
+    window.alert(`更换存储目录失败：${err}`);
+  } finally {
+    els.settingsChangePetsDir.disabled = false;
+    els.settingsResetPetsDir.disabled = false;
+  }
+}
+
+async function resetPetsStorageDir(): Promise<void> {
+  try {
+    const defaultDir = await invoke<string>("get_default_project_pets_dir");
+    const proceed = window.confirm(
+      `恢复默认目录前会先将桌宠切换为默认 Doro，并迁移当前宠物资源。\n默认目录：${defaultDir}\n是否继续？`
+    );
+    if (!proceed) return;
+
+    els.settingsChangePetsDir.disabled = true;
+    els.settingsResetPetsDir.disabled = true;
+    els.settingsPetsPath.textContent = "正在恢复默认目录...";
+
+    await prepareForPetsDirMigration();
+    const dir = await invoke<string>("set_project_pets_dir", { targetDir: null });
+    localStorage.setItem(LS_PET_ASSETS_VERSION, String(Date.now()));
+    await loadProjectPets();
+    await loadPetsPath();
+    setStatus(els.mineStatus, `本地宠物目录已恢复为：${dir}`);
+  } catch (err) {
+    console.error(err);
+    els.settingsPetsPath.textContent = `恢复失败：${err}`;
+    window.alert(`恢复默认目录失败：${err}`);
+  } finally {
+    els.settingsChangePetsDir.disabled = false;
+    els.settingsResetPetsDir.disabled = false;
+  }
+}
+
 async function downloadPet(pet: MarketPet): Promise<void> {
   state.downloading.add(pet.slug);
   renderMarket();
@@ -2553,6 +2632,8 @@ async function loadSettings(): Promise<void> {
   els.autostartToggle.checked = await isEnabled().catch(() => false);
   els.alwaysTopToggle.checked = localStorage.getItem("pet-always-on-top") !== "false";
   els.gravityModeToggle.checked = localStorage.getItem(LS_PET_GRAVITY_ENABLED) !== "false";
+  els.keyboardCompanionToggle.checked = localStorage.getItem(LS_KEYBOARD_COMPANION_ENABLED) !== "false";
+  els.codexMonitorToggle.checked = localStorage.getItem(LS_CODEX_MONITOR_ENABLED) === "true";
   const isMultiple = allowMultiplePets();
   for (const radio of els.petInstanceModeRadios) {
     radio.checked = (radio.value === "party" && isMultiple) || (radio.value === "single" && !isMultiple);
@@ -2611,6 +2692,8 @@ els.refresh.addEventListener("click", () => {
 });
 els.openPetsDir?.addEventListener("click", () => void invoke("open_pet_folder", { petId: null }));
 els.settingsOpenPetsDir.addEventListener("click", () => void invoke("open_pet_folder", { petId: null }));
+els.settingsChangePetsDir.addEventListener("click", () => void changePetsStorageDir());
+els.settingsResetPetsDir.addEventListener("click", () => void resetPetsStorageDir());
 els.checkUpdate.addEventListener("click", () => void checkForAppUpdate());
 els.installUpdate.addEventListener("click", () => void installAppUpdate());
 els.addTagBtn.addEventListener("click", () => {
@@ -2716,6 +2799,12 @@ els.alwaysTopToggle.addEventListener("change", () => {
 });
 els.gravityModeToggle.addEventListener("change", () => {
   localStorage.setItem(LS_PET_GRAVITY_ENABLED, String(els.gravityModeToggle.checked));
+});
+els.keyboardCompanionToggle.addEventListener("change", () => {
+  localStorage.setItem(LS_KEYBOARD_COMPANION_ENABLED, String(els.keyboardCompanionToggle.checked));
+});
+els.codexMonitorToggle.addEventListener("change", () => {
+  localStorage.setItem(LS_CODEX_MONITOR_ENABLED, String(els.codexMonitorToggle.checked));
 });
 els.petInstanceModeRadios.forEach((radio) => {
   radio.addEventListener("change", async () => {
@@ -4921,6 +5010,47 @@ function workshopDisplayName(item: WorkshopItem): string {
   return item.title.replace(modePattern, "").trim() || item.title;
 }
 
+function workshopPetSearchTerms(item: WorkshopItem): string[] {
+  const displayName = workshopDisplayName(item);
+  return [...new Set([item.petId, displayName, displayName.toLowerCase()].map((term) => term.trim()).filter(Boolean))];
+}
+
+function findMarketPetForWorkshopItem(item: WorkshopItem, pets: MarketPet[]): MarketPet | null {
+  const itemPetId = item.petId.toLowerCase();
+  return pets.find((pet) => pet.slug.toLowerCase() === itemPetId)
+    || null;
+}
+
+async function fetchMarketPetForWorkshopItem(item: WorkshopItem): Promise<MarketPet | null> {
+  const cached = findMarketPetForWorkshopItem(item, state.marketPets);
+  if (cached) return cached;
+
+  for (const term of workshopPetSearchTerms(item)) {
+    const url = new URL("/api/pets", API_BASE);
+    url.searchParams.set("page", "1");
+    url.searchParams.set("limit", String(PAGE_SIZE));
+    url.searchParams.set("sort", state.sort);
+    url.searchParams.set("locale", "zh");
+    url.searchParams.set("q", term);
+
+    const data = await fetch(url, { cache: "no-store" }).then((resp) => {
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp.json();
+    });
+    const pets = Array.isArray(data.pets) ? data.pets as MarketPet[] : [];
+    const found = findMarketPetForWorkshopItem(item, pets);
+    if (found) {
+      const knownSlugs = new Set(state.marketPets.map((pet) => pet.slug));
+      for (const pet of pets) {
+        if (!knownSlugs.has(pet.slug)) state.marketPets.push(pet);
+      }
+      return found;
+    }
+  }
+
+  return null;
+}
+
 function groupWorkshopItems(items: WorkshopItem[]): WorkshopGroup[] {
   const buckets = new Map<string, { petId: string; firstIndex: number; byAction: Record<string, WorkshopItem[]> }>();
 
@@ -5203,37 +5333,11 @@ async function choosePetToApply(item: WorkshopItem): Promise<void> {
 
   let showVirtualItem = !exactLocalMatch;
   let marketPet: MarketPet | null = null;
+  let isResolvingMarketPet = false;
 
   if (showVirtualItem) {
-    marketPet = state.marketPets.find(p => p.slug.toLowerCase() === item.petId.toLowerCase()) || null;
-    if (!marketPet) {
-      fetch(new URL("/api/pets", API_BASE))
-        .then(resp => {
-          if (resp.ok) return resp.json();
-          throw new Error("API error");
-        })
-        .then(data => {
-          if (data && Array.isArray(data.pets)) {
-            state.marketPets = data.pets;
-            const found = state.marketPets.find(p => p.slug.toLowerCase() === item.petId.toLowerCase());
-            if (found) {
-              marketPet = found;
-              renderList(searchInput.value.trim().toLowerCase());
-            }
-          }
-        })
-        .catch(e => {
-          console.warn("创意工坊获取市场列表用于推荐下载时受阻：", e);
-        });
-    }
-    if (!marketPet) {
-      marketPet = {
-        slug: item.petId,
-        display_name: item.petId,
-        downloadUrl: `${API_BASE}/api/download/${item.petId}`,
-        spritesheetUrl: item.imageUrl
-      };
-    }
+    marketPet = findMarketPetForWorkshopItem(item, state.marketPets);
+    if (!marketPet) isResolvingMarketPet = true;
   }
 
   let petsWithScores = localPets.map((pet) => ({
@@ -5312,13 +5416,14 @@ async function choosePetToApply(item: WorkshopItem): Promise<void> {
     stopPreviewAnimations();
     list.replaceChildren();
 
-    const virtualMatched = showVirtualItem && marketPet && (
+    const virtualMatched = showVirtualItem && (
       !filterQuery ||
-      marketPet.slug.toLowerCase().includes(filterQuery) ||
-      (marketPet.display_name && marketPet.display_name.toLowerCase().includes(filterQuery))
+      item.petId.toLowerCase().includes(filterQuery) ||
+      workshopDisplayName(item).toLowerCase().includes(filterQuery) ||
+      Boolean(marketPet?.display_name?.toLowerCase().includes(filterQuery))
     );
 
-    if (virtualMatched && marketPet) {
+    if (virtualMatched) {
       const petRow = document.createElement("div");
       petRow.className = "workshop-apply-pet download-required";
 
@@ -5328,29 +5433,34 @@ async function choosePetToApply(item: WorkshopItem): Promise<void> {
       const nameEl = document.createElement("div");
       nameEl.className = "workshop-apply-pet-name";
       const petName = document.createElement("strong");
-      petName.textContent = marketPet.display_name || marketPet.slug;
-      nameEl.append(petName, createMatchBadge("原配 · 待下载", "pending"));
+      petName.textContent = marketPet?.display_name || workshopDisplayName(item);
+      nameEl.append(petName, createMatchBadge(marketPet ? "原配 · 待下载" : isResolvingMarketPet ? "原配 · 查找中" : "原配 · 未上架", "pending"));
 
       const idEl = document.createElement("div");
       idEl.className = "workshop-apply-pet-meta";
-      idEl.textContent = "下载原配桌宠后即可应用该动作";
+      idEl.textContent = marketPet
+        ? "下载原配桌宠后即可应用该动作"
+        : isResolvingMarketPet
+          ? "正在从市场查找原配桌宠..."
+        : "暂未在市场找到原配桌宠，可选择本地其他桌宠手动套用";
 
       infoBox.append(nameEl, idEl);
 
       const downloadBtn = document.createElement("button");
       downloadBtn.className = "primary-button workshop-download-button";
       downloadBtn.type = "button";
-      downloadBtn.textContent = "下载原配桌宠";
+      downloadBtn.textContent = marketPet ? "下载原配桌宠" : isResolvingMarketPet ? "查找中..." : "原配暂不可下载";
+      downloadBtn.disabled = !marketPet || isResolvingMarketPet;
 
       let isDownloading = false;
       downloadBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
+        if (!marketPet) return;
         if (isDownloading) return;
         isDownloading = true;
         downloadBtn.disabled = true;
         downloadBtn.textContent = "下载中...";
         try {
-          if (!marketPet) throw new Error("无法获取市场桌宠下载配置。");
           await invoke<ProjectPet>("download_pet_to_project", {
             petId: marketPet.slug,
             downloadUrl: marketDownloadUrl(marketPet),
@@ -5389,7 +5499,7 @@ async function choosePetToApply(item: WorkshopItem): Promise<void> {
         frames: item.framesCount,
         frameDurations: Array.from({ length: item.framesCount }, () => item.frameDuration),
       };
-      petRow.append(createAvatar(item.imageUrl, marketPet.display_name || marketPet.slug, actionPreview, item.framesCount), infoBox, downloadBtn);
+      petRow.append(createAvatar(item.imageUrl, marketPet?.display_name || item.petId, actionPreview, item.framesCount), infoBox, downloadBtn);
       list.append(petRow);
     }
 
@@ -5458,6 +5568,23 @@ async function choosePetToApply(item: WorkshopItem): Promise<void> {
   };
 
   renderList();
+
+  if (showVirtualItem && isResolvingMarketPet) {
+    void fetchMarketPetForWorkshopItem(item)
+      .then((found) => {
+        marketPet = found;
+        isResolvingMarketPet = false;
+        if (!found) {
+          console.warn(`创意工坊动作 ${item.petId} 未在市场中找到原配桌宠。`);
+        }
+        renderList(searchInput.value.trim().toLowerCase());
+      })
+      .catch((error) => {
+        isResolvingMarketPet = false;
+        console.warn("创意工坊查找原配桌宠失败：", error);
+        renderList(searchInput.value.trim().toLowerCase());
+      });
+  }
 
   searchInput.addEventListener("input", () => {
     renderList(searchInput.value.trim().toLowerCase());
@@ -5562,10 +5689,6 @@ async function applyCommunityActionToPet(item: WorkshopItem, pet: ProjectPet, op
     const index = state.projectPets.findIndex((p) => p.id === pet.id);
     if (index >= 0) state.projectPets[index] = updatedPet;
 
-    if (state.editorPet && state.editorPet.id === pet.id) {
-      void openSpriteEditor(updatedPet);
-    }
-
     if (!options.quiet) {
       showWorkshopSuccessDialog(
         "动作套用成功",
@@ -5654,12 +5777,13 @@ async function shareCurrentActionToCommunity(): Promise<void> {
     return;
   }
 
-  const framesCount = MODE_ACTION_PRESETS[action.key as ModeActionKey].frames;
-  const frames = action.frames.slice(0, framesCount);
-  if (!frames.every((frame) => frameHasContent(frame))) {
-    window.alert("请先在此动作导入并生成完毕横版帧图后，再进行分享。");
+  const contentFrames = action.frames.filter((frame) => frameHasContent(frame)) as HTMLCanvasElement[];
+  if (contentFrames.length === 0) {
+    window.alert("此动作还没有可分享的帧，请先导入或绘制至少一帧。");
     return;
   }
+  const framesCount = contentFrames.length;
+  const frames = contentFrames;
 
   const defaultTitle = `${state.editorPet.displayName} - ${action.name}`;
   const defaultAuthor = localStorage.getItem("workshop_author") || "";

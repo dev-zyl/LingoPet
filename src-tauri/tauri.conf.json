@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "LingoPet",
-  "version": "0.2.6",
+  "version": "1.0.0",
   "identifier": "com.lingopet.app",
   "build": {
     "frontendDist": "../dist",
@@ -41,7 +41,8 @@
         "enable": true,
         "scope": [
           "$APPDATA/pets/**",
-          "../pets/**"
+          "../pets/**",
+          "**"
         ]
       }
     }
