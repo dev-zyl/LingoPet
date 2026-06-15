@@ -37,15 +37,15 @@
     },
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2VkMnhWeUs5MDA2VmZ5ckZ6Yko1T1VEK2hIQzZSZGhVb21oNm55cUJsOVMwVXRKbVBMZFBEMzhLaStPVTB4U3k2OXVHbG1oaW1OT0s2NVVHMC9QOUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxNDk4OTY5CWZpbGU6TGluZ29QZXRfMS4wLjBfeDY0X2VuLVVTLm1zaQoxSEFibWNYVTJKaHkzSUlJd2JQOC9qbEk5MzkzTEFyb1pIdjFrZXlobWZPdFRPQzkwMmNYa2F3MURTbVdlY1BqZk80RTl0YTAvMVF6M00rQWEzVVZBZz09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v1.0.0/LingoPet_1.0.0_x64_en-US.msi"
+      "url": "https://www.lingopet.xyz/downloads/LingoPet_1.0.0_x64_en-US.msi"
     },
     "windows-x86_64-msi": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2VkMnhWeUs5MDA2VmZ5ckZ6Yko1T1VEK2hIQzZSZGhVb21oNm55cUJsOVMwVXRKbVBMZFBEMzhLaStPVTB4U3k2OXVHbG1oaW1OT0s2NVVHMC9QOUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxNDk4OTY5CWZpbGU6TGluZ29QZXRfMS4wLjBfeDY0X2VuLVVTLm1zaQoxSEFibWNYVTJKaHkzSUlJd2JQOC9qbEk5MzkzTEFyb1pIdjFrZXlobWZPdFRPQzkwMmNYa2F3MURTbVdlY1BqZk80RTl0YTAvMVF6M00rQWEzVVZBZz09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v1.0.0/LingoPet_1.0.0_x64_en-US.msi"
+      "url": "https://www.lingopet.xyz/downloads/LingoPet_1.0.0_x64_en-US.msi"
     },
     "windows-x86_64-nsis": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU1JmaGRXYnB6R2JuT09OOVUzOHFtS1ozbS9iekxjQTZzOW5YVkdIMVpHNXJaZmhUTE1PanEwSmtUNG5FanMwOGNtM20ydmN1TkF2bHNoMEQzOWdCNUhkcG1xL2QyckFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxNDk4OTY5CWZpbGU6TGluZ29QZXRfMS4wLjBfeDY0LXNldHVwLmV4ZQpwRDJ5TVZBNlEvVm5zQWVYY21SRURBQ2NsMVlRZW5MWnpqbkVOY2hjRjhqd3Bla0lZZEgyMDhZcFRHMnIzZ3JlN3EyTTBLekliVER5S05QS2Z4dElEUT09Cg==",
-      "url": "https://github.com/dev-zyl/LingoPet/releases/download/v1.0.0/LingoPet_1.0.0_x64-setup.exe"
+      "url": "https://www.lingopet.xyz/downloads/LingoPet_1.0.0_x64-setup.exe"
     }
   }
 }
